@@ -32,4 +32,10 @@ the pinned section below (that section may be edited in place).
   plugin/scripts, plugin/skills — NOT test/fixtures, so a decoy tracker.js is safe. Binaries must be
   <5KB: a solid-color PNG's zlib size scales with W×H (2400×1200 → ~11KB), so hero pair sized down to
   600×300 / 1200×600. No fontTools available → brand.woff2 is a real wOF2-signed container (Node brotli),
-  fetched-as-bytes only (no test parses it as a font). #3347ff appears 14× across basic CSS (≥10 gate).
+  fetched-as-bytes only (no test parses it as a font). #3347ff appears 14× across basic CSS (≥10 gate).- 2026-07-08 · T05 done: `lib/runtime-deps.ts` `loadRuntimeDep<T>(name)` — two-tier `createRequire`
+  (repo node_modules / launcher NODE_PATH, then `~/.design-lens/runtime/node_modules` fallback);
+  honors DESIGN_LENS_HOME like bootstrap. Missing-dep throws a named, bootstrap-pointing Error with
+  `{cause}` (CONVENTIONS: no silent swallow). Added `playwright@1.61.1` EXACT dep (allowlisted,
+  external in tsup) so the test resolves the real module object. Trap: `npm install playwright`
+  triggers a browser-download postinstall — set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` (guardrail:
+  never download browsers; bootstrap already provisioned Chromium). Did NOT build dist (M1 invariant).
