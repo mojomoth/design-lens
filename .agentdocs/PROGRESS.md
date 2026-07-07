@@ -21,3 +21,9 @@ the pinned section below (that section may be edited in place).
   requires node>=22 (EBADENGINE on our node 20) — pin `commander@^12` (engines >=18). Test drives it
   in-process via `exitOverride()`+`configureOutput()`; `--version` throws CommanderError{exitCode:0}
   after writing. Did NOT `npm run build` (would create dist/ → flips B10 red pre-T11 per M1 invariant).
+- 2026-07-08 · T03 done: `lib/static-server.ts`. Split into a PURE `resolveRequest(root,target,exists)`
+  + `contentTypeFor()` (unit-tested, binds NO port — spec 08 forbids listening servers in unit
+  tests) and the `startStaticServer()` node:http wrapper (for T21 serve + e2e global-setup, 127.0.0.1
+  only). Traversal guard uses `path.relative(root, resolved)` and fires 403 BEFORE `exists`; test uses
+  allExist=()=>true so a 403 proves the guard, not a missing file. Real server injects an isFile()
+  predicate → directories become 404, not read errors. Did NOT build dist (M1 invariant: B10 stays SKIP).
