@@ -8,18 +8,105 @@
 > test); every AC must be checkable with a shell command; genuinely optional work goes under
 > `## Deferred / Optional` and does NOT block completion.
 
+**Sequencing invariant (why M1 is unit-first, spine-last).** The gate `verify.sh` runs the sealed
+`e2e-assert.sh --m1` (B10) the moment `plugin/cli/dist/design-lens.cjs` exists, and the own e2e
+suite (B9) spawns that same bundle — so the built bundle and a spine that passes A1–A9,A15 must
+appear in the SAME green iteration. Therefore M1 builds each pure pipeline module (urlmap,
+css-rewrite, srcset, sanitize, report, manifest, slug, static-server, loader) with browser-free
+UNIT tests first (spec 08 §Unit-test surface, no bundle needed → B10 stays SKIP and B9 is green
+via `passWithNoTests` on the empty e2e project), then ONE integration task wires the Playwright capture (launch, stamp, CSSOM-walk serialize) around the
+already-tested modules, commits `dist/`, and turns B9+B10 green together. Post-M1 tasks may use
+e2e ACs freely (the bundle now exists). Every post-M1 task that changes clone behaviour MUST
+`npm run build` and commit the refreshed `dist/` so B9/B10 test current code. The empty e2e
+project is kept green pre-spine with vitest `passWithNoTests`.
+
 ## Milestone 1 — Scaffolding, toolchain & clone spine (M1)
 
-(plan loop fills this in)
+- [ ] T01 (P1) Scaffold `plugin/cli` with pinned/allowlisted deps, strict tsconfig, eslint flat config, tsup (cjs, playwright+adblocker external), vitest unit/e2e projects (e2e `passWithNoTests`, no `globalSetup` until fixtures land at T11), the exact npm scripts, plus `lib/slug` and its unit test | AC: `cd plugin/cli && npm run typecheck && npm run test && npm run e2e` exits 0 and `grep -oE '"(typecheck|test|e2e|build|verify)":' package.json | sort -u | wc -l` prints 5 | Spec: 01-packaging.md, 08-testing.md
+- [ ] T02 (P1) Add the commander CLI entry exposing `--version` locked to 0.1.0 | AC: `cd plugin/cli && npm run test` passes a unit test that runs the commander program with `['--version']` in-process and asserts it emits `0.1.0` | Spec: 00-product.md
+- [ ] T03 (P1) Implement `lib/static-server.ts` (ephemeral port 0, content types, 404, path-traversal rejection) with unit tests | AC: `cd plugin/cli && npm run test` passes static-server unit tests covering a content type, a 404, and a rejected `..` traversal | Spec: 08-testing.md
+- [ ] T04 (P1) Author the three own fixture sites `test/fixtures/sites/{basic,spa,banner}` with every marker spec 08 mandates | AC: `grep -q '@import' test/fixtures/sites/basic/style.css` and `grep -q 'rgb(1, 2, 3)' test/fixtures/sites/spa/index.html` and `grep -q 'cookie-banner' test/fixtures/sites/banner/index.html` all succeed | Spec: 09-fixture-contract.md
+- [ ] T05 (P1) Implement the runtime-dependency loader that require()s playwright/adblocker from local node_modules or `~/.design-lens/runtime` | AC: `cd plugin/cli && npm run test` passes a unit test asserting the loader resolves the playwright module object | Spec: 01-packaging.md
+- [ ] T06 (P1) Implement `localize/urlmap` (deterministic URL→`clone/assets/<host>/<path>` mapping) with ≥30 unit cases | AC: `cd plugin/cli && npm run test` passes ≥30 urlmap cases covering query strings, no-extension paths, `..` traversal, overlong segments, default-port and collision stability | Spec: 02-clone-engine.md
+- [ ] T07 (P1) Implement `localize/css-rewrite` (css-tree walk rewriting `url()`, nested `@import` chains, `@font-face src`, leaving `data:` untouched) with unit tests | AC: `cd plugin/cli && npm run test` passes css-rewrite unit tests for escaped `url()`, a nested `@import`, and an untouched `data:` URI | Spec: 02-clone-engine.md
+- [ ] T08 (P1) Implement `localize/srcset` parser tolerant of commas inside URLs, `w`/`x` and descriptorless candidates with unit tests | AC: `cd plugin/cli && npm run test` passes srcset unit tests including a data-URI candidate with a comma | Spec: 02-clone-engine.md
+- [ ] T09 (P1) Implement the cheerio sanitize pass (strip `<script>`, `on*`, `javascript:`, meta-refresh, noscript, IE conditionals) with one positive and one negative unit case per rule | AC: `cd plugin/cli && npm run test` passes sanitize unit tests asserting a `<script>` is stripped and a benign element is kept | Spec: 02-clone-engine.md
+- [ ] T10 (P1) Implement the `output/report` REPORT.md builder (six exact headings) and the project-root `manifest.json` builder (schema with `localPath` under `clone/assets/`, sha256, bytes) with unit tests | AC: `cd plugin/cli && npm run test` passes a report unit test asserting `## License & usage notice` and a manifest unit test asserting a `clone/assets/`-rooted localPath | Spec: 03-clone-format.md
+- [ ] T11 (P1) Wire the Playwright capture pipeline (launch, navigate/settle, ResourceStore, stamp `data-dl-id` incl. open shadow roots, own CSSOM-walk serialize, sanitize, localize, beautify, write `clone/` + empty `assets/dl-overrides.css` linked last + `manifest.json` + `REPORT.md`), commit `dist/`, and add the M1 own e2e | AC: `bash .harness/e2e-assert.sh --m1` exits 0 and `cd plugin/cli && npm run e2e` passes the M1 `clone basic`/`clone spa` tests and the unreachable-URL→exit-1 case | Spec: 02-clone-engine.md
 
 ## Milestone 2 — Clone fidelity (M2)
 
-## Milestone 3 — Analysis & inventory (M3)
+- [ ] T12 (P2) Swap in the `@percy/dom` serializer (canvas→data-URI img, shadow DOM→`<template shadowroot>`, live input value→attr) ensuring `data-dl-id` stamps survive | AC: `bash .harness/e2e-assert.sh --m1` still exits 0 and the own e2e `clone spa` finds a `data:image` img, `<template shadowroot`, and the JS-set input value | Spec: 02-clone-engine.md
+- [ ] T13 (P2) Add the scroll/lazy-load sweep that triggers IntersectionObserver images before serialization | AC: the own e2e `clone spa` asserts the lazy image is localized under `clone/assets/` and referenced by `src` | Spec: 02-clone-engine.md
+- [ ] T14 (P2) Localize both `srcset` candidates, refetching the variant not loaded at the 1440px capture viewport, recording `via` in the manifest | AC: the own e2e `clone basic` asserts both srcset variants are localized and the refetched one has `via: refetch` | Spec: 03-clone-format.md
+- [ ] T15 (P2) Block consent/cookie banners via `--remove-selector` and `@ghostery/adblocker-playwright` `--filter-list`, with adblocker match/cosmetic unit tests | AC: the own e2e `clone banner --remove-selector "#cookie-banner"` and `--filter-list …` both produce a clone with no cookie-banner element | Spec: 02-clone-engine.md
+- [ ] T16 (P2) Refetch CSS-discovered/cross-origin webfonts with a real browser UA (the sealed alt-port CDN mirror) | AC: the own e2e cross-origin-webfont case localizes the font under `clone/assets/` with a manifest `via` of `css-fetch` or `refetch` | Spec: 03-clone-format.md
+
+## Milestone 3 — Analysis, inventory & remaining commands (M3)
+
+- [ ] T17 (P2) Implement `tokens <dir>` (concat clone CSS → `@projectwallace/css-analyzer`, culori oklab color clustering AND typography family extraction → `tokens.json`) with unit tests | AC: `cd plugin/cli && npm run test` passes a tokens unit test where `#3347ff` is the dominant clustered color and the primary font family is captured, and the own e2e `tokens` on the basic clone reports both the brand color and its font family | Spec: 05-element-inventory.md
+- [ ] T18 (P3) Implement `inspect <dir>` (serve clone on ephemeral port, classify roles logo/nav-link/hero-heading/hero-image/cta) printing JSON to stdout only | AC: the own e2e asserts `inspect` on the basic clone returns roles logo, ≥3 nav-link, hero-heading, hero-image and cta | Spec: 05-element-inventory.md
+- [ ] T19 (P3) Reach full sealed-fixture parity once tokens and inspect exist | AC: `bash .harness/e2e-assert.sh --all` exits 0 (A1–A18) | Spec: 09-fixture-contract.md
+- [ ] T20 (P3) Implement the `screenshot` command (`--url/--width/--height/--out` and the three-PNG auto-emit at clone end via the ephemeral static render) | AC: the own e2e asserts a clone writes three PNGs under `screenshots/` each beginning with the `\x89PNG` signature and >1KB, and `screenshot --url … --width 390 --height 844 --out f.png` writes such a file | Spec: 02-clone-engine.md
+- [ ] T21 (P3) Implement `serve <dir>` and `verify <dir>` (verify checks index parseable, unique data-dl-id, dl-overrides linked last, manifest localPaths exist, inertness) | AC: the own e2e asserts `serve` returns 200 for `index.html`, `verify` exits 0 on a good clone and exits 1 on a clone with a duplicated data-dl-id | Spec: 00-product.md
 
 ## Milestone 4 — Skills & packaging
 
-## Milestone 5 — Hardening, install gates & docs
+- [ ] T22 (P3) Author the five portable `SKILL.md` files (clone-reference, reverse-design, inspect-elements, customize-clone, build-from-design) with only `name`/`description` frontmatter and `~/.design-lens/bin/design-lens` references | AC: each `plugin/skills/*/SKILL.md` has `name:`+`description:` and `grep -REl '[$]ARGUMENTS|[$][0-9]|[{][{]|CLAUDE_PLUGIN_ROOT' plugin/skills` prints nothing | Spec: 07-skills.md
+- [ ] T23 (P3) Ship the reverse-design `LENSES.md`, `templates/DESIGN.template.md` (12 numbered headings) and `templates/VARIATIONS.template.md` | AC: the DESIGN template contains all twelve headings from `## 1. First Impression` to `## 12. Reusable Principles` and the VARIATIONS template contains `## Variation` | Spec: 04-design-analysis.md
+- [ ] T24 (P3) Embed the verbatim `## Before you ship — brand checklist` heading in customize-clone and build-from-design SKILL.md | AC: `grep -c '## Before you ship — brand checklist'` equals 1 in each of the two SKILL.md files | Spec: 06-customization.md
+- [ ] T25 (P3) Author the dual plugin manifests and both marketplace JSONs (`.claude-plugin/`, `.codex-plugin/`, root `.claude-plugin/marketplace.json`, root `.agents/plugins/marketplace.json`) all at version 0.1.0 | AC: `claude plugin validate ./plugin --strict` exits 0 and all four JSON files parse with matching version 0.1.0 | Spec: 01-packaging.md
+- [ ] T26 (P3) Author `plugin/scripts/bootstrap.sh` (SessionStart hook, provisions `~/.design-lens`, pins playwright 1.61.1, idempotent) and `hooks.json` | AC: `bash .harness/verify.sh --install` passes I1 and I2 (bootstrap provisions `~/.design-lens` and its fast-path is ≤5s) | Spec: 01-packaging.md
+
+## Milestone 5 — Hardening, ethics & docs
+
+- [ ] T27 (P3) Populate clone ethics artifacts: manifest `remote[]{url,reason,referencedBy}`, `source.robotsDisallowed`, REPORT `## Capture results` with font hosts, and the provenance comment version equal to `--version` | AC: the own e2e asserts a remote-only reference appears in `manifest.remote[]` with a reason and REPORT.md contains `## Capture results` | Spec: 10-ethics.md
+- [ ] T28 (P3) Write the root `README.md` dual-install blocks, `plugin/README.md` with `## Fair use & respect for designers`, and `plugin/NOTICE.md` | AC: `grep -i 'plugin marketplace add' README.md && grep -i 'codex plugin marketplace add' README.md` succeed and `plugin/README.md` + `plugin/NOTICE.md` exist | Spec: 10-ethics.md
+- [ ] T29 (P3) Rebuild and commit the reproducible `dist/design-lens.cjs` bundle and `package-lock.json` so the strict gate sees no drift | AC: `cd plugin/cli && npm run build && git diff --quiet -- dist` exits 0 | Spec: 01-packaging.md
 
 ## Deferred / Optional (does NOT block completion)
 
+- (none) — every task above is load-bearing for `verify.sh --strict`; speculative flags
+  (`serve --open`, a `screenshot --mobile` alias) are intentionally omitted, since the generic
+  `screenshot --url/--width/--height/--out` flags already cover the mobile-evidence flow.
+
 ## Planning log (append one block per plan iteration: critic verdicts, blockers raised → resolutions)
+
+### Iteration 1
+Blockers raised → resolutions:
+- **Feasibility #1 / Verification #1 (BLOCKER): dist materialized before the spine → B10 red for
+  ~8 iterations → STUCK.** Restructured M1 to unit-first: pure modules (T01–T10) are browser-free
+  and need no bundle, so B9/B10 stay SKIP; the browser pipeline, `dist/`, own e2e and sealed
+  `--m1` all land together in one green iteration (T11). Added the "Sequencing invariant" preamble
+  and `passWithNoTests` on the empty e2e project. No protected-doc edit needed — this matches
+  spec 08's unit-test surface and the harness's "SKIP on what doesn't exist yet" contract.
+- **Feasibility #2 (MAJOR/BLOCKER): manifest location contradicts the sealed gate.** Genuine
+  spec contradiction (sealed A7 reads `<projectDir>/manifest.json` with project-rooted localPath;
+  spec 03 said `clone/manifest.json`/`assets/…`). Resolved via spec-drift protocol: added ADR-010
+  and edited `specs/03-clone-format.md` (location line + schema `localPath` → `clone/assets/…`) in
+  this same commit. T10's manifest builder and its AC now encode the corrected shape.
+- **Verification #2 / Feasibility #5 (MAJOR): T01 empty e2e suite fails B9.** T01 now configures
+  `passWithNoTests` and its AC runs `npm run e2e` (exits 0).
+- **Simplicity #1/#2/#3 (MAJOR/MINOR): speculative surface + under-specified screenshot flags.**
+  Deleted deferred `serve --open` and `screenshot --mobile`; folded the required
+  `--url/--width/--height/--out` flags and non-empty-PNG assertion into T20.
+- **Feasibility #3 / Simplicity #5 (MINOR): `dl-overrides.css` unowned.** Now explicit in T11
+  (created empty, linked last) and checked by T21's `verify`.
+- **Feasibility #4 (MINOR): three-PNG auto-emit unscheduled.** Folded into T20.
+- **Verification #4 (MINOR): screenshot AC gameable by empty files.** T20 AC now asserts
+  non-empty PNGs.
+- **Verification #5 (MINOR): non-chosen srcset variant refetch unowned.** T14 now explicitly
+  refetches the variant not loaded at the capture viewport (A14).
+
+Round-2 review of the revised plan — all three prior blockers confirmed resolved. Advisory nits
+applied this same iteration: T17 now names typography extraction (sealed A17 checks the `Fixture
+Sans` family, not only colors); spec-03 schema heading corrected to match ADR-010; T20 PNG
+assertion strengthened to the `\x89PNG` signature + >1KB; T02 version test made behavioral; T01
+notes `globalSetup` is omitted until fixtures land. Remaining critic notes (T29/T02 merge
+candidates, per-iteration committed-dist lag) were judged acceptable and left as-is.
+
+Round-2 final verdicts (verbatim):
+VERDICT: APPROVE (feasibility critic)
+VERDICT: APPROVE (simplicity critic)
+VERDICT: APPROVE (verification critic)
+</content>

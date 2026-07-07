@@ -99,3 +99,20 @@ Format for new entries (append at the bottom, never edit existing ones):
   sealed `verify.sh`); one task per iteration; auto-commit every iteration; test-count ratchet
   against `ralph-last-green`; stuck detection; cost/iteration caps; Codex leg optional.
 - Consequences: all loop memory lives in git + `.agentdocs/`; the loop is resumable.
+
+## ADR-010: `manifest.json` lives at the project-dir root, not inside `clone/`
+- Date: 2026-07-08 · Status: accepted (spec-drift, planning iteration)
+- Context: the sealed gate `.harness/e2e-assert.sh` (assertion A7, immutable ground truth) reads
+  the manifest at `<projectDir>/manifest.json` and resolves each `resources[].localPath` from
+  `<projectDir>` (`fs.existsSync(path.join(projectDir, localPath))`). `specs/03-clone-format.md`
+  (line 47 + schema) instead placed the manifest at `clone/manifest.json` with `localPath`
+  relative to `clone/` (`assets/…`). Following the spec would put the file where A7 does not look
+  and would make every `localPath` fail the join — the spine could never pass `--m1`. The two
+  cannot both be satisfied; the sealed gate wins (ADR-006).
+- Decision: `manifest.json` is written at the project-dir root (a sibling of `clone/`, like
+  `REPORT.md` and `tokens.json`); every `resources[].localPath` is rooted at the project dir and
+  therefore begins `clone/assets/…`. `specs/03-clone-format.md` is edited in this same commit to
+  match (location line + schema `localPath`).
+- Consequences: changes `.agentdocs/specs/03-clone-format.md`. Resource references *inside*
+  `clone/index.html` and rewritten CSS remain relative to `clone/` (`assets/…`) — unchanged; only
+  the manifest's own recorded `localPath` (relative to the project dir) gains the `clone/` prefix.

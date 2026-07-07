@@ -44,8 +44,11 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
   style-edit surface (ADR-002); the CLI MUST never write rules into it.
 - `clone/assets/custom/` — reserved for user-supplied replacement assets. Created on demand by
   the customize-clone skill; `clone` MUST NOT create it.
-- `clone/manifest.json` — provenance record, schema below. It is the ONLY file inside `clone/`
-  permitted to contain absolute URLs of the capture origin (mirrors gate AC-07). All resource
+- `manifest.json` — provenance record at the **project-dir root** (a sibling of `clone/`, like
+  `REPORT.md`/`tokens.json`; NOT inside `clone/`), schema below. This is what sealed gate AC-07
+  reads: it exists at `<projectDir>/manifest.json` and each `resources[].localPath` resolves from
+  the project dir (ADR-010). It is the only manifest permitted to record absolute URLs of the
+  capture origin. All resource
   references in `clone/index.html` and rewritten CSS (src, srcset, `link href`, `url()`,
   poster, …) MUST be either a relative path under `assets/`, a `data:`/`mailto:`/fragment URL,
   or an absolute remote URL enumerated in `manifest.remote[]`. Exception: `<a href>` page
@@ -79,14 +82,14 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 `0.1.0` is the locked plugin/CLI version (AC-10); `<sourceUrl>` is the URL as given;
 `<capturedAt>` matches `manifest.source.capturedAt`.
 
-### `clone/manifest.json` schema (provenance record — NOT an edit manifest, ADR-002)
+### `manifest.json` schema (project-dir root — provenance record, NOT an edit manifest, ADR-002)
 ```json
 {
   "version": 1,
   "tool": { "name": "design-lens", "version": "0.1.0", "playwright": "<exact pinned version>" },
   "source": { "url": "…", "finalUrl": "…", "title": "…", "capturedAt": "ISO8601",
               "viewport": { "width": 1440, "height": 900 }, "userAgent": "…", "robotsDisallowed": false },
-  "resources": [ { "localPath": "assets/…", "originalUrl": "…", "contentType": "…", "bytes": 0, "sha256": "…", "via": "network|css-fetch|refetch" } ],
+  "resources": [ { "localPath": "clone/assets/…", "originalUrl": "…", "contentType": "…", "bytes": 0, "sha256": "…", "via": "network|css-fetch|refetch" } ],
   "remote":    [ { "url": "…", "reason": "cross-origin-iframe|oversize|media-skipped|fetch-failed", "referencedBy": "…" } ],
   "stats": { "elementsStamped": 0, "styleRules": 0, "fonts": 0, "images": 0, "cssFiles": 0, "warnings": 0 }
 }
