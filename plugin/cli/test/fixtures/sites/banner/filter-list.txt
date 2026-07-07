@@ -1,0 +1,6 @@
+! Design Lens banner fixture filter list (adblock syntax).
+! Exactly three non-comment rules, consumed by the adblocker unit tests (--filter-list):
+!   1. a cosmetic hide rule, 2. a network block rule, 3. an exception rule.
+###cookie-banner
+/tracker.js$script
+@@/hero.png$image

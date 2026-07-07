@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPA Fixture — Design Lens</title>
+</head>
+<body>
+<!-- EMPTY body in source: every visible node below is built by JS at render time. This forces the
+     serializer to walk the live DOM/CSSOM rather than the source outerHTML (spec 08 spa e2e). -->
+<script>
+  (function () {
+    // 1) CSSOM injection via a CONSTRUCTED sheet on document.adoptedStyleSheets. outerHTML never
+    //    sees this rule; a CSSOM-walking serializer must. Marker text is Chromium-normalized.
+    var sheet = new CSSStyleSheet();
+    sheet.insertRule('.dl-spa-marker { color: rgb(1, 2, 3) }', 0);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+
+    var app = document.createElement('main');
+    app.className = 'app';
+
+    var marker = document.createElement('p');
+    marker.className = 'dl-spa-marker';
+    marker.textContent = 'Injected via adoptedStyleSheets';
+    app.appendChild(marker);
+
+    // 2) Painted canvas — bitmap lives only in GPU memory, lost by outerHTML capture.
+    var canvas = document.createElement('canvas');
+    canvas.id = 'chart';
+    canvas.width = 120;
+    canvas.height = 80;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3347ff';
+    ctx.fillRect(0, 0, 120, 80);
+    app.appendChild(canvas);
+
+    // 3) Custom element with an OPEN shadow root and slotted light-DOM content.
+    class DlWidget extends HTMLElement {
+      connectedCallback() {
+        if (this.shadowRoot) return;
+        var root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = '<style>::slotted(*){font-weight:700}</style><section><slot></slot></section>';
+      }
+    }
+    if (!customElements.get('dl-widget')) customElements.define('dl-widget', DlWidget);
+    var widget = document.createElement('dl-widget');
+    widget.innerHTML = '<span class="slotted">Slotted content</span>';
+    app.appendChild(widget);
+
+    // 4) Form input whose value is set by JS after load (property, not attribute).
+    var form = document.createElement('form');
+    var input = document.createElement('input');
+    input.id = 'email';
+    input.type = 'text';
+    form.appendChild(input);
+    app.appendChild(form);
+    input.value = 'set-by-js@example.com';
+
+    // 5) IntersectionObserver lazy image three viewport-heights down; real src set on intersect.
+    var spacer = document.createElement('div');
+    spacer.style.height = '300vh';
+    app.appendChild(spacer);
+
+    var lazy = document.createElement('img');
+    lazy.id = 'lazy-io';
+    lazy.alt = 'Lazy-loaded image';
+    lazy.setAttribute('data-src', 'img/lazy.png');
+    app.appendChild(lazy);
+
+    var io = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          lazy.src = lazy.getAttribute('data-src');
+          obs.unobserve(lazy);
+        }
+      });
+    });
+    io.observe(lazy);
+
+    document.body.appendChild(app);
+  })();
+</script>
+</body>
+</html>

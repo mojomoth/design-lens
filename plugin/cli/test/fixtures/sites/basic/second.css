@@ -1,0 +1,55 @@
+/* basic fixture — @import target. Proves the css-rewrite @import chain is followed and
+   localized (spec 08 basic e2e). Also carries more #3347ff for the ≥10 tokens gate. */
+.features {
+  padding: 64px 32px;
+  background: #f7f9fc;
+}
+
+.features h2 {
+  text-align: center;
+  color: #3347ff;
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.card {
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #3347ff;
+  border-radius: 8px;
+}
+
+.card h3 {
+  margin-top: 0;
+  color: #3347ff;
+}
+
+.panel {
+  min-height: 160px;
+  color: #ffffff;
+}
+
+.site-footer {
+  padding: 40px 32px;
+  background: #101828;
+  color: #ffffff;
+}
+
+.site-footer a {
+  color: #3347ff;
+}
+
+.code-sample {
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 16px;
+  overflow-x: auto;
+  border-left: 4px solid #3347ff;
+}

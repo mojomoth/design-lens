@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banner Fixture — Design Lens</title>
+  <link rel="icon" href="img/favicon.png">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Fixed-position consent banner — the deterministic --remove-selector / cosmetic-rule target. */
+    #cookie-banner {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 16px 32px;
+      background: #101828;
+      color: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="logo" src="img/logo.svg" alt="Fixture logo"></a>
+    <nav class="nav" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="top">
+      <h1>Ship faithful clones</h1>
+      <p class="tagline">A deterministic fixture that proves localization end to end.</p>
+      <a class="btn" href="#features">Get started</a>
+      <img class="hero-img" src="img/hero.png"
+           srcset="img/hero.png 1x, img/hero@2x.png 2x"
+           width="600" height="300" alt="Product hero screenshot">
+    </section>
+
+    <section class="features" id="features">
+      <h2>Features</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Localized assets</h3>
+          <p>Stylesheets, fonts, and images are captured and rewritten to local paths.</p>
+        </article>
+        <article class="card">
+          <h3>Inert output</h3>
+          <p>Scripts and event handlers are stripped so the clone is a photograph, not a program.</p>
+        </article>
+        <article class="card">
+          <h3>Design tokens</h3>
+          <p>The dominant brand color and typography are extracted for reuse.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel-section" id="pricing">
+      <div class="panel" style="background-image:url(img/bg.png)">
+        <h2>Inline background</h2>
+        <p>This panel proves inline <code>style</code> url() localization.</p>
+      </div>
+    </section>
+
+    <section class="code-section">
+      <h2>Byte-preserved code</h2>
+      <pre class="code-sample">function greet(name) {
+	return "Hello, " + name;  // tab-indented line, two spaces before this comment
+
+}</pre>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Design Lens banner fixture.</p>
+    <small>For deterministic tests only — not a real product.</small>
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+    </ul>
+  </footer>
+
+  <div id="cookie-banner" class="cookie-banner">
+    <span>We use cookies to measure engagement.</span>
+    <button type="button" id="cookie-accept">Accept</button>
+  </div>
+
+  <!-- Decoy third-party tracker: stripped by sanitize and blocked by /tracker.js$script. -->
+  <script src="tracker.js"></script>
+</body>
+</html>

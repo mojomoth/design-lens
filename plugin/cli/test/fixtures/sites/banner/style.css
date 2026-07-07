@@ -1,0 +1,95 @@
+/* basic fixture — main stylesheet. Exercises the localizer: @import chain, url() asset,
+   @font-face local woff2, and the brand color #3347ff repeated for the tokens gate. */
+@import "second.css";
+
+@font-face {
+  font-family: "Brand Sans";
+  src: url(fonts/brand.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  --brand: #3347ff;
+  --ink: #101828;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Brand Sans", system-ui, -apple-system, sans-serif;
+  color: #101828;
+  background: #ffffff;
+  line-height: 1.5;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  border-bottom: 2px solid #3347ff;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+}
+
+.nav {
+  display: flex;
+  gap: 24px;
+}
+
+.nav a {
+  color: #3347ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.nav a:hover {
+  color: #3347ff;
+}
+
+.hero {
+  background-image: url(img/bg.png);
+  background-size: cover;
+  padding: 80px 32px;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: 48px;
+  margin: 0 0 16px;
+  color: #3347ff;
+}
+
+.hero .tagline {
+  font-size: 20px;
+  color: #101828;
+}
+
+.hero-img {
+  width: 100%;
+  max-width: 960px;
+  height: auto;
+  margin-top: 32px;
+}
+
+.btn {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 14px 28px;
+  background: #3347ff;
+  color: #ffffff;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.btn:focus {
+  outline: 3px solid #3347ff;
+}
