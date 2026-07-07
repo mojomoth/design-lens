@@ -1,0 +1,8 @@
+node_modules/
+.design-lens/
+.harness/logs/
+.harness/status/
+.harness/STOP
+coverage/
+*.log
+.DS_Store

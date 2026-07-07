@@ -1,0 +1,12 @@
+{
+  "name": "design-lens",
+  "owner": { "name": "zipida", "email": "work@zipida.com" },
+  "plugins": [
+    {
+      "name": "design-lens",
+      "source": "./plugin",
+      "description": "Clone reference designs into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
+      "category": "design"
+    }
+  ]
+}

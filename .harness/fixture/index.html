@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture Studio — sealed clone target</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="slow.css">
+</head>
+<body>
+  <div id="consent" class="cookie-banner">
+    <p>We use cookies to make this fixture deliciously deterministic.</p>
+    <button id="consent-accept">Accept</button>
+  </div>
+
+  <header class="site-header">
+    <a href="/" class="logo" aria-label="Fixture Studio home">
+      <svg width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="Fixture Studio logo">
+        <rect x="2" y="2" width="28" height="28" rx="6" fill="#ff5c35"/>
+        <circle cx="16" cy="16" r="7" fill="#0a2540"/>
+      </svg>
+      <span class="logo-text">Fixture Studio</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="/index.html">Home</a>
+      <a href="/about.html">About</a>
+      <a href="/index.html#gallery">Gallery</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Design that proves itself.</h1>
+      <p class="tagline">A deterministic playground for the design-lens clone engine.</p>
+      <a class="btn-primary" href="/about.html">Start exploring</a>
+      <img
+        class="hero-img"
+        src="assets/hero-800.png"
+        srcset="assets/hero-800.png 800w, assets/hero-1600.png 1600w"
+        sizes="(max-width: 900px) 100vw, 900px"
+        alt="Abstract hero artwork" width="800" height="400">
+    </section>
+
+    <section id="gallery" class="gallery">
+      <h2>Gallery</h2>
+      <img src="assets/gallery-1.svg" alt="Gallery piece one" width="200" height="150">
+      <img src="assets/gallery-2.svg" alt="Gallery piece two" width="200" height="150">
+      <img src="assets/gallery-3.svg" alt="Gallery piece three" width="200" height="150">
+      <img id="lazy-io" data-src="assets/lazy.svg" alt="Lazily revealed artwork" width="200" height="150">
+    </section>
+
+    <section class="cards">
+      <h2>Cards</h2>
+      <dl-card><span slot="title">Shadow one</span><p>Slotted body content of card one.</p></dl-card>
+      <dl-card><span slot="title">Shadow two</span><p>Slotted body content of card two.</p></dl-card>
+    </section>
+
+    <section class="metrics">
+      <h2>Metrics</h2>
+      <canvas id="chart" width="300" height="120" aria-label="Painted metrics chart"></canvas>
+    </section>
+
+    <section class="signup">
+      <h2>Stay in the loop</h2>
+      <form>
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="you@example.com">
+        <button type="button">Subscribe</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>© Fixture Studio. A sealed test target for design-lens.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

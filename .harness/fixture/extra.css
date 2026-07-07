@@ -1,0 +1,7 @@
+/* Pulled in via @import from style.css — proves recursive CSS localization. */
+.cards dl-card { display: inline-block; width: 260px; margin-right: 16px; vertical-align: top; }
+.metrics canvas { border: 1px solid #0a2540; border-radius: 8px; }
+.js-injected { font-style: italic; }
+.gallery h2 { border-left: 4px solid #ff5c35; padding-left: 12px; }
+.signup { background: #f4f6fa; border-top: 3px solid #ff5c35; }
+.signup label { color: #0a2540; font-weight: 600; }

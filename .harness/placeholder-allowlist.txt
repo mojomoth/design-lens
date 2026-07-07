@@ -1,0 +1,4 @@
+placeholder-allowlist.txt
+placeholder="you@example.com"
+placeholder SVG
+generate a placeholder

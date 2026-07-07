@@ -1,0 +1,102 @@
+@import "extra.css";
+
+@font-face {
+  font-family: "Fixture Sans";
+  src: url(http://127.0.0.1:4631/fonts/fixture.woff2) format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --ink: #0a2540;
+  --accent: #ff5c35;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Fixture Sans", system-ui, sans-serif;
+  color: #0a2540;
+  background: #ffffff;
+}
+
+.cookie-banner {
+  position: fixed;
+  inset: auto 0 0 0;
+  background: #0a2540;
+  color: #ffffff;
+  padding: 16px 24px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  z-index: 999;
+}
+.cookie-banner button {
+  background: #ff5c35;
+  color: #ffffff;
+  border: 0;
+  padding: 8px 20px;
+  border-radius: 4px;
+}
+
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 48px;
+  border-bottom: 1px solid #e6e9ef;
+}
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.logo-text { font-weight: 700; font-size: 18px; color: #0a2540; }
+.site-header nav a {
+  margin-left: 24px;
+  color: #0a2540;
+  text-decoration: none;
+  font-size: 15px;
+}
+.site-header nav a:hover { color: #ff5c35; }
+
+.hero {
+  padding: 96px 48px 64px;
+  text-align: center;
+  background-image: url(assets/bg.svg);
+  background-size: cover;
+}
+.hero h1 { font-size: 56px; margin: 0 0 16px; color: #0a2540; }
+.tagline { font-size: 20px; color: #4a5b73; margin: 0 0 32px; }
+.btn-primary {
+  display: inline-block;
+  background: #ff5c35;
+  color: #ffffff;
+  padding: 14px 36px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.hero-img { max-width: 100%; height: auto; margin-top: 48px; border-radius: 12px; }
+
+.gallery, .cards, .metrics, .signup { padding: 64px 48px; }
+.gallery h2, .cards h2, .metrics h2, .signup h2 { color: #0a2540; font-size: 32px; }
+.gallery img { margin-right: 16px; border-radius: 8px; }
+
+.signup input {
+  padding: 10px 14px;
+  border: 1px solid #0a2540;
+  border-radius: 4px;
+  margin: 0 8px;
+}
+.signup button {
+  background: #ff5c35;
+  color: #ffffff;
+  border: 0;
+  padding: 10px 24px;
+  border-radius: 4px;
+}
+
+.site-footer {
+  padding: 32px 48px;
+  border-top: 1px solid #e6e9ef;
+  color: #4a5b73;
+  font-size: 14px;
+}

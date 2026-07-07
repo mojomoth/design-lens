@@ -1,0 +1,3 @@
+/* Served with an 800 ms delay by serve.mjs — exercises the engine's load/settle discipline.
+   If the clone lacks this rule, the engine captured the DOM before stylesheets finished. */
+.site-footer p::after { content: " (slow.css applied)"; color: #4a5b73; }
