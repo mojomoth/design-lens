@@ -220,3 +220,19 @@ the pinned section below (that section may be edited in place).
   the default gate you run constantly. T20/T21 touch the clone-end pipeline and the clone's structure —
   run `bash .harness/e2e-assert.sh --all` (or `--strict`) explicitly before committing, not just `verify.sh`.
   Remaining: T20 screenshot, T21 serve/verify, then M4 (skills/packaging) and M5 (ethics/docs/flags).
+- 2026-07-08 · T20 done: `capture/browser.ts` + `capturePng`/`renderScreenshot`/`renderScreenshotOfDir` (BARE browser, not
+  `launchCapture` — its ResourceStore would buffer every response body for pixels we discard); `commands/screenshot.ts`
+  (pure `resolveTarget`/`resolveScreenshotFlags`/`defaultOutFile` + I/O); clone auto-emits the three PNGs. 348 tests
+  (ratchet 330). Gate green; `--all` still A1–A18 PASS. SPLIT `output/writer.ts` into `writeCloneTree`+`writePng`+
+  `writeProjectDocs` (was one untested `writeClone`): `clone-full.png` photographs the WRITTEN clone ⇒ tree lands first,
+  and the re-render can add a warning that `manifest.json`/`REPORT.md` embed as `stats.warnings` ⇒ docs render LAST.
+  TRAPS: (1) `lazyLoadSweep` leaves the page scrolled (it rewinds, settle.ts:138) — a viewport shot on a scrolled page
+  frames the FOOTER and still passes every "is it a PNG" check ⇒ `capturePng` always `scrollTo(0,0)`; verify by EYE.
+  (2) shots run AFTER refetch + one more `drainResponses()`: a full-page shot expands the viewport, triggering lazy
+  loads that would race the `store.has()` missing-checks or land after browser close. (3) `document.fonts.ready` is
+  load-bearing — a shot right after `load` records FALLBACK font metrics, a silent lie; bounded in-page by
+  `Promise.race` so a dead CDN costs 5s. (4) `lib: ["ES2022"]`, no DOM ⇒ `document.fonts` needs `/// <reference
+  lib="dom" />` (settle.ts escapes it only because playwright's types pull DOM in). (5) `--url` must reject non-http(s)
+  or `file:///etc/passwd` gets painted into a PNG. MANUAL-RUN TRAP: an ad-hoc `clone` outside vitest downloads the
+  consent list from the LIVE web unless `DESIGN_LENS_HOME` has a seeded `cache/filterlists/fanboy-cookiemonster.txt`.
+  Remaining: T21 serve/verify, then M4 (skills/packaging) and M5 (ethics/docs/flags).

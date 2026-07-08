@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 /**
  * Launch headless Chromium and start capturing every response into a {@link ResourceStore}.
  *
@@ -9,12 +10,18 @@
  * thrown (a redirect/opaque response has no readable body). Callers MUST `await drainResponses()`
  * once the page has settled, then close the browser.
  *
- * Spec: specs/02-clone-engine.md §1 (Launch).
+ * This module also owns the read-only counterpart: {@link renderScreenshot} and
+ * {@link renderScreenshotOfDir} launch a BARE browser (no capture wiring, no relaxed web security)
+ * purely to paint a page and hand back PNG bytes. They back both the `screenshot` command and the
+ * `clone-full.png` fidelity re-render at the end of `clone` (spec 02 §M3).
+ *
+ * Spec: specs/02-clone-engine.md §1 (Launch), §M3 (Screenshots).
  */
 
 import type { Browser, BrowserContext, Page, Response } from 'playwright';
 
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
+import { startStaticServer } from '../lib/static-server.js';
 import { ResourceStore } from '../localize/resource-store.js';
 
 /**
@@ -118,4 +125,101 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
       }
     },
   };
+}
+
+/** How long to wait for webfonts to resolve before shooting; a slow CDN must not hang the shot. */
+const FONTS_READY_TIMEOUT_MS = 5_000;
+
+/** Everything that shapes one PNG. All times are milliseconds. */
+export interface RenderScreenshotOptions {
+  viewport: { width: number; height: number };
+  deviceScaleFactor: number;
+  /** Capture the whole scrollable document rather than just the viewport. */
+  fullPage: boolean;
+  /** `page.goto` budget. */
+  navigationTimeoutMs: number;
+  /** Quiet time after `load` + webfont readiness, for late reveal work. */
+  settleMs: number;
+}
+
+/**
+ * Wait for the page to be *paintable*: webfonts resolved, then a short quiet period.
+ *
+ * Without the `document.fonts.ready` wait a shot taken right after `load` shows fallback font
+ * metrics — the exact thing a design study must not record. The in-page `Promise.race` bounds it:
+ * a webfont that never arrives costs {@link FONTS_READY_TIMEOUT_MS}, not the whole run.
+ */
+async function waitForPaint(page: Page, settleMs: number): Promise<void> {
+  try {
+    await page.evaluate(
+      (ms: number) =>
+        Promise.race([
+          document.fonts.ready.then(() => undefined),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms)),
+        ]),
+      FONTS_READY_TIMEOUT_MS,
+    );
+  } catch {
+    // A detached frame or a document with no Font Loading API: shoot what is there rather than fail.
+  }
+  await page.waitForTimeout(settleMs);
+}
+
+/**
+ * Screenshot the page as it currently stands.
+ *
+ * Rewinds to the top first: `capture/settle.ts#lazyLoadSweep` scrolls the document to the bottom to
+ * trip IntersectionObserver images, and although it scrolls back, a non-full-page shot taken on any
+ * scrolled page would frame the FOOTER and silently pass every "is it a PNG" assertion. The rewind
+ * is a no-op on an unscrolled page, so it costs nothing to always do it.
+ */
+export async function capturePng(page: Page, fullPage: boolean): Promise<Buffer> {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  return page.screenshot({ fullPage, type: 'png' });
+}
+
+/**
+ * Launch a bare browser, paint `url`, and return the PNG bytes. The browser is always closed.
+ *
+ * Deliberately NOT `launchCapture`: that one wires a ResourceStore that would read and buffer every
+ * response body, and relaxes web security to mirror cross-origin assets. A screenshot needs neither
+ * — it wants the bytes the pixels, not the network.
+ */
+export async function renderScreenshot(url: string, options: RenderScreenshotOptions): Promise<Buffer> {
+  const { chromium } = loadRuntimeDep<PlaywrightModule>('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      viewport: options.viewport,
+      deviceScaleFactor: options.deviceScaleFactor,
+    });
+    const page = await context.newPage();
+    // Before any navigation, so a reveal animation is frozen at its final state rather than mid-fade.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(url, { waitUntil: 'load', timeout: options.navigationTimeoutMs });
+    await waitForPaint(page, options.settleMs);
+    return await capturePng(page, options.fullPage);
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Serve `dir` on an ephemeral loopback port, paint its `index.html`, and return the PNG bytes.
+ *
+ * This is how `clone-full.png` proves fidelity: the clone is re-rendered FROM DISK exactly as a
+ * browser would see it, so a broken asset path shows up as a hole in the picture. The server is
+ * closed in a `finally`; {@link renderScreenshot} has already closed the browser by then, which is
+ * the required order — Chromium's sockets must be released before the server they point at goes away.
+ */
+export async function renderScreenshotOfDir(
+  dir: string,
+  options: RenderScreenshotOptions,
+): Promise<Buffer> {
+  const server = await startStaticServer(dir);
+  try {
+    return await renderScreenshot(server.url('/index.html'), options);
+  } finally {
+    await server.close();
+  }
 }

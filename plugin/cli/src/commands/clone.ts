@@ -12,10 +12,14 @@
  *   5. refetch references the render never requested — unused srcset variants and CSS-discovered
  *      assets such as unused `@font-face` faces (localize/fetch-missing) — the last stage that
  *      needs the browser (its request client carries the real Chromium UA)
+ *   5b. shoot `original-viewport.png` + `original-full.png` off the LIVE page — the last thing the
+ *       browser is used for, since the page dies with it (spec 02 §M3)
  *   6. sanitize to an inert document (localize/html-rewrite)
  *   7. localize every captured reference to `assets/…` (localize/localize)
  *   8. beautify HTML + every localized stylesheet (output/beautify)
- *   9. write `clone/` + empty `dl-overrides.css` + `manifest.json` + `REPORT.md` (output/*)
+ *   9. write `clone/` + empty `dl-overrides.css` (output/writer)
+ *   9b. re-render the WRITTEN clone from disk → `screenshots/clone-full.png` (the fidelity check)
+ *   10. write `manifest.json` + `REPORT.md` — LAST, because `stats.warnings` must count 9b's failures
  *
  * I/O discipline (guardrails / spec 02): human progress → stderr, the single result JSON → stdout.
  * The browser is ALWAYS closed (a `finally`), so a fatal navigation error still lets the process
@@ -31,7 +35,7 @@ import path from 'node:path';
 
 import type { Command } from 'commander';
 
-import { launchCapture } from '../capture/browser.js';
+import { capturePng, launchCapture, renderScreenshotOfDir } from '../capture/browser.js';
 import {
   applyConsentBlocking,
   createConsentBlocker,
@@ -62,10 +66,17 @@ import {
   type ManifestStats,
 } from '../output/manifest.js';
 import { buildReport, type CaptureRow } from '../output/report.js';
-import { writeClone } from '../output/writer.js';
+import { screenshotPath, writeCloneTree, writePng, writeProjectDocs } from '../output/writer.js';
 import { baseSlug, nextFreeSlug } from '../lib/slug.js';
 import { PLAYWRIGHT_PIN } from '../lib/pins.js';
 import { VERSION } from '../version.js';
+
+/**
+ * `page.goto` budget for the `clone-full.png` re-render. Not drawn from `--timeout`: that budget is
+ * the LIVE capture's, and it is typically exhausted by the time we get here. The clone is a handful
+ * of local files on loopback, so anything slower than this is a real failure, not a slow network.
+ */
+const CLONE_RERENDER_TIMEOUT_MS = 30_000;
 
 /** Fully-parsed, defaulted clone options (strings from commander are already converted here). */
 export interface CloneRunOptions {
@@ -156,6 +167,10 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   let robotsDisallowed: boolean;
   let consentBlocking: ConsentBlockingStatus = 'disabled';
   let cosmeticSelectors: () => string[] = () => [];
+  // Held in memory across the browser teardown: the project dir does not exist until the tree is
+  // written, and these are pictures of a page that will no longer exist by then.
+  let originalViewportPng: Buffer | undefined;
+  let originalFullPng: Buffer | undefined;
   try {
     // Consent blocking (optional, spec 02 §M2) — armed between launch and navigate so the very
     // first document's requests are already filtered. Any failure to obtain or parse a list is a
@@ -286,6 +301,23 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       const detail = err instanceof Error ? err.message : String(err);
       capture.warnings.push(`refetch of uncaptured resources failed: ${detail}`);
     }
+
+    // Screenshots of the LIVE page (spec 02 §M3, spec 03 §Directory tree). This is the last use of
+    // the browser: the page dies in the `finally` below, so the bytes are held in memory and written
+    // after the clone tree lands. A shot failure degrades to a warning — every byte of the clone is
+    // already captured, and a missing PNG must not throw away a good clone (degradation ladder).
+    //
+    // Taken AFTER the refetch stage so a full-page shot (Chromium expands the viewport to take it)
+    // cannot race the `store.has()` checks that decide what is missing. Any responses the expansion
+    // does trigger are drained below, before the browser closes and the store is read.
+    try {
+      originalViewportPng = await capturePng(capture.page, false);
+      originalFullPng = await capturePng(capture.page, true);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      capture.warnings.push(`original screenshots failed: ${detail}`);
+    }
+    await capture.drainResponses();
   } finally {
     await capture.browser.close();
   }
@@ -309,8 +341,6 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   const provenance = `<!-- Cloned by design-lens v${VERSION} at ${capturedAt} for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`;
   const html = `${provenance}\n${beautifyHtml(localized.html)}\n`;
 
-  const warnings = capture.warnings.length;
-
   const resources: ManifestResource[] = localized.assets.map((asset) =>
     resourceEntry(asset.body, {
       assetPath: asset.assetPath,
@@ -319,6 +349,40 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       via: asset.via,
     }),
   );
+
+  // --- Write, then photograph what was written, THEN record. ------------------------------------
+  // `manifest.json`/`REPORT.md` carry `stats.warnings`, and the clone re-render below can add one,
+  // so the provenance documents are rendered last. Otherwise a failed re-render would be announced
+  // on stdout but absent from the manifest that claims to describe this capture.
+  writeCloneTree({ projectDir, html, assets: localized.assets });
+
+  // Write failures here are fatal (an output-write failure, spec 02 §Error handling); a MISSING
+  // buffer just means the shot already degraded to a warning above.
+  if (originalViewportPng !== undefined) {
+    writePng(screenshotPath(projectDir, 'original-viewport.png'), originalViewportPng);
+  }
+  if (originalFullPng !== undefined) {
+    writePng(screenshotPath(projectDir, 'original-full.png'), originalFullPng);
+  }
+
+  // The fidelity check: re-render the clone FROM DISK, exactly as a browser sees it, so a broken
+  // asset path shows up as a hole in the picture. Spec 03 is explicit that a failure here is a
+  // `warnings[]` entry, never fatal — the clone itself is already on disk and valid.
+  try {
+    const cloneFullPng = await renderScreenshotOfDir(path.join(projectDir, 'clone'), {
+      viewport: opts.viewport,
+      deviceScaleFactor: opts.dsf,
+      fullPage: true,
+      navigationTimeoutMs: CLONE_RERENDER_TIMEOUT_MS,
+      settleMs: opts.settleMs,
+    });
+    writePng(screenshotPath(projectDir, 'clone-full.png'), cloneFullPng);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    capture.warnings.push(`clone re-render screenshot failed: ${detail}`);
+  }
+
+  const warnings = capture.warnings.length;
 
   const stats: ManifestStats = {
     elementsStamped,
@@ -365,13 +429,7 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     verify: 'Not run during clone; run `design-lens verify <projectDir>` (M3).',
   });
 
-  writeClone({
-    projectDir,
-    html,
-    assets: localized.assets,
-    manifestJson: manifestJson(manifest),
-    reportMarkdown,
-  });
+  writeProjectDocs({ projectDir, manifestJson: manifestJson(manifest), reportMarkdown });
 
   process.stderr.write(
     `design-lens: wrote ${resources.length} asset(s) to ${projectDir} (${warnings} warning(s))\n`,
