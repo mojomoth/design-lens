@@ -10,6 +10,7 @@
 
 import { Command } from 'commander';
 import { VERSION } from './version.js';
+import { registerCloneCommand } from './commands/clone.js';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -18,5 +19,6 @@ export function buildProgram(): Command {
     .description('Clone a reference site into an editable local mirror.')
     // Long flag only (spec 00-product lists `--version`); prints VERSION then exits 0.
     .version(VERSION, '--version', 'print the design-lens version and exit');
+  registerCloneCommand(program);
   return program;
 }

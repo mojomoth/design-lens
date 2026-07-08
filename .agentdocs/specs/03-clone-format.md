@@ -77,10 +77,12 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 ## Interfaces & contracts
 ### Provenance comment (line 1 of `clone/index.html`, exact template)
 ```html
-<!-- Cloned by design-lens v0.1.0 from <sourceUrl> at <capturedAt ISO-8601>. For private design study and derivation only — see ../REPORT.md -->
+<!-- Cloned by design-lens v0.1.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->
 ```
-`0.1.0` is the locked plugin/CLI version (AC-10); `<sourceUrl>` is the URL as given;
-`<capturedAt>` matches `manifest.source.capturedAt`.
+`0.1.0` is the locked plugin/CLI version (AC-10); `<capturedAt>` matches
+`manifest.source.capturedAt`. The raw source URL is intentionally NOT embedded here — the sealed
+A4 assertion forbids the capture host (e.g. `127.0.0.1`) anywhere inside `clone/`, so the source
+URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`), ADR-011.
 
 ### `manifest.json` schema (project-dir root — provenance record, NOT an edit manifest, ADR-002)
 ```json

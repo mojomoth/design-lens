@@ -85,3 +85,15 @@ the pinned section below (that section may be edited in place).
   are content not literal text, so I render a real capture table / remote list / fidelity counters.
   manifestJson = 2-space JSON + trailing newline (keeps committed-dist diff clean). 18 unit tests
   (139 total). Did NOT build dist (M1 invariant: B10 stays SKIP until T11 wires the pipeline).
+- 2026-07-08 · T11 done: `commands/clone.ts` orchestrates the M1 spine (launch→settle→robots→stamp→
+  serialize→sanitize→localize→beautify→write) + `registerCloneCommand`; browser closed in `finally`
+  so a fatal goto still exits (unreachable-URL→exit 1). dist BUILT & committed. Traps: (1) tsup bundle
+  was 2.70 MB > B2c's 2 MB gate → enabled `minify:true` (deterministic) → 1.6 MB, but that surfaced
+  (2) css-tree's ESM `lib/data-patch.js` does a CJS `require('../data/patch.json')` esbuild leaves as
+  runtime `__require` → bundle crashed on load; fix = alias `css-tree`→its all-CJS entry so the JSON
+  inlines (2.05 MB, ~50 KB under the gate — watch this in T12's percy embed). (3) SPEC-DRIFT ADR-011:
+  sealed A4 forbids `127.0.0.1` in clone/, but urlmap host `127.0.0.1-4630`, the provenance sourceUrl,
+  and the CORS-blocked (`net::ERR_FAILED`) alt-port webfont all violated it. Fixes: slug urlmap host
+  (dots→`-`, updated T06 tests), drop sourceUrl from provenance (now in manifest/REPORT), launch
+  Chromium `--disable-web-security`+`bypassCSP` so the cross-origin font is captured at render (A15).
+  e2e hooks need `hookTimeout` (real Chromium > 10 s default). All 153 tests + `--m1` green.

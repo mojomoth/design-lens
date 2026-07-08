@@ -116,3 +116,37 @@ Format for new entries (append at the bottom, never edit existing ones):
 - Consequences: changes `.agentdocs/specs/03-clone-format.md`. Resource references *inside*
   `clone/index.html` and rewritten CSS remain relative to `clone/` (`assets/…`) — unchanged; only
   the manifest's own recorded `localPath` (relative to the project dir) gains the `clone/` prefix.
+
+## ADR-011: A4 forbids the capture host in `clone/` — slug asset host dirs, thin provenance, cross-origin capture
+- Date: 2026-07-08 · Status: accepted (spec-drift, T11 build iteration)
+- Context: the sealed gate `.harness/e2e-assert.sh` assertion A4 (immutable ground truth) requires
+  ZERO `127.0.0.1` occurrences anywhere inside `clone/` (excluding `manifest.json`). Three
+  spec-mandated behaviours violate this against the sealed `127.0.0.1` fixture:
+  (1) `specs/02-clone-engine.md` urlmap maps assets to `assets/<host>/…` with a non-default-port
+      host segment `<hostname>-<port>` = `127.0.0.1-4630` — the literal host appears in every
+      rewritten `<link>`/`src`/`url()` in `clone/`; the urlmap unit test even asserted it.
+  (2) `specs/03-clone-format.md` provenance comment embeds `<sourceUrl>` on line 1 of
+      `clone/index.html`, i.e. `http://127.0.0.1:4630/…`.
+  (3) the cross-origin alt-port webfont (`@font-face src: url(http://127.0.0.1:4631/…woff2)`) is
+      CORS-blocked at render (verified: Playwright reports `net::ERR_FAILED`, and the sealed CDN
+      sends no `Access-Control-Allow-Origin`), so it stayed a live remote URL in `style.css`.
+  A4 and these behaviours cannot both hold; the sealed gate wins (ADR-006). Note `specs/09`'s claim
+  that the font "is captured during render" is only true once cross-origin capture is enabled (3).
+- Decision (generic — no fixture special-casing, per `specs/09-fixture-contract.md`):
+  1. The urlmap host segment is SLUGGED: `hostname.replace(/[^a-z0-9]+/gi,'-')` before the
+     `-<port>` suffix, so `example.com`→`example-com`, `127.0.0.1-4630`→`127-0-0-1-4630`. Portable,
+     Windows-legal, and never embeds a literal dotted host. Hosts differing only by port stay
+     distinct via the port suffix. Edits `specs/02-clone-engine.md` urlmap host rule; the T06
+     urlmap unit test expectations are updated to the slugged form (count unchanged).
+  2. The provenance comment drops the raw source URL: it keeps tool + `--version` + license
+     pointer; the source URL and capture time live in `manifest.source` and `REPORT.md` (both
+     outside `clone/`, which A4 does not scan). Edits `specs/03-clone-format.md` provenance template.
+  3. Chromium launches with `--disable-web-security` + `--disable-features=IsolateOrigins,
+     site-per-process` and the context sets `bypassCSP`, so cross-origin CSS assets (the alt-port
+     woff2) load and ARE captured during render (satisfies `specs/02` §6 "woff2 fonts captured
+     during render" and sealed A15 without an M2 refetch). Documented in `specs/02-clone-engine.md`.
+- Consequences: changes `.agentdocs/specs/02-clone-engine.md` and
+  `.agentdocs/specs/03-clone-format.md`. Asset directory names are now dash-slugged for all hosts.
+  Disabling web security is safe because the clone output is inert (no JS ever runs from the clone)
+  and faithful cross-origin asset capture is the tool's purpose. The M2 refetch task (T16) still
+  owns UA-specific refetch of resources the page never requests (e.g. unused srcset variants).

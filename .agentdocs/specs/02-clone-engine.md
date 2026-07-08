@@ -36,7 +36,11 @@ Stages run in this order; each stage is one module with unit tests.
 1. **Launch** (`capture/browser.ts`) — Chromium headless via `loadRuntimeDep('playwright')`;
    context with `--viewport` (default 1440×900), `--dsf` (default 1), real default Chromium UA
    unless `--user-agent`; `page.emulateMedia({ reducedMotion: 'reduce' })` MUST be set BEFORE
-   navigation (freezes reveal animations at final state). Resource capture starts immediately:
+   navigation (freezes reveal animations at final state). Chromium launches with
+   `--disable-web-security` (+ `--disable-features=IsolateOrigins,site-per-process`) and the
+   context sets `bypassCSP` so cross-origin CSS assets — notably a CORS-unheadered CDN webfont —
+   load and are captured at render instead of failing `net::ERR_FAILED` (ADR-011). Resource
+   capture starts immediately:
    `page.on('response')` → `localize/resource-store.ts` records
    `{url, status, contentType, body: Buffer}`; body-read failures are tolerated and recorded as
    warnings, never thrown.
@@ -158,8 +162,11 @@ so rewriting may precede fetching; the pipeline resolves fetches before the fina
 `contentType` is known when needed).
 - Normalize first: resolve against the owning document/stylesheet URL; lowercase scheme + host;
   drop default port and fragment.
-- Map to `assets/<host>/<pathname>`. Non-default port ⇒ host segment `<hostname>-<port>`
-  (colon is illegal on Windows; the two fixture hosts differ only by port and MUST NOT collide).
+- Map to `assets/<host>/<pathname>`. The host segment is SLUGGED — `hostname` with every run of
+  non-`[a-z0-9]` characters collapsed to `-` (`example.com`→`example-com`, `127.0.0.1`→`127-0-0-1`)
+  — then a non-default port is appended as `-<port>` (colon is illegal on Windows; the literal
+  host must never appear in `clone/` per sealed A4, ADR-011). The two fixture hosts differ only by
+  port (`127-0-0-1-4630` vs `127-0-0-1-4631`) and MUST NOT collide.
 - Empty or trailing-slash path ⇒ append `index`.
 - Missing extension ⇒ append one inferred from contentType (`text/css`→`.css`,
   `font/woff2`→`.woff2`, `image/png`→`.png`, `image/svg+xml`→`.svg`, `image/jpeg`→`.jpg`,

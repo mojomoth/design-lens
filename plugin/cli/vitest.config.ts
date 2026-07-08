@@ -22,7 +22,10 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['test/e2e/**/*.test.ts'],
+          // A real Chromium launch + navigate + settle takes well over vitest's 10s hook default;
+          // clone runs happen in beforeAll, so the hook budget must match the test budget.
           testTimeout: 120_000,
+          hookTimeout: 120_000,
         },
       },
     ],

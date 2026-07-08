@@ -12,30 +12,30 @@ function sha8(input: string): string {
 // two sealed fixture CDNs (differ only by port) would collide and clones would overwrite assets.
 describe('localPathFor — host segment', () => {
   it('maps a simple asset URL under assets/<host>/<path>', () => {
-    expect(localPathFor('http://example.com/img/logo.png')).toBe('assets/example.com/img/logo.png');
+    expect(localPathFor('http://example.com/img/logo.png')).toBe('assets/example-com/img/logo.png');
   });
 
   it('lowercases the host (URL parser normalizes case)', () => {
-    expect(localPathFor('http://EXAMPLE.COM/a.png')).toBe('assets/example.com/a.png');
+    expect(localPathFor('http://EXAMPLE.COM/a.png')).toBe('assets/example-com/a.png');
   });
 
   it('drops the default http port 80', () => {
-    expect(localPathFor('http://example.com:80/a.png')).toBe('assets/example.com/a.png');
+    expect(localPathFor('http://example.com:80/a.png')).toBe('assets/example-com/a.png');
   });
 
   it('drops the default https port 443', () => {
-    expect(localPathFor('https://example.com:443/a.png')).toBe('assets/example.com/a.png');
+    expect(localPathFor('https://example.com:443/a.png')).toBe('assets/example-com/a.png');
   });
 
   it('encodes a non-default port as <hostname>-<port> (colon is illegal on Windows)', () => {
-    expect(localPathFor('http://example.com:8080/a.png')).toBe('assets/example.com-8080/a.png');
+    expect(localPathFor('http://example.com:8080/a.png')).toBe('assets/example-com-8080/a.png');
   });
 
   it('keeps the two fixture CDN hosts (differ only by port) distinct — no collision', () => {
     const a = localPathFor('http://127.0.0.1:4630/f.woff2');
     const b = localPathFor('http://127.0.0.1:4631/f.woff2');
-    expect(a).toBe('assets/127.0.0.1-4630/f.woff2');
-    expect(b).toBe('assets/127.0.0.1-4631/f.woff2');
+    expect(a).toBe('assets/127-0-0-1-4630/f.woff2');
+    expect(b).toBe('assets/127-0-0-1-4631/f.woff2');
     expect(a).not.toBe(b);
   });
 });
@@ -45,19 +45,19 @@ describe('localPathFor — host segment', () => {
 // (a directory) and the write step would fail or clobber.
 describe('localPathFor — index fallback', () => {
   it('appends index for an empty path (unknown html contentType → .bin)', () => {
-    expect(localPathFor('http://example.com', 'text/html')).toBe('assets/example.com/index.bin');
+    expect(localPathFor('http://example.com', 'text/html')).toBe('assets/example-com/index.bin');
   });
 
   it('appends index for a bare root path "/"', () => {
-    expect(localPathFor('http://example.com/')).toBe('assets/example.com/index.bin');
+    expect(localPathFor('http://example.com/')).toBe('assets/example-com/index.bin');
   });
 
   it('appends index for a trailing-slash directory path', () => {
-    expect(localPathFor('http://example.com/docs/')).toBe('assets/example.com/docs/index.bin');
+    expect(localPathFor('http://example.com/docs/')).toBe('assets/example-com/docs/index.bin');
   });
 
   it('preserves a nested path unchanged', () => {
-    expect(localPathFor('http://example.com/a/b/c/d.css')).toBe('assets/example.com/a/b/c/d.css');
+    expect(localPathFor('http://example.com/a/b/c/d.css')).toBe('assets/example-com/a/b/c/d.css');
   });
 });
 
@@ -66,43 +66,43 @@ describe('localPathFor — index fallback', () => {
 // asset with the wrong (or `.bin`) extension and break MIME-sensitive consumers.
 describe('localPathFor — extension inference', () => {
   it('keeps an existing extension and ignores contentType', () => {
-    expect(localPathFor('http://x.com/a.png', 'text/css')).toBe('assets/x.com/a.png');
+    expect(localPathFor('http://x.com/a.png', 'text/css')).toBe('assets/x-com/a.png');
   });
 
   it('infers .css from text/css when the path has no extension', () => {
-    expect(localPathFor('http://x.com/style', 'text/css')).toBe('assets/x.com/style.css');
+    expect(localPathFor('http://x.com/style', 'text/css')).toBe('assets/x-com/style.css');
   });
 
   it('infers .woff2 from font/woff2', () => {
-    expect(localPathFor('http://x.com/brand', 'font/woff2')).toBe('assets/x.com/brand.woff2');
+    expect(localPathFor('http://x.com/brand', 'font/woff2')).toBe('assets/x-com/brand.woff2');
   });
 
   it('infers .png from image/png', () => {
-    expect(localPathFor('http://x.com/logo', 'image/png')).toBe('assets/x.com/logo.png');
+    expect(localPathFor('http://x.com/logo', 'image/png')).toBe('assets/x-com/logo.png');
   });
 
   it('infers .svg from image/svg+xml', () => {
-    expect(localPathFor('http://x.com/icon', 'image/svg+xml')).toBe('assets/x.com/icon.svg');
+    expect(localPathFor('http://x.com/icon', 'image/svg+xml')).toBe('assets/x-com/icon.svg');
   });
 
   it('infers .jpg from image/jpeg', () => {
-    expect(localPathFor('http://x.com/hero', 'image/jpeg')).toBe('assets/x.com/hero.jpg');
+    expect(localPathFor('http://x.com/hero', 'image/jpeg')).toBe('assets/x-com/hero.jpg');
   });
 
   it('infers .webp from image/webp', () => {
-    expect(localPathFor('http://x.com/pic', 'image/webp')).toBe('assets/x.com/pic.webp');
+    expect(localPathFor('http://x.com/pic', 'image/webp')).toBe('assets/x-com/pic.webp');
   });
 
   it('falls back to .bin for an unknown contentType', () => {
-    expect(localPathFor('http://x.com/data', 'application/octet-stream')).toBe('assets/x.com/data.bin');
+    expect(localPathFor('http://x.com/data', 'application/octet-stream')).toBe('assets/x-com/data.bin');
   });
 
   it('falls back to .bin when no contentType is supplied', () => {
-    expect(localPathFor('http://x.com/data')).toBe('assets/x.com/data.bin');
+    expect(localPathFor('http://x.com/data')).toBe('assets/x-com/data.bin');
   });
 
   it('strips contentType parameters before lookup (text/css; charset=utf-8 → .css)', () => {
-    expect(localPathFor('http://x.com/style', 'text/css; charset=utf-8')).toBe('assets/x.com/style.css');
+    expect(localPathFor('http://x.com/style', 'text/css; charset=utf-8')).toBe('assets/x-com/style.css');
   });
 });
 
@@ -111,11 +111,11 @@ describe('localPathFor — extension inference', () => {
 // overwrite each other and the clone would serve a stale variant.
 describe('localPathFor — query folding', () => {
   it('folds a query into __q-<8hex> BEFORE the extension', () => {
-    expect(localPathFor('http://x.com/app.css?v=2')).toBe(`assets/x.com/app__q-${sha8('v=2')}.css`);
+    expect(localPathFor('http://x.com/app.css?v=2')).toBe(`assets/x-com/app__q-${sha8('v=2')}.css`);
   });
 
   it('folds the query before the inferred extension when the path has none', () => {
-    expect(localPathFor('http://x.com/app?v=2', 'text/css')).toBe(`assets/x.com/app__q-${sha8('v=2')}.css`);
+    expect(localPathFor('http://x.com/app?v=2', 'text/css')).toBe(`assets/x-com/app__q-${sha8('v=2')}.css`);
   });
 
   it('gives two URLs differing only by query distinct paths', () => {
@@ -127,7 +127,7 @@ describe('localPathFor — query folding', () => {
   });
 
   it('does not fold an empty query (trailing "?")', () => {
-    expect(localPathFor('http://x.com/a.png?')).toBe('assets/x.com/a.png');
+    expect(localPathFor('http://x.com/a.png?')).toBe('assets/x-com/a.png');
   });
 });
 
@@ -136,27 +136,27 @@ describe('localPathFor — query folding', () => {
 // escape the clone directory (arbitrary file write). These are the load-bearing safety cases.
 describe('localPathFor — traversal & sanitization', () => {
   it('collapses a mid-path ".." segment', () => {
-    expect(localPathFor('http://x.com/a/b/../c.png')).toBe('assets/x.com/a/c.png');
+    expect(localPathFor('http://x.com/a/b/../c.png')).toBe('assets/x-com/a/c.png');
   });
 
   it('skips a "." current-directory segment', () => {
-    expect(localPathFor('http://x.com/a/./b.png')).toBe('assets/x.com/a/b.png');
+    expect(localPathFor('http://x.com/a/./b.png')).toBe('assets/x-com/a/b.png');
   });
 
   it('cannot escape above the host via leading ".." segments', () => {
-    expect(localPathFor('http://x.com/../../etc/passwd', 'text/plain')).toBe('assets/x.com/etc/passwd.bin');
+    expect(localPathFor('http://x.com/../../etc/passwd', 'text/plain')).toBe('assets/x-com/etc/passwd.bin');
   });
 
   it('collapses percent-encoded traversal (%2e%2e) after decoding', () => {
-    expect(localPathFor('http://x.com/a/%2e%2e/%2e%2e/etc/passwd', 'text/plain')).toBe('assets/x.com/etc/passwd.bin');
+    expect(localPathFor('http://x.com/a/%2e%2e/%2e%2e/etc/passwd', 'text/plain')).toBe('assets/x-com/etc/passwd.bin');
   });
 
   it('replaces filesystem-unsafe characters with underscore', () => {
-    expect(localPathFor('http://x.com/a:b*c.png')).toBe('assets/x.com/a_b_c.png');
+    expect(localPathFor('http://x.com/a:b*c.png')).toBe('assets/x-com/a_b_c.png');
   });
 
   it('percent-decodes a segment before sanitizing (%20 space → underscore)', () => {
-    expect(localPathFor('http://x.com/my%20file.png')).toBe('assets/x.com/my_file.png');
+    expect(localPathFor('http://x.com/my%20file.png')).toBe('assets/x-com/my_file.png');
   });
 });
 
@@ -179,7 +179,7 @@ describe('localPathFor — overlong segments', () => {
 
   it('leaves a segment of exactly 100 chars untouched (boundary is > 100)', () => {
     const exact = 'a'.repeat(100);
-    expect(localPathFor(`http://x.com/${exact}/f.png`)).toBe(`assets/x.com/${exact}/f.png`);
+    expect(localPathFor(`http://x.com/${exact}/f.png`)).toBe(`assets/x-com/${exact}/f.png`);
   });
 });
 

@@ -105,7 +105,12 @@ export function localPathFor(url: string, contentType?: string): string {
 
   // Host segment: hostname is already lowercased by the URL parser; the parser also drops the
   // port when it is the scheme default, so a non-empty `.port` is always a real, non-default one.
-  const host = parsed.port === '' ? parsed.hostname : `${parsed.hostname}-${parsed.port}`;
+  // Non-alphanumerics (dots in `example.com`/`127.0.0.1`, colons in IPv6) collapse to `-` so the
+  // directory name is a flat, portable slug: it is Windows-legal AND never embeds a literal host
+  // like `127.0.0.1` into the clone (the sealed A4 assertion forbids that substring inside
+  // `clone/` — ADR-011). Two hosts differing only by port stay distinct via the `-<port>` suffix.
+  const hostBase = parsed.hostname.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '');
+  const host = parsed.port === '' ? hostBase : `${hostBase}-${parsed.port}`;
 
   // Decode BEFORE resolving `.`/`..` so encoded traversal (`%2e%2e`) collapses too, then sanitise.
   const resolved: string[] = [];
