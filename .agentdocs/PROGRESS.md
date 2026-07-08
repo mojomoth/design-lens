@@ -251,3 +251,19 @@ the pinned section below (that section may be edited in place).
   (6) clone-time verify reads index.html from DISK but the manifest as TEXT (REPORT embeds the summary ⇒ docs
   written last); findings are warnings, and do NOT increment `stats.warnings` — already sealed in the verified
   manifest bytes. Remaining: M4 (T22–T26), M5 (T27–T30).
+- 2026-07-08 · T22 done: the five `plugin/skills/*/SKILL.md`. Availability paragraph + brand checklist are
+  diffed byte-for-byte against spec 07 (lines 72-76 / 82-90), not eyeballed. Gate green (401 tests, B3 now
+  actually scans `plugin/skills` instead of SKIPping).
+  TRAP (bites hard, silently): B3's placeholder hunt greps `plugin/skills` case-INSENSITIVELY for
+  `TODO|FIXME|XXX\b|PLACEHOLDER|not implemented|NotImplemented` as bare SUBSTRINGS. Prose docs trip it:
+  "placeholders", "Todo", "not implemented". The sealed allowlist survives only `placeholder SVG` /
+  `generate a placeholder` / `placeholder="you@example.com"` (matched with `grep -vFf`, case-SENSITIVE,
+  against the whole `path:lineno:content` line) — so spec 06's "generate a placeholder SVG" must stay on ONE
+  source line to pass. TRAP 2: S6's token regex is `\$[0-9]`, i.e. ANY dollar-digit — a price or `$2` fails it,
+  not just `$1`. TRAP 3: S8's heading needs an em dash (U+2014), never a hyphen or en dash.
+  NOTE: T24's AC is already satisfied (`grep -c '## Before you ship — brand checklist'` == 1 in both
+  customize-clone and build-from-design) because spec 07 §Per-skill content mandates that section in the
+  bodies — writing T22 without it would have been an incomplete implementation. T24 is a verify-and-tick.
+  Verified every command referenced against the REAL CLI (roles logo/nav-link/hero-heading/hero-image/cta,
+  `tokens.json` at projectDir root with `clusterOf`, `screenshot <dir> --out`), not against spec prose.
+  Remaining: T23 (LENSES + 2 templates; S7 red until then), T24-T26, M5 (T27-T30).

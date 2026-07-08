@@ -25,8 +25,10 @@ Ralph loop in `.harness/`. Product truth lives in `.agentdocs/specs/`; the task 
 - Spec contradicts reality? Use the spec-drift protocol (PROMPT_build.md §8): ADR + minimal spec
   edit in the SAME commit. Silent workarounds and silent spec edits both fail the gate.
 - New npm dependency? Only if in `.agentdocs/CONVENTIONS.md` allowlist; otherwise ADR first.
-- Skills stay argument-free (no `$ARGUMENTS`, `$1`, backtick-interpolation, `{{…}}`) and reference
-  only `~/.design-lens/bin/design-lens` — never `${CLAUDE_PLUGIN_ROOT}` (Codex does not expand it).
+- Skills stay argument-free (no `$ARGUMENTS`, ANY `$`+digit, backtick-interpolation, `{{…}}`) and
+  reference only `~/.design-lens/bin/design-lens` — never `${CLAUDE_PLUGIN_ROOT}` (Codex won't expand it).
+- The placeholder scanner greps `plugin/skills` + `plugin/scripts` case-insensitively for
+  TODO/FIXME/XXX/PLACEHOLDER substrings — prose there must dodge those words (tiny sealed allowlist).
 - Tests never touch the live web. Fixture servers on 127.0.0.1 only.
 
 Keep this file under 60 lines: durable operational facts only, no status reports.
