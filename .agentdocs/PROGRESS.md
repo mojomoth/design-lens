@@ -236,3 +236,18 @@ the pinned section below (that section may be edited in place).
   or `file:///etc/passwd` gets painted into a PNG. MANUAL-RUN TRAP: an ad-hoc `clone` outside vitest downloads the
   consent list from the LIVE web unless `DESIGN_LENS_HOME` has a seeded `cache/filterlists/fanboy-cookiemonster.txt`.
   Remaining: T21 serve/verify, then M4 (skills/packaging) and M5 (ethics/docs/flags).
+- 2026-07-08 · T21 done: `commands/verify.ts` (PURE `verifyClone` + `runVerify` shell + `summarizeVerify`) and
+  `commands/serve.ts` (pure `parsePort` + blocking server). 9 checks, not spec-03's 6: its two compound sentences
+  split — a refinement, not drift. Clone runs verify at its end (spec 02 §M3); REPORT `## Verify` is now real.
+  401 tests (ratchet 348); B0–B10 + `--all` A1–A18 green; also drove clone+verify on `spa` by hand (9/9 PASS).
+  TRAPS: (1) cheerio root-anchored `$('[data-dl-id]')`/`$('script')` DESCEND into `<template shadowroot>`, but
+  `$('body').find(...)` does NOT — scoping to <body> blinds uniqueness+inert to every shadow-root stamp.
+  (2) REAL RACE: `serve` arms SIGINT/SIGTERM BEFORE printing the port line — the parent reads stdout and signals
+  back on another core first, killing it by default disposition (`code:null`). Its e2e signals with ZERO delay on
+  purpose; a sleep hides the bug. (3) `server.close()` waits on keep-alive sockets ⇒ Ctrl-C HUNG ⇒ added
+  `closeAllConnections()` to `lib/static-server.ts#close`. (4) parse5 never rejects bytes — an EMPTY index.html
+  "parses" and false-PASSes 3 checks ⇒ `index-parseable` also demands a non-empty `<body>`. (5) NEVER check
+  `dl-overrides.css` emptiness (ADR-002 appends rules there; e2e pins exit 0 after the 3 legal agent edits).
+  (6) clone-time verify reads index.html from DISK but the manifest as TEXT (REPORT embeds the summary ⇒ docs
+  written last); findings are warnings, and do NOT increment `stats.warnings` — already sealed in the verified
+  manifest bytes. Remaining: M4 (T22–T26), M5 (T27–T30).

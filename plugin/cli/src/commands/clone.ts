@@ -19,6 +19,8 @@
  *   8. beautify HTML + every localized stylesheet (output/beautify)
  *   9. write `clone/` + empty `dl-overrides.css` (output/writer)
  *   9b. re-render the WRITTEN clone from disk → `screenshots/clone-full.png` (the fidelity check)
+ *   9c. verify the written clone against the format invariants (commands/verify) — warnings, never
+ *       fatal (spec 02 §M3); its summary is what REPORT.md renders under `## Verify`
  *   10. write `manifest.json` + `REPORT.md` — LAST, because `stats.warnings` must count 9b's failures
  *
  * I/O discipline (guardrails / spec 02): human progress → stderr, the single result JSON → stdout.
@@ -35,6 +37,7 @@ import path from 'node:path';
 
 import type { Command } from 'commander';
 
+import { OVERRIDES_LOCAL_PATH } from '../analyze/css-sources.js';
 import { capturePng, launchCapture, renderScreenshotOfDir } from '../capture/browser.js';
 import {
   applyConsentBlocking,
@@ -67,6 +70,7 @@ import {
 } from '../output/manifest.js';
 import { buildReport, type CaptureRow } from '../output/report.js';
 import { screenshotPath, writeCloneTree, writePng, writeProjectDocs } from '../output/writer.js';
+import { summarizeVerify, verifyClone } from './verify.js';
 import { baseSlug, nextFreeSlug } from '../lib/slug.js';
 import { PLAYWRIGHT_PIN } from '../lib/pins.js';
 import { VERSION } from '../version.js';
@@ -409,6 +413,25 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     stats,
   });
 
+  // The clone-format integrity check, run over what was ACTUALLY written (spec 02 §M3: "also run at
+  // the end of clone as warnings, not fatal"). `index.html` is re-read from disk so a truncated write
+  // is caught; the manifest can only be supplied as text, because it is written below — REPORT.md
+  // embeds this very summary, so the documents must be rendered after the check that describes them.
+  //
+  // Findings are printed as warnings but deliberately do NOT increment `stats.warnings`: that counter
+  // is already sealed inside the manifest bytes being verified. Counting a finding about the manifest
+  // into the manifest would either need a second write-and-recheck pass or leave the number lying.
+  const manifestText = manifestJson(manifest);
+  const verifyReport = verifyClone({
+    html: fs.readFileSync(path.join(projectDir, 'clone', 'index.html'), 'utf8'),
+    manifestText,
+    overridesExists: fs.existsSync(path.join(projectDir, OVERRIDES_LOCAL_PATH)),
+    resourceExists: (localPath) => fs.existsSync(path.join(projectDir, localPath)),
+  });
+  for (const check of verifyReport.checks) {
+    if (!check.ok) process.stderr.write(`design-lens: warning: verify: ${check.id}: ${check.detail}\n`);
+  }
+
   const reportMarkdown = buildReport({
     title,
     source: { url, finalUrl, capturedAt, viewport: opts.viewport, robotsDisallowed },
@@ -426,10 +449,12 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
     // cross-origin iframe capture is still deferred (spec 02 §M2), so that counter stays 0.
     fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: 0 },
-    verify: 'Not run during clone; run `design-lens verify <projectDir>` (M3).',
+    verify: summarizeVerify(verifyReport),
   });
 
-  writeProjectDocs({ projectDir, manifestJson: manifestJson(manifest), reportMarkdown });
+  // The exact bytes `verifyClone` just parsed — never re-serialize, or the check described one
+  // document and the disk holds another.
+  writeProjectDocs({ projectDir, manifestJson: manifestText, reportMarkdown });
 
   process.stderr.write(
     `design-lens: wrote ${resources.length} asset(s) to ${projectDir} (${warnings} warning(s))\n`,

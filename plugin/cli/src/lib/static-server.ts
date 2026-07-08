@@ -104,7 +104,7 @@ export interface StaticServer {
   origin: string;
   /** Absolute URL for a path under the served root, e.g. `url('/index.html')`. */
   url(pathname: string): string;
-  /** Stop accepting connections and release the port. */
+  /** Stop accepting connections, destroy idle keep-alive sockets, and release the port. */
   close(): Promise<void>;
 }
 
@@ -178,6 +178,11 @@ export function startStaticServer(root: string, options: StaticServerOptions = {
         url: (pathname: string) => `${origin}${pathname.startsWith('/') ? '' : '/'}${pathname}`,
         close: () =>
           new Promise<void>((res, rej) => {
+            // Destroy live sockets FIRST. `server.close()` only stops NEW connections and then waits
+            // for every existing one to end — and HTTP keep-alive means an idle browser tab (or
+            // undici's fetch pool) holds one open for seconds after its last response. Without this,
+            // Ctrl-C on `serve <dir>` appears to hang, and every teardown pays the keep-alive timeout.
+            server.closeAllConnections();
             server.close((closeErr) => (closeErr ? rej(closeErr) : res()));
           }),
       });

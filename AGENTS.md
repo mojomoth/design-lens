@@ -16,6 +16,7 @@ Ralph loop in `.harness/`. Product truth lives in `.agentdocs/specs/`; the task 
 - CLI package: `cd plugin/cli && npm run typecheck | test | e2e | build | verify`
 - Sealed fixture self-test: `node .harness/fixture/serve.mjs --check`  (ports: .harness/config.env)
 - Independent e2e assertions: `bash .harness/e2e-assert.sh --m1` (spine) / `--all` (full fidelity)
+- The default gate runs only `--m1`; A10–A18 fire solely under `--strict`. Changed clone output? Run `--all`.
 
 ## Rules that bite
 - ONE plan task per iteration. Commit every green state. Never force-push or amend.

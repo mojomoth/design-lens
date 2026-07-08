@@ -48,7 +48,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T18 (P3) Implement `inspect <dir>` (serve clone on ephemeral port, classify roles logo/nav-link/hero-heading/hero-image/cta) printing JSON to stdout only | AC: the own e2e asserts `inspect` on the basic clone returns roles logo, ≥3 nav-link, hero-heading, hero-image and cta | Spec: 05-element-inventory.md
 - [x] T19 (P3) Reach full sealed-fixture parity once tokens and inspect exist | AC: `bash .harness/e2e-assert.sh --all` exits 0 (A1–A18) | Spec: 09-fixture-contract.md
 - [x] T20 (P3) Implement the `screenshot` command (`--url/--width/--height/--out` and the three-PNG auto-emit at clone end via the ephemeral static render) | AC: the own e2e asserts a clone writes three PNGs under `screenshots/` each beginning with the `\x89PNG` signature and >1KB, and `screenshot --url … --width 390 --height 844 --out f.png` writes such a file | Spec: 02-clone-engine.md
-- [ ] T21 (P3) Implement `serve <dir>` and `verify <dir>` (verify checks index parseable, unique data-dl-id, dl-overrides linked last, manifest localPaths exist, inertness) | AC: the own e2e asserts `serve` returns 200 for `index.html`, `verify` exits 0 on a good clone and exits 1 on a clone with a duplicated data-dl-id | Spec: 00-product.md
+- [x] T21 (P3) Implement `serve <dir>` and `verify <dir>` (verify checks index parseable, unique data-dl-id, dl-overrides linked last, manifest localPaths exist, inertness) | AC: the own e2e asserts `serve` returns 200 for `index.html`, `verify` exits 0 on a good clone and exits 1 on a clone with a duplicated data-dl-id | Spec: 00-product.md
 
 ## Milestone 4 — Skills & packaging
 
