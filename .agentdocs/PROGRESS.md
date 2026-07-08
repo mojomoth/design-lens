@@ -39,3 +39,10 @@ the pinned section below (that section may be edited in place).
   external in tsup) so the test resolves the real module object. Trap: `npm install playwright`
   triggers a browser-download postinstall — set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` (guardrail:
   never download browsers; bootstrap already provisioned Chromium). Did NOT build dist (M1 invariant).
+- 2026-07-08 · T06 done: `localize/urlmap.ts` `localPathFor(url,contentType?)` (module was left
+  untracked by a prior iteration — reviewed, confirmed spec-compliant, added 38 unit tests). Spec
+  §urlmap returns `assets/<host>/…` (NOT `clone/assets/…` — the plan text is shorthand; the manifest
+  prefixes `clone/` per ADR-010). Traps: percent-decode segments BEFORE resolving `.`/`..` so
+  `%2e%2e` traversal collapses; overlong collapse (91+`-`+8hex=100) hashes the CLEANED segment and
+  strips a real extension if it's the last segment, so test overlong via a DIRECTORY segment. URL
+  parser drops default ports + lowercases host for free; `?` with empty query yields search=''.
