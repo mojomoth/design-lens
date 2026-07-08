@@ -235,6 +235,19 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
   it('captures the JS-set input value as an attribute', () => {
     expect(indexHtml).toContain('set-by-js@example.com');
   });
+
+  // why (T13): the lazy <img> has NO real src at load — an IntersectionObserver three viewport
+  // heights down sets it only on intersect. Without the lazy-load scroll sweep the browser never
+  // requests img/lazy.png, so it is never captured, never localized, and the clone shows a broken
+  // image. This asserts the sweep fired: lazy.png is localized under clone/assets/ and the <img src>
+  // points at it. A regression that drops or disables the sweep fails here.
+  it('triggers the IntersectionObserver lazy image and localizes it under clone/assets/', () => {
+    // The <img src> now resolves to a localized assets/ path (not the load-time empty/data-src).
+    const match = /<img[^>]*\bsrc="(assets\/[^"]*lazy[^"]*\.png)"/i.exec(indexHtml);
+    expect(match, `lazy <img> src not localized under assets/:\n${indexHtml}`).not.toBeNull();
+    // The referenced file must actually exist on disk under clone/.
+    expect(fs.existsSync(path.join(projectDir, 'clone', match![1]))).toBe(true);
+  });
 });
 
 describe('clone unreachable URL', () => {

@@ -109,3 +109,12 @@ the pinned section below (that section may be edited in place).
   literal "placeholder" (say "stand-in"); cheerio parks `<template>` content in a fragment
   `$('template span')` can't cross (assert on html); `.text()` on `<style>` is rawtext so CSS `>`
   survives; input needs no restore. All 163 tests + `--m1` + full gate green.
+- 2026-07-08 · T13 done: lazy-load scroll sweep in `capture/settle.ts` (`lazyLoadSweep` + pure
+  `scrollStepPx`), wired into clone.ts after settle behind `--no-scroll` (commander `--no-X` → `options.scroll`).
+  Sweep scrolls `viewportHeight*0.8`/150ms to bottom dispatching synthetic `scroll` events (window-listener
+  lazy-loaders too), re-races capped networkidle, scrolls to top, settles, repeats ONCE if body grew.
+  TRAPS: (1) sweep is OPTIONAL — a throw becomes a warning (degradation ladder), must not block clone;
+  (2) MUST `drainResponses()` after the sweep so newly-requested lazy images land in the store before
+  localize; (3) e2e regex needs `\bsrc="(assets/...lazy...)"` — the img still carries `data-src="img/lazy.png"`
+  (word boundary before `src` in `data-src`), but only the REAL src is localized to `assets/`, so anchoring
+  the group on `assets/` disambiguates. 6 new tests (169 total). dist rebuilt (1.99 MB) & committed. Full gate green.

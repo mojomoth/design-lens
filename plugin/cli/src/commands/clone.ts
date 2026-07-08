@@ -27,7 +27,7 @@ import path from 'node:path';
 import type { Command } from 'commander';
 
 import { launchCapture } from '../capture/browser.js';
-import { navigateAndSettle, checkRobotsDisallowed } from '../capture/settle.js';
+import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capture/settle.js';
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
 import { sanitizeHtml } from '../localize/html-rewrite.js';
@@ -62,6 +62,8 @@ export interface CloneRunOptions {
   settleMs: number;
   /** `--remove-selector` matches removed before stamping (repeatable). */
   removeSelectors: string[];
+  /** `--no-scroll` disables the lazy-load scroll sweep (spec 02 §M2). */
+  noScroll: boolean;
   /** `--user-agent` override; omitted ⇒ the real default Chromium UA. */
   userAgent?: string;
 }
@@ -143,6 +145,22 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     }
     finalUrl = settle.finalUrl;
     title = settle.title;
+    // Lazy-load sweep (optional, spec 02 §M2): scroll the whole page so IntersectionObserver images
+    // are requested and captured before serialization. A throw here degrades to a warning — a page
+    // that never settles must not block the clone (spec 02 §Error handling degradation ladder).
+    if (!opts.noScroll) {
+      try {
+        await lazyLoadSweep(capture.page, {
+          viewportHeight: opts.viewport.height,
+          settleMs: opts.settleMs,
+          deadline,
+        });
+        await capture.drainResponses();
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        capture.warnings.push(`lazy-load scroll sweep failed: ${detail}`);
+      }
+    }
     robotsDisallowed = await checkRobotsDisallowed(capture.context, finalUrl);
     userAgent = await capture.page.evaluate(() => navigator.userAgent);
     elementsStamped = await stampDom(capture.page, opts.removeSelectors);
@@ -291,6 +309,7 @@ export function registerCloneCommand(program: Command): void {
     .option('--dsf <n>', 'device scale factor', '1')
     .option('--timeout <s>', 'whole-run budget in seconds', '90')
     .option('--settle <ms>', 'extra quiet time after networkidle, in ms', '1500')
+    .option('--no-scroll', 'disable the lazy-load scroll sweep before serialization')
     .option('--remove-selector <css>', 'remove matching elements before capture (repeatable)', collect, [])
     .option('--user-agent <ua>', 'override the Chromium user agent')
     .action(
@@ -303,6 +322,7 @@ export function registerCloneCommand(program: Command): void {
           dsf: string;
           timeout: string;
           settle: string;
+          scroll: boolean;
           removeSelector: string[];
           userAgent?: string;
         },
@@ -315,6 +335,8 @@ export function registerCloneCommand(program: Command): void {
             dsf: parsePositive(options.dsf, '--dsf'),
             timeoutMs: parsePositive(options.timeout, '--timeout') * 1000,
             settleMs: Number(options.settle),
+            // Commander maps `--no-scroll` to `options.scroll === false`; default is true.
+            noScroll: options.scroll === false,
             removeSelectors: options.removeSelector,
             ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
           };
