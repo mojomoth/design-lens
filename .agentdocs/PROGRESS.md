@@ -280,3 +280,20 @@ the pinned section below (that section may be edited in place).
   Spec 05 §tokens says `clone/manifest.json` — stale prose vs ADR-010; not touched, no code reads it.
   (3) inspect's `colors` is the literal STRING "see tokens.json", never an array.
   Remaining: T24 (verify-and-tick), T25–T26, M5 (T27–T30).
+- 2026-07-08 · T24 done: verify-and-tick, zero code change — T22 necessarily shipped the checklist
+  (spec 07 §Per-skill content mandates it). Did NOT tick on the task's own `grep -c` heading count:
+  extracted the block from both SKILL.md files and `diff`ed it against spec 07 lines 82-90 and
+  against each other (spec 07 L56 demands "identical text in both files"). All three diffs empty.
+  Confirmed via the SEALED gate, not my own grep: `verify.sh --strict` → `PASS S8` on both files.
+  TRAP (looks exactly like spec drift, is NOT): spec 06 L67 sources the checklist to
+  specs/10-ethics.md, and spec 10's block (L78-85) has DIFFERENT item wording than spec 07's
+  (L82-90) — the block SKILL.md actually carries. No ADR needed: spec 10 L75 says "heading
+  byte-exact; item wording MAY vary slightly but every item MUST be present", so spec 07 pins one
+  legal instantiation of spec 10's floor. Do not "reconcile" them. Verified all six spec-10 items
+  survive spec-07's phrasing — item 6 (recursive+case-insensitive brand grep, "as the final check")
+  is FOLDED into item 5's line with `-ri` intact, not a separate bullet. Also re-checked the two
+  ethics constraints adjacent to the checklist that no AC greps: no `` !` `` anywhere in
+  plugin/skills (AC-12 Codex skip-marker), and customize-clone carries all four ship-intent
+  triggers (ship it/deploy/publish/go live, spec 10 L44).
+  Strict-gate reds remaining are exactly the open tasks: S3/S3b/S4 → T25 (manifests), S9b → T28
+  (docs), S1 → plan. Remaining: T25-T26, M5 (T27-T30).
