@@ -174,3 +174,21 @@ the pinned section below (that section may be edited in place).
   clone.ts) into `localize/media-type.ts` — fetch-missing needed the same predicate to decide what to
   descend into. 18 new tests (233 total). dist rebuilt (1.99 MB). Gate green; sealed `--all`: A1–A16 PASS,
   A17/A18 remain (T17/T18).
+- 2026-07-08 · T17 done: `analyze/tokens.ts` (pure) + `analyze/css-sources.ts` (which CSS counts) + `commands/tokens.ts`;
+  deps `@projectwallace/css-analyzer@^9.9.0`, `culori@^4.0.2`, `@types/culori`. 273 tests (ratchet 233). Gate green;
+  sealed `--all`: A1–A17 PASS, only A18 (T18 `inspect`) remains.
+  BLOCKER FIRST: bundle was 2,091,784 B vs B2c's 2,097,152 B ceiling; the deps add ~107 KB minified. `import * as
+  cheerio from 'cheerio'` pulls the batteries-included entry, so `fromURL`/`loadBuffer` drag in undici (512 KB) +
+  iconv-lite (491 KB), unshakeable (import-time side effects). We only call `cheerio.load` ⇒ tsup aliases `cheerio` →
+  `dist/esm/load-parse.js` (the module the entry re-exports `load` from; byte-identical to the browser build).
+  1,208,545 B now. Guarded by `test/unit/bundle-aliases.test.ts` — a stray `cheerio.loadBuffer` breaks only the BUNDLE.
+  SPEC DRIFT → ADR-013 (+ minimal `specs/05` edit, same commit): spec-05 promised `faces[]` = clone-relative `assets/…`,
+  but spec-02/03 localize a CSS ref relative to ITS OWN sheet (proved: `src: url(fonts/brand.woff2)`), and `assets/…` is
+  uncomputable under spec-05's own single-concatenated-`analyze()` rule. Kept "exactly as written".
+  TRAPS: (1) the analyzer exposes NO selector context for font-family and no font-weight/spacing VALUES — a second
+  css-tree walk owns those (`this.rule`/`this.atrule`). (2) culori PARSES `transparent` → `#000000`: one
+  `color:transparent` invents a black brand color unless dropped by keyword. (3) `font-family` in `@font-face` NAMES the
+  face, it is not a usage — counting it makes every unused webfont (what T16 captures!) look like a design choice.
+  (4) e2e counts come from the CLONE, not the fixture: @percy/dom materializes `:hover`/`:focus` into an inline `<style>`
+  as `rgb(51, 71, 255)`, so basic's brand color is used 14× (7+5+2), and hex/rgb() must merge into ONE cluster.
+  (5) clusters sort by LIGHTNESS desc, not count — `colors[0]` is white; the dominant color is not first.

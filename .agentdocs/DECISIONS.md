@@ -194,3 +194,34 @@ Format for new entries (append at the bottom, never edit existing ones):
   containers matching the 22 built-in selectors even when the remote list is unavailable; each
   selector names a consent UI and nothing else, and `--no-block-cookies` restores the banner.
   Sealed A16 passes offline. `--filter-list` users get exactly the rules they asked for.
+
+## ADR-013: `typography.faces[]` paths are stylesheet-relative, not clone-relative
+- Date: 2026-07-08 · Status: accepted (spec-drift, T17 build iteration)
+- Context: two specs contradict each other, and the contradiction is empirically verifiable.
+  (1) `specs/05-element-inventory.md` §tokens says `faces` = the `src` `url()` paths of matching
+      `@font-face` rules "exactly as written in the localized CSS (clone-relative `assets/…` when
+      localized, absolute URL when left remote)".
+  (2) `specs/02-clone-engine.md` §6 / `specs/03-clone-format.md` make a reference inside a CSS file
+      resolve against THAT FILE's directory, not the clone root — `localize.ts` computes
+      `path.posix.relative(path.posix.dirname(assetPath), target)`.
+  The two clauses cannot both hold. Cloning the `basic` fixture and reading the localized
+  stylesheet proves it: `assets/127.0.0.1_<port>/style.css` contains
+  `src: url(fonts/brand.woff2)` — a path relative to the stylesheet, which is neither
+  `assets/…` nor an absolute URL. Only an `@font-face` written inside an inline `<style>` block
+  gets an `assets/…` path, because there the base IS the clone root.
+- Furthermore, the `assets/…` form is not merely absent — it is uncomputable under spec 05's own
+  rules. Spec 05 mandates that all CSS sources be "concatenated … into one string analyzed by a
+  single `analyze()` call". Concatenation erases which stylesheet each `@font-face` came from, and
+  without that base there is no way to re-root a stylesheet-relative `url()` at the clone root.
+  Honouring the parenthetical would require abandoning the single-`analyze()` requirement.
+- Decision: keep "exactly as written" — the load-bearing half of the clause, and the half that
+  keeps `tokens.json` a faithful description of bytes on disk — and correct the parenthetical to
+  describe what the localizer actually writes. `faces[]` holds the `url()` value verbatim:
+  stylesheet-relative inside an external stylesheet, `assets/…` inside an inline `<style>`,
+  absolute URL when the face was left remote, `data:` when inlined. No re-rooting, no guessing.
+- Consequences: changes `.agentdocs/specs/05-element-inventory.md` (the `typography.faces`
+  sentence only). No code, schema, or dependency change — `faces` was always going to carry the
+  verbatim value; this ADR stops the spec from promising a prefix the clone format cannot deliver.
+  Consumers that need a loadable path (the reverse-design skill) must resolve `faces[]` against the
+  stylesheet that declared the face, exactly as a browser does; `tokens.json` deliberately does not
+  pretend that a single flat path exists.

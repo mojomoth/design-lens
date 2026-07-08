@@ -33,8 +33,9 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
 - `typography`: `families` from font-family declarations (generic-only stacks like `sans-serif`
   excluded); `usage` = `heading` if the family appears in a rule whose selector mentions `h1`–`h6`,
   `body` if it appears on `html`/`body`/`p` or is the most-used family, `both` if both. `faces` =
-  the `src` `url()` paths of matching `@font-face` rules exactly as written in the localized CSS
-  (clone-relative `assets/…` when localized, absolute URL when left remote). `sizesPx` = distinct
+  the `src` `url()` paths of matching `@font-face` rules exactly as written in the localized CSS —
+  stylesheet-relative inside an external stylesheet, `assets/…` inside an inline `<style>` block,
+  absolute URL when left remote (ADR-013). `sizesPx` = distinct
   font-size values in px (rem/em converted at 16 px root; %/keywords excluded), integers, ascending.
   `scaleRatioGuess` = median of ratios between adjacent `sizesPx`, 2 decimals; null if < 3 sizes.
   `weights` = distinct numeric weights (`normal`→400, `bold`→700), ascending. `lineHeights` =
