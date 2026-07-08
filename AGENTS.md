@@ -17,6 +17,9 @@ Ralph loop in `.harness/`. Product truth lives in `.agentdocs/specs/`; the task 
 - Sealed fixture self-test: `node .harness/fixture/serve.mjs --check`  (ports: .harness/config.env)
 - Independent e2e assertions: `bash .harness/e2e-assert.sh --m1` (spine) / `--all` (full fidelity)
 - The default gate runs only `--m1`; A10–A18 fire solely under `--strict`. Changed clone output? Run `--all`.
+- True bundled-dep list (for `plugin/NOTICE.md`): `npx tsup --metafile --out-dir /tmp/dl-meta` — never
+  into `dist/` (a stray `metafile-cjs.json` breaks S5). `npm ls --prod` over-claims; add `@percy/dom`
+  by hand (vendored as a gzip+base64 string, so it never appears in the metafile).
 
 ## Rules that bite
 - ONE plan task per iteration. Commit every green state. Never force-push or amend.

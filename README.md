@@ -17,24 +17,32 @@ aesthetically excellent frontends by starting from reference designs (awwwards-c
 
 Claude Code:
 
-```
-claude plugin marketplace add <this-repo-or-github-path>
+```bash
+claude plugin marketplace add <repo-url-or-abs-path>
 claude plugin install design-lens@design-lens
 ```
 
 Codex CLI:
 
-```
-codex plugin marketplace add <this-repo-or-github-path>
+```bash
+codex plugin marketplace add <repo-url-or-abs-path>
 codex plugin add design-lens
 ```
+
+Dev loop (no install): `claude --plugin-dir ./plugin`.
+
+On first session a `SessionStart` hook provisions `~/.design-lens/` (CLI, pinned Playwright,
+Chromium). **On Codex you must trust the plugin hook via `/hooks` first, or run
+`bash <plugin-cache-dir>/scripts/bootstrap.sh` once by hand** — see
+[`plugin/README.md`](./plugin/README.md).
 
 Skills (Claude: `/design-lens:<name>`, Codex: `$<name>`): `clone-reference`, `reverse-design`,
 `inspect-elements`, `customize-clone`, `build-from-design`.
 
 > The clone feature is for **private design study and derivation**. Every clone ships with a
 > license notice and a pre-ship brand checklist: replace logos, rewrite copy, license or replace
-> photography and fonts before shipping anything derived.
+> photography and fonts before shipping anything derived. Clones are never to be deployed or
+> redistributed — see [Fair use & respect for designers](./plugin/README.md#fair-use--respect-for-designers).
 
 ## Repository layout
 
@@ -70,4 +78,6 @@ completion claim AND the independent sealed gate (`.harness/verify.sh --strict`)
 
 ## License
 
-MIT
+MIT. Third-party bundled and runtime dependencies are enumerated in
+[`plugin/NOTICE.md`](./plugin/NOTICE.md). Content captured by `clone` is not covered by that
+license and remains the property of its owners.

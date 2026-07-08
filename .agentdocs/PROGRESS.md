@@ -351,3 +351,24 @@ the pinned section below (that section may be edited in place).
   TRAP 4: REPORT.md/manifest.json sit OUTSIDE `clone/`, so printing the capture host there is legal
   (A4 only scans `clone/`). That is the whole reason the font-host list can exist at all.
   Remaining: T28 (docs → S9b), T29 (dist/lock rebuild), T30 (--max-asset-mb, --include-media).
+- 2026-07-08 · T28 done: root README install blocks now spec-01-verbatim (`<repo-url-or-abs-path>`, bash
+  fences, dev-loop line), new `plugin/README.md` (fair-use section + Codex hook-trust step) and
+  `plugin/NOTICE.md`. +7 tests (440, ratchet 433). Gate green; `--strict` S9+S9b green (only S1 red:
+  T29/T30 open). Docs-only change → clone output untouched, but `--strict` ran `--all` anyway: green.
+  TRAP 1 (the whole reason NOTICE took work): `npm ls --prod` OVER-CLAIMS the bundled set — 46 pkgs.
+  tsup aliases cheerio→`dist/esm/load-parse.js` (drops undici, iconv-lite, whatwg-encoding,
+  encoding-sniffer) and js-beautify's CLI deps (glob/nopt/semver/editorconfig/@one-ini/wasm) tree-shake
+  away. Truth = the esbuild metafile: 22 pkgs. Regenerate with
+  `npx tsup --metafile --out-dir /tmp/dl-meta` (NEVER into dist/ — it writes metafile-cjs.json and
+  would break S5 "dist committed & fresh" + T29's `git diff --quiet -- dist`).
+  TRAP 2: `@percy/dom` is in the bundle but NOT in the metafile — `src/capture/percy-dom-src.ts`
+  embeds its `dist/bundle.js` as a gzip+base64 STRING (a `require.resolve` can't work inside the CJS
+  bundle). It is redistributed MIT source; a metafile-only NOTICE would silently omit it. Listed with
+  an explicit note. Any future vendored-as-string dep has the same blind spot.
+  TRAP 3: licenses via `require.resolve(n+'/package.json')` throws ERR_PACKAGE_PATH_NOT_EXPORTED on
+  ~9 pkgs (exports maps). Walk up to `node_modules/<name>/package.json` by hand instead.
+  Bundled set is MIT/BSD-2/BSD-3/ISC/CC0 only; MPL-2.0 (ghostery) + Apache-2.0 (playwright) stay
+  external → ADR-005 holds, no drift. `test/unit/docs.test.ts` asserts every package.json runtime dep
+  appears in NOTICE.md — mutation-tested (dropped the culori row → red). That guard is the point:
+  `npm install --save` otherwise rots NOTICE silently and nothing else in the repo notices.
+  Remaining: T29 (dist/lock rebuild), T30 (--max-asset-mb, --include-media). Neither touched by this.
