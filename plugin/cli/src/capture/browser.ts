@@ -91,7 +91,9 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
           return;
         }
         const contentType = (response.headers()['content-type'] ?? '').trim();
-        store.record({ url: response.url(), status, contentType, body });
+        // `via: 'network'` — these bytes came off the wire while the page rendered. A resource the
+        // render never requested is recorded later, with `via: 'refetch'` (localize/fetch-missing).
+        store.record({ url: response.url(), status, contentType, body, via: 'network' });
       })(),
     );
   });

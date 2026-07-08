@@ -163,6 +163,43 @@ describe('clone basic (M1 spine)', () => {
     }
   });
 
+  // why (T14): the fixture's `srcset="img/hero.png 1x, img/hero@2x.png 2x"` makes Chromium request
+  // ONLY the 1x candidate at the default `--dsf 1` — the 2x variant is referenced but never captured.
+  // Without the post-render refetch pass it stays a live 127.0.0.1 URL (a broken image the moment the
+  // clone moves machines) and the sealed A14 "both srcset candidates localized" fails. This pins the
+  // whole chain: both variants on disk, the srcset attribute rewritten to both local paths with
+  // descriptors intact, and the manifest telling the truth about how each variant's bytes arrived —
+  // `network` for the rendered one, `refetch` for the one we had to go back for.
+  it('localizes both srcset candidates and records the refetched one as via: refetch', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as {
+      resources: { localPath: string; originalUrl: string; via: string }[];
+    };
+    const rendered = manifest.resources.find((r) => r.originalUrl.endsWith('/img/hero.png'));
+    const refetched = manifest.resources.find((r) => r.originalUrl.endsWith('/img/hero@2x.png'));
+
+    expect(rendered, `1x variant missing from manifest:\n${JSON.stringify(manifest.resources, null, 2)}`)
+      .toBeDefined();
+    expect(refetched, `2x variant missing from manifest:\n${JSON.stringify(manifest.resources, null, 2)}`)
+      .toBeDefined();
+
+    // Chromium fetched the 1x candidate while rendering; the 2x candidate only exists because of refetch.
+    expect(rendered!.via).toBe('network');
+    expect(refetched!.via).toBe('refetch');
+
+    // Both are real files under clone/assets/, and the 2x bytes are the genuine larger variant
+    // (1200x600, ~3 KB) — not a copy of the 1x image that a URL-mapping bug could produce.
+    expect(fs.existsSync(path.join(projectDir, rendered!.localPath))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, refetched!.localPath))).toBe(true);
+    expect(fs.statSync(path.join(projectDir, refetched!.localPath)).size).toBeGreaterThan(
+      fs.statSync(path.join(projectDir, rendered!.localPath)).size,
+    );
+
+    // The rewritten srcset points at both local paths and preserves the `1x`/`2x` descriptors.
+    const match = /<img[^>]*\bsrcset="([^"]+)"/i.exec(indexHtml);
+    expect(match, `no srcset survived in the clone:\n${indexHtml}`).not.toBeNull();
+    expect(match![1]).toMatch(/^assets\/\S+ 1x, assets\/\S+ 2x$/);
+  });
+
   it('writes a REPORT.md carrying the license notice heading', () => {
     const report = fs.readFileSync(path.join(projectDir, 'REPORT.md'), 'utf8');
     expect(report).toContain('## License & usage notice');

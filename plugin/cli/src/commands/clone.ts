@@ -6,16 +6,18 @@
  *   1. launch Chromium with resource capture wired (capture/browser)
  *   2. navigate + settle, read robots.txt (capture/settle)
  *   3. stamp `data-dl-id` incl. open shadow roots, apply `--remove-selector` (capture/stamp)
- *   4. own CSSOM-walk serialize (capture/serialize)
- *   5. sanitize to an inert document (localize/html-rewrite)
- *   6. localize every captured reference to `assets/…` (localize/localize)
- *   7. beautify HTML + every localized stylesheet (output/beautify)
- *   8. write `clone/` + empty `dl-overrides.css` + `manifest.json` + `REPORT.md` (output/*)
+ *   4. serialize (@percy/dom, own CSSOM walk as fallback) (capture/serialize)
+ *   5. refetch references the render never requested, e.g. unused srcset variants
+ *      (localize/fetch-missing) — the last stage that needs the browser
+ *   6. sanitize to an inert document (localize/html-rewrite)
+ *   7. localize every captured reference to `assets/…` (localize/localize)
+ *   8. beautify HTML + every localized stylesheet (output/beautify)
+ *   9. write `clone/` + empty `dl-overrides.css` + `manifest.json` + `REPORT.md` (output/*)
  *
  * I/O discipline (guardrails / spec 02): human progress → stderr, the single result JSON → stdout.
  * The browser is ALWAYS closed (a `finally`), so a fatal navigation error still lets the process
  * exit rather than hang. Navigation and write failures are fatal (thrown ⇒ exit 1 in the action);
- * every other degradation is a recorded warning. Post-processing (stages 5–8) never touches the
+ * every other degradation is a recorded warning. Post-processing (stages 6–9) never touches the
  * browser, so it runs after the browser is closed on the captured bytes.
  *
  * Spec: specs/02-clone-engine.md §M1 spine; specs/03-clone-format.md (output contract).
@@ -31,6 +33,7 @@ import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capt
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
 import { sanitizeHtml } from '../localize/html-rewrite.js';
+import { collectSrcsetUrls, fetchMissing } from '../localize/fetch-missing.js';
 import { localizeDocument, type LocalizedAsset } from '../localize/localize.js';
 import { beautifyHtml, beautifyCss } from '../output/beautify.js';
 import {
@@ -171,8 +174,30 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     shadowRootsSerialized = serialized.shadowRootsSerialized;
     // Surface a percy-fallback (or any serializer) warning into the run's warning count.
     capture.warnings.push(...serialized.warnings);
-    // Ensure every captured response body has landed in the store before we localize against it.
+    // Ensure every captured response body has landed in the store before we ask what is MISSING.
     await capture.drainResponses();
+    // Refetch uncaptured references (optional stage, spec 02 §M2). Chromium requests exactly one
+    // `srcset` candidate — the one matching this viewport and `--dsf` — so every other variant is
+    // referenced but never captured. Go back for them through the browser context's request client
+    // (real Chromium UA) so the clone carries ALL candidates, not just the one this capture picked.
+    // Individual URL failures come back in `failed` and become warnings; the localize pass then
+    // records them in `manifest.remote[]` as `fetch-failed`. A throw here degrades to one warning —
+    // a refetch must never block a clone (degradation ladder, spec 02 §Error handling).
+    try {
+      const referenced = collectSrcsetUrls(serializedHtml, finalUrl);
+      const missing = referenced.filter((url) => !capture.store.has(url));
+      if (missing.length > 0) {
+        const outcome = await fetchMissing(capture.context.request, missing, capture.store, {
+          timeoutMs: Math.max(1_000, Math.min(deadline - Date.now(), 15_000)),
+        });
+        for (const failure of outcome.failed) {
+          capture.warnings.push(`refetch failed: ${failure.url} (${failure.detail})`);
+        }
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      capture.warnings.push(`refetch of uncaptured resources failed: ${detail}`);
+    }
   } finally {
     await capture.browser.close();
   }

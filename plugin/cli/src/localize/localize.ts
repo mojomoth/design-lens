@@ -13,10 +13,12 @@
  * `@import` chains. A reserved-before-recurse guard makes circular `@import`s terminate.
  *
  * The localizer NEVER introduces an absolute live-web URL into the output: a reference whose bytes
- * were not captured is left BYTE-IDENTICAL to how it was authored and recorded in `remote[]`
- * (M1 keeps it remote; M2's refetch localises it). `<a href>` page links, `data:`, `mailto:`,
- * `tel:` and same-document fragments are never touched. This is what keeps the sealed A4 assertion
- * ("no live 127.0.0.1 refs in clone/") true.
+ * are absent from the store is left BYTE-IDENTICAL to how it was authored and recorded in `remote[]`.
+ * By the time this pass runs, `localize/fetch-missing.ts` has already gone back for the references
+ * the render never requested (unused srcset variants), so "absent from the store" now means "we tried
+ * and could not get these bytes". `<a href>` page links, `data:`, `mailto:`, `tel:` and same-document
+ * fragments are never touched. This is what keeps the sealed A4 assertion ("no live 127.0.0.1 refs in
+ * clone/") true.
  *
  * Spec: specs/02-clone-engine.md §6 (Localize); specs/03-clone-format.md §Directory tree.
  */
@@ -44,7 +46,7 @@ export interface LocalizedAsset {
   contentType: string;
   /** Absolute URL the bytes came from. */
   originalUrl: string;
-  /** Provenance of the bytes (M1 captures everything during render ⇒ `network`). */
+  /** Provenance of the bytes, carried through from the {@link ResourceStore} entry they came from. */
   via: ResourceVia;
 }
 
@@ -121,7 +123,8 @@ export function localizeDocument(html: string, pageUrl: string, store: ResourceS
       body: Buffer.alloc(0),
       contentType: stored.contentType,
       originalUrl: absoluteUrl,
-      via: 'network',
+      // The store knows how the bytes were obtained (render vs refetch); never re-derive it here.
+      via: stored.via,
     };
     assets.set(assetPath, entry);
 

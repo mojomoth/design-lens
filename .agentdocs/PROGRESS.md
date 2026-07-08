@@ -118,3 +118,20 @@ the pinned section below (that section may be edited in place).
   localize; (3) e2e regex needs `\bsrc="(assets/...lazy...)"` — the img still carries `data-src="img/lazy.png"`
   (word boundary before `src` in `data-src`), but only the REAL src is localized to `assets/`, so anchoring
   the group on `assets/` disambiguates. 6 new tests (169 total). dist rebuilt (1.99 MB) & committed. Full gate green.
+- 2026-07-08 · T14 done: new `localize/fetch-missing.ts` = PURE `collectSrcsetUrls` (cheerio + the
+  WHATWG srcset parser, deduped/hash-stripped, http(s) only) + `fetchMissing` (narrow `RefetchClient`
+  seam ⇒ unit-testable without a browser; Playwright's `context.request` satisfies it structurally).
+  Wired into clone.ts as an OPTIONAL stage after the final `drainResponses()`, still inside the
+  browser `try` — it is the last stage needing a browser. Provenance now flows: `StoredResource.via`
+  is REQUIRED (browser.ts records `network`, fetchMissing records `refetch`) and localize.ts reads
+  `stored.via` instead of hardcoding `'network'` — the store is the only thing that knows.
+  TRAPS: (1) record under the REQUESTED url, not `response.url()` — a redirect would orphan the
+  reference localize looks up. (2) Failures are NOT recorded as remote here: an unfetched url stays
+  absent from the store, so localize's existing miss path records `fetch-failed` — one code path.
+  (3) own `basic` fixture uses DENSITY descriptors (`1x/2x`, no `sizes`) so at `--dsf 1` Chromium
+  never requests `hero@2x.png` → it can only exist via refetch (that is what makes the AC honest);
+  the sealed fixture uses `w`+`sizes`, a different selection path — both now pass. (4) urlmap maps
+  `hero@2x.png` → `hero_2x.png` (`@` ∉ `[A-Za-z0-9._-]`), so e2e must match on manifest `originalUrl`,
+  never on the on-disk name. 15 new tests (184 total). dist rebuilt: 1.990 MiB — only ~10 KB under
+  B2c's 2 MiB gate, so any future in-bundle embed needs the gzip+base64 trick T12 used.
+  Sealed `--all` now: A1–A15 PASS incl. A14; A16/A17/A18 remain (T15/T17/T18).
