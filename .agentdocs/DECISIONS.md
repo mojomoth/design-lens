@@ -257,3 +257,13 @@ Format for new entries (append at the bottom, never edit existing ones):
   The remaining spec-10 Layer-1 duties landed with this ADR's commit (T27): the REPORT.md
   `## Capture results` font-host list, `manifest.remote[]` coverage of un-localizable references,
   and the verbatim stderr completion notice.
+
+## ADR-015: Codex install requires the `<plugin>@<marketplace>` form
+- Date: 2026-07-08 · Status: accepted (post-completion, human-supervised)
+- Context: the install-stage gate I5 and docs used `codex plugin add design-lens`; codex 0.139.0
+  rejects the bare form ("plugin requires --marketplace unless passed as <plugin>@<marketplace>").
+  Verified interactively: `codex plugin add design-lens@design-lens` installs and enables 0.1.0.
+- Decision: use `design-lens@design-lens` everywhere: README.md, specs/00-product.md,
+  specs/01-packaging.md, and `.harness/verify.sh` I5 (harness re-sealed via bootstrap).
+- Consequences: changes `.agentdocs/specs/00-product.md`, `.agentdocs/specs/01-packaging.md`;
+  the codex leg of `verify.sh --install` now passes instead of demoting to a manual check.

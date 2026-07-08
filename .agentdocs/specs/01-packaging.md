@@ -192,7 +192,7 @@ Codex CLI:
 
 ```bash
 codex plugin marketplace add <repo-url-or-abs-path>
-codex plugin add design-lens
+codex plugin add design-lens@design-lens
 ```
 
 Dev loop (no install): `claude --plugin-dir ./plugin`.

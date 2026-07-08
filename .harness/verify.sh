@@ -85,7 +85,7 @@ if [ "$INSTALL" = 1 ]; then
   if command -v codex >/dev/null; then
     CH="$(mktemp -d "${TMPDIR:-/tmp}/dl-codex.XXXXXX")"
     if CODEX_HOME="$CH" codex plugin marketplace add "$ROOT" > "$LOGDIR/i5.log" 2>&1 \
-       && CODEX_HOME="$CH" codex plugin add design-lens >> "$LOGDIR/i5.log" 2>&1 \
+       && CODEX_HOME="$CH" codex plugin add design-lens@design-lens >> "$LOGDIR/i5.log" 2>&1 \
        && CODEX_HOME="$CH" codex plugin list 2>/dev/null | grep -q design-lens; then
       ok I5 "codex marketplace install"
     else printf 'WARN %-4s %s\n' I5 "codex install could not be verified (demoted to manual check — see FINAL_REPORT)"; fi

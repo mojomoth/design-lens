@@ -68,7 +68,7 @@ surface for customizing that clone or building a brand-new page with the same de
   `screenshots/`, `tokens.json`, `REPORT.md`, and agent-written `DESIGN.md` + `VARIATIONS.md`.
 - Install strings (verbatim in root README.md): Claude — `claude plugin marketplace add <repo>`
   then `claude plugin install design-lens@design-lens`; Codex — `codex plugin marketplace add
-  <repo>` then `codex plugin add design-lens`.
+  <repo>` then `codex plugin add design-lens@design-lens`.
 - Runtime home: `~/.design-lens/` provisioned by the SessionStart bootstrap hook; launcher
   `~/.design-lens/bin/design-lens`.
 
