@@ -84,9 +84,11 @@ if [ "$INSTALL" = 1 ]; then
   # I5 codex leg — DEMOTES to warning on failure (pre-agreed: never executed on this machine)
   if command -v codex >/dev/null; then
     CH="$(mktemp -d "${TMPDIR:-/tmp}/dl-codex.XXXXXX")"
+    # NOTE: `codex plugin list | grep -q` breaks under pipefail (grep -q closes the pipe early,
+    # codex dies on EPIPE, the pipeline reports failure) — write to a file, then grep the file.
     if CODEX_HOME="$CH" codex plugin marketplace add "$ROOT" > "$LOGDIR/i5.log" 2>&1 \
        && CODEX_HOME="$CH" codex plugin add design-lens@design-lens >> "$LOGDIR/i5.log" 2>&1 \
-       && CODEX_HOME="$CH" codex plugin list 2>/dev/null | grep -q design-lens; then
+       && { CODEX_HOME="$CH" codex plugin list > "$LOGDIR/i5-list.log" 2>&1 || true; grep -q 'design-lens@design-lens' "$LOGDIR/i5-list.log"; }; then
       ok I5 "codex marketplace install"
     else printf 'WARN %-4s %s\n' I5 "codex install could not be verified (demoted to manual check — see FINAL_REPORT)"; fi
     rm -rf "$CH"
