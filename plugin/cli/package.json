@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@types/css-tree": "^2.3.11",
+    "@types/js-beautify": "^1.14.3",
     "@types/node": "^20.11.0",
     "eslint": "^9.18.0",
     "tsup": "^8.3.5",
@@ -25,6 +26,7 @@
     "cheerio": "^1.2.0",
     "commander": "^12.1.0",
     "css-tree": "^3.2.1",
+    "js-beautify": "^2.0.3",
     "playwright": "1.61.1"
   }
 }

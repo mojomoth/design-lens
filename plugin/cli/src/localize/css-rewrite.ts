@@ -46,6 +46,12 @@ export interface RewriteCssResult {
   refs: CssRef[];
 }
 
+/** Parse context: a full stylesheet (default) or the declaration list of an inline `style=""`. */
+export interface RewriteCssOptions {
+  /** `'declarationList'` parses a bare `prop: url(x)` run (inline `style`); default `'stylesheet'`. */
+  context?: 'stylesheet' | 'declarationList';
+}
+
 /** A `url()` value that can never be localised: an inline payload or a same-document fragment. */
 function isInlineOrFragment(value: string): boolean {
   return value.startsWith('data:') || value.startsWith('#');
@@ -59,8 +65,13 @@ function isInlineOrFragment(value: string): boolean {
  * fragment references are left byte-for-byte untouched; every other reference is handed to
  * `resolve`, and only a non-null return rewrites it.
  */
-export function rewriteCss(css: string, baseUrl: string, resolve: CssResolver): RewriteCssResult {
-  const ast = csstree.parse(css);
+export function rewriteCss(
+  css: string,
+  baseUrl: string,
+  resolve: CssResolver,
+  options: RewriteCssOptions = {},
+): RewriteCssResult {
+  const ast = csstree.parse(css, { context: options.context ?? 'stylesheet' });
   const refs: CssRef[] = [];
 
   // Rewrite the target of one Url/String node in place; record it if `resolve` localises it.
