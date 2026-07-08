@@ -1,0 +1,7 @@
+{
+  "name": "design-lens",
+  "version": "0.1.0",
+  "description": "Start from great reference designs: clone a site into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}

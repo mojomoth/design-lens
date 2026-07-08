@@ -1,0 +1,17 @@
+{
+  "description": "Provision the design-lens runtime (CLI copy, Playwright, Chromium) once per version.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/bootstrap.sh\"",
+            "timeout": 600,
+            "statusMessage": "Setting up design-lens runtime (first run downloads Chromium)…"
+          }
+        ]
+      }
+    ]
+  }
+}

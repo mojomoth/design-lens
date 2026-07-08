@@ -297,3 +297,18 @@ the pinned section below (that section may be edited in place).
   triggers (ship it/deploy/publish/go live, spec 10 L44).
   Strict-gate reds remaining are exactly the open tasks: S3/S3b/S4 → T25 (manifests), S9b → T28
   (docs), S1 → plan. Remaining: T25-T26, M5 (T27-T30).
+- 2026-07-08 · T25 done: 4 manifests + `plugin/hooks/hooks.json`, spec-01-verbatim; 7 new unit tests
+  (`test/unit/manifests.test.ts`). S3 / S3b×4 / S4 flipped red → green. Gate green (408 tests).
+  TRAP 1 (why hooks.json shipped HERE, not T26): `claude plugin validate --strict` RESOLVES the
+  manifest's `hooks` pointer — a dangling `./hooks/hooks.json` is a hard error, not a warning
+  (proved both ways in a temp dir). T25's AC is unsatisfiable without it; dropping the `hooks` key
+  would contradict spec 01. T26 reworded to own only bootstrap.sh; both AC fields left byte-exact
+  (rewording an AC to fit what I built is what rule 99999 forbids).
+  TRAP 2: root `.claude-plugin/marketplace.json` (scaffolding commit) had a description ≠ spec 01
+  L158. Aligned code→spec; not sealed, not a protected doc, so NOT spec drift.
+  TRAP 3 (do not "fix"): marketplaces have NO `version` key — spec gives them none, AC-09 only
+  demands they parse. Real contract = S3b (four parse) + S4 (both plugin.json + CLI). Adding one
+  to satisfy the plan's loose "all four … version 0.1.0" prose would BE spec drift.
+  SUGGESTION (human): validating the ROOT marketplace `--strict` warns "No marketplace description"
+  → exit 1; nothing in the gate does that, and adding the key deviates from spec 01. Left alone.
+  Remaining: T26 (bootstrap.sh; S1), M5 T27-T30 (T28 → S9b).
