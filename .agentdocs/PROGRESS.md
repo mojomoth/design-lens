@@ -312,3 +312,18 @@ the pinned section below (that section may be edited in place).
   SUGGESTION (human): validating the ROOT marketplace `--strict` warns "No marketplace description"
   → exit 1; nothing in the gate does that, and adding the key deviates from spec 01. Left alone.
   Remaining: T26 (bootstrap.sh; S1), M5 T27-T30 (T28 → S9b).
+- 2026-07-08 · T26 done: `plugin/scripts/bootstrap.sh` (8 spec-01 steps, chmod +x) + 7 new unit tests
+  (`test/unit/bootstrap.test.ts`). `verify.sh --install` → PASS I1, PASS I2 (0s). Gate green (415 tests).
+  TRAP 1 (real bug, cost me a rerun — do not reintroduce): `set -euEo pipefail`. With `-E` (errtrace)
+  the ERR trap is INHERITED by command substitutions, so a failing `VERSION="$(node -p …)"` ran the
+  trap's `exit 0` inside the SUBSHELL → the outer assignment saw success, VERSION="" → bootstrap
+  provisioned on and sealed a `.installed-v-nodev20` marker. Dropped `-E` (trap still covers top-level
+  mkdir/cp/npm/playwright) and guarded the read with `if ! VERSION=$(…)`. Locked by a mutation-tested
+  regression test. The happy path — all I1 exercises — hides this completely.
+  TRAP 2: `node -p` prints the STRING "undefined" and exits 0 when a key is absent; a bare read bakes
+  that into the marker name. Explicitly rejected.
+  TRAP 3: bootstrap MUST exit 0 on every failure (spec 01: never block session start) — so `--install`
+  I1 only ever proves the SUCCESS path. Drove all four failure paths by hand (bad ROOT, no version key,
+  malformed JSON, node off PATH): each bails at the first error, one actionable stderr line, no leaked
+  $DL_HOME. Chromium was a cache hit via PLAYWRIGHT_BROWSERS_PATH — never ran `playwright install` myself.
+  Remaining: M5 T27-T30 (T28 → S9b). S1 still red until the plan is fully ticked.
