@@ -210,3 +210,13 @@ the pinned section below (that section may be edited in place).
   NOT duplicated: exported `PlaywrightModule` from `capture/browser.ts` instead of re-declaring it — but did NOT
   reuse `launchCapture`, whose ResourceStore reads every response body inspect would throw away.
   `.agentdocs/ARCHITECTURE.md` is a B1-protected doc, so no new `capture/probe.ts`: stayed inside its module map.
+- 2026-07-08 · T19 done: NO new code — a pure verification checkpoint. `bash .harness/e2e-assert.sh --all`
+  exits 0 (A1–A18 PASS); full gate B0–B10 green, 330 tests, ratchet holds at 330. Parity was already
+  reached by T17 (A17 tokens) + T18 (A18 inspect); T19's only job was to confirm it independently rather
+  than trust the prior iteration's PROGRESS note. Ran the sealed script myself before ticking.
+  TRAP for the next iteration: `verify.sh` (default mode) does NOT run `--all` — it only runs B10
+  (`--m1`). The `--all` assertions live in S2, which fires only under `--strict`. So a regression in
+  A10–A18 (percy serializer, srcset refetch, consent blocking, tokens, inspect) will stay INVISIBLE to
+  the default gate you run constantly. T20/T21 touch the clone-end pipeline and the clone's structure —
+  run `bash .harness/e2e-assert.sh --all` (or `--strict`) explicitly before committing, not just `verify.sh`.
+  Remaining: T20 screenshot, T21 serve/verify, then M4 (skills/packaging) and M5 (ethics/docs/flags).
