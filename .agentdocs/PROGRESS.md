@@ -267,3 +267,16 @@ the pinned section below (that section may be edited in place).
   Verified every command referenced against the REAL CLI (roles logo/nav-link/hero-heading/hero-image/cta,
   `tokens.json` at projectDir root with `clusterOf`, `screenshot <dir> --out`), not against spec prose.
   Remaining: T23 (LENSES + 2 templates; S7 red until then), T24-T26, M5 (T27-T30).
+- 2026-07-08 · T23 done: `reverse-design/LENSES.md` + `templates/{DESIGN,VARIATIONS}.template.md`.
+  Both templates are spec-04's "exact content"/"exact structure" blocks reproduced VERBATIM; the
+  authoring rules spec 04 mandates but the blocks don't carry (all 12 headings kept even with no
+  evidence; 3–5 variations, ≥1 conservative + ≥1 bold; concrete old → new rows) live in LENSES.md's
+  closing "Writing rules" and a delete-me guidance section at VARIATIONS' tail — additive, so the
+  greppable lines stay byte-exact. S7 + S7b flipped red → green; gate green (401 tests).
+  TRAPS: (1) B3's placeholder hunt is `grep -rniE` over ALL of `plugin/skills`, not just SKILL.md —
+  LENSES/templates must dodge TODO/FIXME/XXX/PLACEHOLDER prose too. (2) Cited only keys that exist in
+  the REAL emitters (`motion.durationsMs` not `durations`; `typography.scaleRatioGuess`; `palette
+  .primaryGuess`; inspect's `dlId`/`styles.background`; manifest at projectDir ROOT, not `clone/`).
+  Spec 05 §tokens says `clone/manifest.json` — stale prose vs ADR-010; not touched, no code reads it.
+  (3) inspect's `colors` is the literal STRING "see tokens.json", never an array.
+  Remaining: T24 (verify-and-tick), T25–T26, M5 (T27–T30).
