@@ -1,5 +1,5 @@
 /**
- * Classify a captured resource as CSS / font / image (PURE, no I/O).
+ * Classify a captured resource as CSS / font / image / bulk media (PURE, no I/O).
  *
  * Four call sites need the same answer and must never disagree:
  *   - `localize.ts` decides whether to rewrite a body recursively (CSS) or store it verbatim, and
@@ -35,5 +35,26 @@ export function isFontResource(contentType: string, pathname: string): boolean {
 export function isImageResource(contentType: string, pathname: string): boolean {
   return (
     /^image\//i.test(contentType) || /\.(?:png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i.test(pathname)
+  );
+}
+
+/**
+ * Is this "bulk media" — the heavy, non-design-bearing payloads a design clone has no use for?
+ *
+ * Spec 02 §6 names exactly `mp4/webm/mp3/pdf/zip`: these stay remote (reason `media-skipped`)
+ * unless `--include-media`. A hero video is megabytes of bytes that teach a designer nothing the
+ * poster frame does not, so the default is to reference it, not to copy it.
+ *
+ * Unlike the predicates above, this one is consulted BEFORE the {@link ResourceStore} is queried —
+ * a `<video src>` Chromium never fetched must still be recorded as `media-skipped`, not
+ * `fetch-failed`. That means `contentType` is frequently `''` (nothing was captured to read it
+ * from) and the extension is the only witness available. The content-type arm still matters for the
+ * `--include-media` path and for extensionless media URLs (`/watch?v=…` served as `video/mp4`).
+ */
+export function isBulkMediaResource(contentType: string, pathname: string): boolean {
+  return (
+    /^(?:video|audio)\//i.test(contentType) ||
+    /^application\/(?:pdf|zip|x-zip-compressed)\b/i.test(contentType) ||
+    /\.(?:mp4|webm|mp3|pdf|zip)$/i.test(pathname)
   );
 }

@@ -36,6 +36,14 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.ttf': 'font/ttf',
   '.otf': 'font/otf',
   '.map': 'application/json; charset=utf-8',
+  // Bulk media (spec 02 §6). Served with real content types so a fixture `<video>` actually loads
+  // and the `media-skipped` / `--include-media` paths are exercised against `video/mp4` rather than
+  // the `application/octet-stream` fallback.
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.pdf': 'application/pdf',
+  '.zip': 'application/zip',
 };
 
 /** Served to any request whose extension is unknown — the safe binary default. */

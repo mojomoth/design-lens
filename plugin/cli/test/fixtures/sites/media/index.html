@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media Fixture — Design Lens</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Bulk media (spec 02 §6): mp4/webm/mp3/pdf/zip stay remote with reason "media-skipped" unless
+       --include-media is passed. Everything else on this page must localize as usual — the poster
+       frame in particular, because it lives on the very <video> element whose src is skipped. That
+       pairing is the discriminator: a naive "skip the whole element" implementation passes the mp4
+       assertion and silently loses the poster. preload="auto" makes Chromium actually request the
+       media, so the --include-media path has real captured bytes to localize. -->
+  <main>
+    <h1>Bulk media stays remote</h1>
+
+    <video id="promo" src="media/promo.mp4" poster="img/poster.png"
+           preload="auto" muted width="320" height="180"></video>
+
+    <audio id="tone" src="media/tone.mp3" preload="auto"></audio>
+
+    <img id="still" src="img/still.png" width="600" height="300" alt="A localized still image">
+  </main>
+</body>
+</html>

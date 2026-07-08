@@ -1,0 +1,21 @@
+/* Deliberately plain: this fixture exercises the localize policy (bulk media, oversize), not the
+   CSS pipeline. Its only job is to be a normal, localizable stylesheet alongside the media refs. */
+body {
+  margin: 0;
+  padding: 2rem;
+  background: #ffffff;
+  color: #14161a;
+  font-family: system-ui, sans-serif;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 0 0 1.5rem;
+}
+
+video,
+img {
+  display: block;
+  margin-bottom: 1rem;
+  max-width: 100%;
+}

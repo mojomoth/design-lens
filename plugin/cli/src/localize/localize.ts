@@ -12,13 +12,15 @@
  * the store, rewritten against ITS OWN url, and enqueued — capturing `@font-face` woff2 and nested
  * `@import` chains. A reserved-before-recurse guard makes circular `@import`s terminate.
  *
- * The localizer NEVER introduces an absolute live-web URL into the output: a reference whose bytes
- * are absent from the store is left BYTE-IDENTICAL to how it was authored and recorded in `remote[]`.
- * By the time this pass runs, `localize/fetch-missing.ts` has already gone back for the references
- * the render never requested (unused srcset variants), so "absent from the store" now means "we tried
- * and could not get these bytes". `<a href>` page links, `data:`, `mailto:`, `tel:` and same-document
- * fragments are never touched. This is what keeps the sealed A4 assertion ("no live 127.0.0.1 refs in
- * clone/") true.
+ * The localizer NEVER introduces an absolute live-web URL into the output: a reference it does not
+ * localise is left BYTE-IDENTICAL to how it was authored and recorded in `remote[]`. That happens for
+ * three reasons (spec 02 §6): the bytes are absent from the store (`fetch-failed`), the body exceeds
+ * `--max-asset-mb` (`oversize`), or the ref is bulk media and `--include-media` was not passed
+ * (`media-skipped`). By the time this pass runs, `localize/fetch-missing.ts` has already gone back for
+ * the references the render never requested (unused srcset variants), so "absent from the store" now
+ * means "we tried and could not get these bytes". `<a href>` page links, `data:`, `mailto:`, `tel:`
+ * and same-document fragments are never touched. This is what keeps the sealed A4 assertion ("no live
+ * 127.0.0.1 refs in clone/") true.
  *
  * Spec: specs/02-clone-engine.md §6 (Localize); specs/03-clone-format.md §Directory tree.
  */
@@ -31,11 +33,45 @@ import { localPathFor } from './urlmap.js';
 import { rewriteCss, type CssRefKind } from './css-rewrite.js';
 import { rewriteSrcset } from './srcset.js';
 import { ResourceStore } from './resource-store.js';
-import { isCssResource, isFontResource, isImageResource } from './media-type.js';
+import { isBulkMediaResource, isCssResource, isFontResource, isImageResource } from './media-type.js';
 import type { ManifestRemote, RemoteReason, ResourceVia } from '../output/manifest.js';
 
 /** The href of the empty override stylesheet the writer creates; linked LAST in `<head>`. */
 export const OVERRIDES_HREF = 'assets/dl-overrides.css';
+
+/** `--max-asset-mb` default (spec 02 §Command surface): bigger bodies stay remote as `oversize`. */
+export const DEFAULT_MAX_ASSET_MB = 25;
+
+/**
+ * Bytes in the "MB" of `--max-asset-mb`. The spec names the unit only as "MB" and never fixes its
+ * base, so we take the binary megabyte — the one `ls -lh`, Finder and every "max upload size" mean.
+ * Pinned as a named constant because the flag's observable behaviour (a 1,048,000-byte body at
+ * `--max-asset-mb 1`) depends on the choice.
+ */
+export const BYTES_PER_MB = 1024 * 1024;
+
+/** Policy knobs for what is worth copying out of the store (spec 02 §6 Localize). */
+export interface LocalizeOptions {
+  /** Bodies STRICTLY larger than this stay remote with reason `oversize`. */
+  maxAssetBytes: number;
+  /** When false, `mp4/webm/mp3/pdf/zip` refs stay remote with reason `media-skipped`. */
+  includeMedia: boolean;
+}
+
+/** The policy a bare `localizeDocument(html, url, store)` applies: spec defaults, media excluded. */
+const DEFAULT_OPTIONS: LocalizeOptions = {
+  maxAssetBytes: DEFAULT_MAX_ASSET_MB * BYTES_PER_MB,
+  includeMedia: false,
+};
+
+/** The URL's path component, for extension sniffing; falls back to the whole string if unparseable. */
+function pathnameOf(absoluteUrl: string): string {
+  try {
+    return new URL(absoluteUrl).pathname;
+  } catch {
+    return absoluteUrl;
+  }
+}
 
 /** One captured resource localised to disk: its `assets/…` path (relative to `clone/`) and bytes. */
 export interface LocalizedAsset {
@@ -77,9 +113,15 @@ function isUnlocalizable(raw: string): boolean {
 
 /**
  * Localise every capturable reference in `html`. `pageUrl` is the document's own (final) URL —
- * relative references resolve against it. `store` holds the bytes captured during render.
+ * relative references resolve against it. `store` holds the bytes captured during render, and
+ * `options` decides what is worth copying out of it (bulk media, oversize bodies).
  */
-export function localizeDocument(html: string, pageUrl: string, store: ResourceStore): LocalizeResult {
+export function localizeDocument(
+  html: string,
+  pageUrl: string,
+  store: ResourceStore,
+  options: LocalizeOptions = DEFAULT_OPTIONS,
+): LocalizeResult {
   const assets = new Map<string, LocalizedAsset>();
   const remote = new Map<string, ManifestRemote>();
 
@@ -89,7 +131,18 @@ export function localizeDocument(html: string, pageUrl: string, store: ResourceS
 
   /**
    * Localise one absolute reference, returning the `assets/…` path it maps to, or `null` when the
-   * bytes were not captured (left remote). `stylesheet` refs are rewritten recursively.
+   * reference is left remote (`media-skipped`, `fetch-failed` or `oversize`). `stylesheet` refs are
+   * rewritten recursively.
+   *
+   * The three remote reasons are tested in THIS order, and the order is load-bearing:
+   *   1. bulk media, BEFORE the store is consulted — Chromium may never request a `<video src>`
+   *      (`preload="none"`, an unsupported codec), and reporting such a ref as `fetch-failed` would
+   *      blame the network for a policy decision we made on purpose;
+   *   2. absence from the store — by now `fetch-missing` has already gone back for it, so absent
+   *      really does mean "we tried and could not get these bytes";
+   *   3. size — needs the body, so it can only be judged once we have one. A 30 MB video therefore
+   *      reads `media-skipped` by default and `oversize` under `--include-media`, which is the more
+   *      informative reason in each case.
    */
   const localizeAsset = (
     absoluteUrl: string,
@@ -97,8 +150,19 @@ export function localizeDocument(html: string, pageUrl: string, store: ResourceS
     referencedBy: string,
   ): string | null => {
     const stored = store.get(absoluteUrl);
+    if (
+      !options.includeMedia &&
+      isBulkMediaResource(stored?.contentType ?? '', pathnameOf(absoluteUrl))
+    ) {
+      recordRemote(absoluteUrl, 'media-skipped', referencedBy);
+      return null;
+    }
     if (stored === undefined) {
       recordRemote(absoluteUrl, 'fetch-failed', referencedBy);
+      return null;
+    }
+    if (stored.body.byteLength > options.maxAssetBytes) {
+      recordRemote(absoluteUrl, 'oversize', referencedBy);
       return null;
     }
     const assetPath = localPathFor(absoluteUrl, stored.contentType);

@@ -393,3 +393,18 @@ the pinned section below (that section may be edited in place).
   plugin/cli matches nothing and exits 0 (a false PASS). The AC's `-- dist` is correct only from there.
   Remaining: T30 (--max-asset-mb, --include-media) is the last open task; it will change clone output,
   so it MUST `npm run build` + commit dist and re-run `e2e-assert.sh --all`.
+- 2026-07-08 · T30 done (last plan task): `--max-asset-mb <n>` (default 25) + `--include-media`. Policy
+  lives in `localizeDocument`'s new 4th arg; `media-type.ts` gained `isBulkMediaResource`. +22 tests
+  (472, ratchet 450), incl. the first-ever `test/unit/localize.test.ts` — the pass had NO unit test.
+  TRAP 1 (the whole design): the media check MUST run BEFORE the store lookup. Chromium often never
+  requests a `<video src>` (preload=none, bad codec), so a store-first order reports `media-skipped`
+  refs as `fetch-failed` — blaming the network for our own policy. Order is media → absent → size, so
+  a 30MB video reads `media-skipped` by default and `oversize` under `--include-media`. Mutation-tested:
+  swapping the two blocks reddens 3 tests; `>`→`>=` on the size gate reddens only the boundary test.
+  TRAP 2: skip the media REFERENCE, not the media ELEMENT — `<video>`'s `poster` must still localize.
+  Both e2e (fixture `sites/media/`, new) and unit assert the poster survives beside the skipped src.
+  TRAP 3: an oversize STYLESHEET prunes its whole subtree (`@import`, `@font-face`) — those URLs are
+  discovered by parsing its body, so they must appear in NEITHER `resources[]` nor `remote[]`.
+  NOTE: spec 02 never fixes the base of "MB"; chose MiB (1024²), pinned as `BYTES_PER_MB` + asserted.
+  Not drift (unspecified, not contradicted) → no ADR. `basic` already emits a `fetch-failed` favicon,
+  so `--max-asset-mb 0.001` yields two reasons at once — asserted, guarding a one-reason-fits-all bug.

@@ -58,7 +58,12 @@ import {
   fetchMissing,
   MAX_CSS_IMPORT_DEPTH,
 } from '../localize/fetch-missing.js';
-import { localizeDocument, type LocalizedAsset } from '../localize/localize.js';
+import {
+  localizeDocument,
+  BYTES_PER_MB,
+  DEFAULT_MAX_ASSET_MB,
+  type LocalizedAsset,
+} from '../localize/localize.js';
 import { isCssResource, isFontResource, isImageResource } from '../localize/media-type.js';
 import { beautifyHtml, beautifyCss } from '../output/beautify.js';
 import {
@@ -106,6 +111,10 @@ export interface CloneRunOptions {
   filterList?: string;
   /** `--user-agent` override; omitted ⇒ the real default Chromium UA. */
   userAgent?: string;
+  /** `--max-asset-mb <n>` converted to bytes: larger bodies stay remote as `oversize` (spec 02 §6). */
+  maxAssetBytes: number;
+  /** `--include-media` localizes `mp4/webm/mp3/pdf/zip` instead of leaving them `media-skipped`. */
+  includeMedia: boolean;
 }
 
 /** The single JSON line the command prints to stdout on success. */
@@ -328,7 +337,10 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
 
   // --- Post-processing (stages 5–8): pure over the captured bytes, no browser needed. ----------
   const inertHtml = sanitizeHtml(serializedHtml);
-  const localized = localizeDocument(inertHtml, finalUrl, capture.store);
+  const localized = localizeDocument(inertHtml, finalUrl, capture.store, {
+    maxAssetBytes: opts.maxAssetBytes,
+    includeMedia: opts.includeMedia,
+  });
 
   // Pretty-print every localized stylesheet BEFORE hashing, so the manifest sha256/bytes describe
   // the exact bytes written to disk (fonts/images stay byte-identical to the captured body).
@@ -510,6 +522,12 @@ export function registerCloneCommand(program: Command): void {
     .option('--filter-list <file>', 'local adblock filter list, replacing the default consent list')
     .option('--remove-selector <css>', 'remove matching elements before capture (repeatable)', collect, [])
     .option('--user-agent <ua>', 'override the Chromium user agent')
+    .option(
+      '--max-asset-mb <n>',
+      'leave bodies larger than this many MiB remote (reason: oversize)',
+      String(DEFAULT_MAX_ASSET_MB),
+    )
+    .option('--include-media', 'localize bulk media (mp4/webm/mp3/pdf/zip) instead of leaving it remote')
     .action(
       async (
         url: string,
@@ -525,6 +543,8 @@ export function registerCloneCommand(program: Command): void {
           filterList?: string;
           removeSelector: string[];
           userAgent?: string;
+          maxAssetMb: string;
+          includeMedia?: boolean;
         },
       ): Promise<void> => {
         try {
@@ -542,6 +562,9 @@ export function registerCloneCommand(program: Command): void {
             ...(options.filterList !== undefined ? { filterList: options.filterList } : {}),
             removeSelectors: options.removeSelector,
             ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
+            maxAssetBytes: parsePositive(options.maxAssetMb, '--max-asset-mb') * BYTES_PER_MB,
+            // A bare `--include-media` arrives as `true`; absent, commander leaves it undefined.
+            includeMedia: options.includeMedia === true,
           };
           const result = await runClone(url, parsed);
           process.stdout.write(`${JSON.stringify(result)}\n`);

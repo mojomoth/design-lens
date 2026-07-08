@@ -643,6 +643,224 @@ describe('clone xorigin (cross-origin webfont, css-fetch)', () => {
   });
 });
 
+/** Shape of the bits of `manifest.json` the T30 policy tests read. */
+interface PolicyManifest {
+  remote: { url: string; reason: string; referencedBy: string }[];
+  resources: { localPath: string; originalUrl: string; via: string; bytes: number }[];
+}
+
+/** Read and parse a clone's `manifest.json`. */
+function readManifest(projectDir: string): PolicyManifest {
+  return JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as PolicyManifest;
+}
+
+/**
+ * T30 — `--max-asset-mb`, the size gate.
+ *
+ * WHY: this flag is the only thing standing between a design clone and a mirror of every byte a
+ * reference site serves. Its failure mode is silent — a clone that ignores the limit is still valid,
+ * still inert, still passes every sealed assertion, just gigabytes large. `0.001` MiB (1048 bytes)
+ * is chosen so the `basic` fixture straddles it: `hero.png` (990 B) localizes, `hero@2x.png`
+ * (3014 B) does not. That pairing is what proves the gate is a per-body decision rather than a
+ * blanket switch that stopped localizing anything.
+ */
+describe('clone basic --max-asset-mb (oversize policy)', () => {
+  let server: StaticServer;
+  let out: string;
+  let projectDir: string;
+  let indexHtml: string;
+
+  beforeAll(async () => {
+    server = await startStaticServer(path.join(SITES, 'basic'));
+    out = tmpOut();
+    // 0.001 MiB = 1048.576 bytes — between hero.png (990 B) and hero@2x.png (3014 B).
+    const result = await runCli(
+      ['clone', server.url('/index.html'), '--out', out, '--project', 'basic-oversize', '--max-asset-mb', '0.001'],
+      out,
+    );
+    expect(result.code, `clone failed: ${result.stderr}`).toBe(0);
+    projectDir = (JSON.parse(result.stdout.trim()) as { projectDir: string }).projectDir;
+    indexHtml = fs.readFileSync(path.join(projectDir, 'clone', 'index.html'), 'utf8');
+  });
+
+  afterAll(async () => {
+    await server.close();
+    fs.rmSync(out, { recursive: true, force: true });
+  });
+
+  // why: an oversize body must be RECORDED, not merely dropped. A dropped reference leaves the clone
+  // pointing at the live web with nothing in the manifest saying so — exactly the untraceable origin
+  // spec 10 forbids. The `referencedBy` pin means a user can find the element that wanted it.
+  it('leaves the oversize srcset variant remote with reason oversize', () => {
+    const manifest = readManifest(projectDir);
+    const entry = manifest.remote.find((r) => r.url.endsWith('/img/hero@2x.png'));
+
+    expect(entry, `hero@2x.png missing from remote[]: ${JSON.stringify(manifest.remote)}`).toBeDefined();
+    expect(entry!.reason).toBe('oversize');
+    expect(entry!.referencedBy).toMatch(/^dl-\d+$/);
+    // Remote precisely BECAUSE it did not localize: it must not also claim to be a resource on disk.
+    expect(manifest.resources.some((r) => r.originalUrl.endsWith('/img/hero@2x.png'))).toBe(false);
+  });
+
+  // why: this is the discriminator. If the gate regressed into "localize nothing", the assertion
+  // above would still pass. The 990-byte 1x variant sits just under the same limit that rejected the
+  // 3014-byte 2x variant, so only a genuine per-body comparison satisfies both halves — and the
+  // srcset attribute must carry one rewritten candidate beside one left exactly as authored.
+  it('still localizes the same-srcset variant that fits under the limit', () => {
+    const manifest = readManifest(projectDir);
+    const kept = manifest.resources.find((r) => r.originalUrl.endsWith('/img/hero.png'));
+
+    expect(kept, `hero.png should have localized: ${JSON.stringify(manifest.resources)}`).toBeDefined();
+    expect(kept!.bytes).toBe(990);
+    expect(fs.existsSync(path.join(projectDir, kept!.localPath))).toBe(true);
+
+    const match = /<img[^>]*\bsrcset="([^"]+)"/i.exec(indexHtml);
+    expect(match, `no srcset survived in the clone:\n${indexHtml}`).not.toBeNull();
+    // 1x rewritten to a local path; 2x left byte-identical to how the fixture authored it.
+    expect(match![1]).toMatch(/^assets\/\S+ 1x, img\/hero@2x\.png 2x$/);
+  });
+
+  // why: `remote[]` reasons are per-resource, not per-clone. This run produces BOTH `oversize` (the
+  // 2x hero) and `fetch-failed` (the favicon Chromium never requests headless). A regression that
+  // stamps one reason across every remote entry — easy to write, since they share a recorder — would
+  // pass every single-reason assertion in this suite.
+  it('records each remote reason independently, and renders them under ## Left remote', () => {
+    const manifest = readManifest(projectDir);
+    const reasons = new Set(manifest.remote.map((r) => r.reason));
+    expect(reasons).toContain('oversize');
+    expect(reasons).toContain('fetch-failed');
+
+    const report = fs.readFileSync(path.join(projectDir, 'REPORT.md'), 'utf8');
+    const leftRemote = report.split('## Left remote')[1]!.split('\n## ')[0]!;
+    for (const entry of manifest.remote) {
+      expect(leftRemote).toContain(`${entry.url} — ${entry.reason}`);
+    }
+  });
+
+  // why: an oversize STYLESHEET prunes everything discovered by parsing it. `style.css` (1474 B) is
+  // over the limit here, so its `@import`ed `second.css` and its `@font-face` woff2 are never even
+  // seen. They must be absent from BOTH lists — a phantom `remote[]` entry for a URL we never looked
+  // at would be a manifest claiming knowledge the run does not have.
+  it('prunes the reference subtree under an oversize stylesheet without inventing entries', () => {
+    const manifest = readManifest(projectDir);
+    const urls = [
+      ...manifest.remote.map((r) => r.url),
+      ...manifest.resources.map((r) => r.originalUrl),
+    ];
+    expect(urls.some((u) => u.endsWith('/second.css'))).toBe(false);
+    expect(urls.some((u) => u.endsWith('/brand.woff2'))).toBe(false);
+    // The parent itself IS recorded — we looked at it and rejected it.
+    expect(manifest.remote.find((r) => r.url.endsWith('/style.css'))?.reason).toBe('oversize');
+  });
+});
+
+/**
+ * T30 — bulk media (`--include-media`), against the dedicated `media` fixture.
+ *
+ * WHY: a design clone wants the poster frame, not the 40 MB video behind it, so `mp4/webm/mp3/pdf/
+ * zip` stay remote by default (spec 02 §6). Both branches are asserted from the SAME fixture, which
+ * is what makes each one attributable to the flag rather than to the media never loading at all:
+ *   • default          → mp4 + mp3 in `remote[]` as `media-skipped`, nothing on disk
+ *   • `--include-media` → both localized under `clone/assets/`, `remote[]` empty
+ * The fixture's `<video>` carries a `poster` beside its skipped `src`; asserting the poster survives
+ * is what separates "skip the media reference" from "skip the media element".
+ */
+describe('clone media (bulk media policy)', () => {
+  let server: StaticServer;
+  let out: string;
+  let defaultDir: string;
+  let includedDir: string;
+  let defaultHtml: string;
+  let includedHtml: string;
+
+  beforeAll(async () => {
+    server = await startStaticServer(path.join(SITES, 'media'));
+    out = tmpOut();
+    const cloneMedia = async (args: string[], project: string): Promise<string> => {
+      const result = await runCli(
+        ['clone', server.url('/index.html'), '--out', out, '--project', project, ...args],
+        out,
+      );
+      expect(result.code, `clone ${project} failed: ${result.stderr}`).toBe(0);
+      return (JSON.parse(result.stdout.trim()) as { projectDir: string }).projectDir;
+    };
+    defaultDir = await cloneMedia([], 'media-default');
+    includedDir = await cloneMedia(['--include-media'], 'media-included');
+    defaultHtml = fs.readFileSync(path.join(defaultDir, 'clone', 'index.html'), 'utf8');
+    includedHtml = fs.readFileSync(path.join(includedDir, 'clone', 'index.html'), 'utf8');
+  }, 120_000);
+
+  afterAll(async () => {
+    await server.close();
+    fs.rmSync(out, { recursive: true, force: true });
+  });
+
+  // why: the default. Chromium DOES fetch these bodies (`preload="auto"`), so they sit in the
+  // ResourceStore — meaning the skip is a deliberate policy decision, not an accident of what the
+  // render happened to request. Their references must survive byte-identical, and no media byte may
+  // reach the clone tree.
+  it('leaves mp4 and mp3 remote with reason media-skipped by default', () => {
+    const manifest = readManifest(defaultDir);
+
+    for (const file of ['/media/promo.mp4', '/media/tone.mp3']) {
+      const entry = manifest.remote.find((r) => r.url.endsWith(file));
+      expect(entry, `${file} missing from remote[]: ${JSON.stringify(manifest.remote)}`).toBeDefined();
+      expect(entry!.reason).toBe('media-skipped');
+      expect(entry!.referencedBy).toMatch(/^dl-\d+$/);
+      expect(manifest.resources.some((r) => r.originalUrl.endsWith(file))).toBe(false);
+    }
+
+    // References left exactly as authored, and nothing media-shaped written under clone/assets/.
+    expect(defaultHtml).toContain('src="media/promo.mp4"');
+    expect(defaultHtml).toContain('src="media/tone.mp3"');
+    const written = fs.readdirSync(path.join(defaultDir, 'clone', 'assets'), { recursive: true }) as string[];
+    expect(written.filter((f) => /\.(?:mp4|mp3)$/.test(f))).toEqual([]);
+  });
+
+  // why (THE DISCRIMINATOR): the poster frame lives on the very `<video>` whose `src` is skipped. An
+  // implementation that skips the media ELEMENT rather than the media REFERENCE passes the assertion
+  // above and silently throws away the one image on that element a designer actually needs. Nothing
+  // else in the suite would catch it.
+  it('still localizes the poster frame on the skipped <video>', () => {
+    const manifest = readManifest(defaultDir);
+    const poster = manifest.resources.find((r) => r.originalUrl.endsWith('/img/poster.png'));
+
+    expect(poster, `poster.png should have localized: ${JSON.stringify(manifest.resources)}`).toBeDefined();
+    expect(fs.existsSync(path.join(defaultDir, poster!.localPath))).toBe(true);
+    expect(defaultHtml).toMatch(/<video[^>]*\bposter="assets\/[^"]+\/img\/poster\.png"/);
+    // …and the sibling <img> is untouched by the media policy.
+    expect(manifest.resources.some((r) => r.originalUrl.endsWith('/img/still.png'))).toBe(true);
+  });
+
+  // why: `--include-media` has to actually turn the policy off — same URL mapping, verbatim bodies,
+  // an empty `remote[]`. Byte counts are compared against the fixture files on disk so a truncated
+  // or re-encoded media body (a real risk: Chromium may serve media from a partial Range response)
+  // fails loudly instead of shipping a corrupt asset.
+  it('localizes mp4 and mp3 under --include-media', () => {
+    const manifest = readManifest(includedDir);
+    expect(manifest.remote).toEqual([]);
+
+    for (const [file, fixture] of [
+      ['/media/promo.mp4', 'media/promo.mp4'],
+      ['/media/tone.mp3', 'media/tone.mp3'],
+    ]) {
+      const entry = manifest.resources.find((r) => r.originalUrl.endsWith(file!));
+      expect(entry, `${file} missing from resources[]: ${JSON.stringify(manifest.resources)}`).toBeDefined();
+      expect(entry!.via).toBe('network');
+
+      const written = path.join(includedDir, entry!.localPath);
+      expect(fs.existsSync(written)).toBe(true);
+      // Byte-for-byte identical to what the fixture server served.
+      const source = fs.readFileSync(path.join(SITES, 'media', fixture!));
+      expect(entry!.bytes).toBe(source.byteLength);
+      expect(fs.readFileSync(written).equals(source)).toBe(true);
+    }
+
+    expect(includedHtml).toMatch(/<video[^>]*\bsrc="assets\/[^"]+\/media\/promo\.mp4"/);
+    expect(includedHtml).toMatch(/<audio[^>]*\bsrc="assets\/[^"]+\/media\/tone\.mp3"/);
+  });
+});
+
 describe('clone unreachable URL', () => {
   it('exits 1 and writes no clone when navigation fails', async () => {
     // Bind then release a port so it is guaranteed free (connection refused, not a hang).
