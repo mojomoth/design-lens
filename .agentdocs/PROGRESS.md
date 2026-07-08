@@ -46,3 +46,13 @@ the pinned section below (that section may be edited in place).
   `%2e%2e` traversal collapses; overlong collapse (91+`-`+8hex=100) hashes the CLEANED segment and
   strips a real extension if it's the last segment, so test overlong via a DIRECTORY segment. URL
   parser drops default ports + lowercases host for free; `?` with empty query yields search=''.
+- 2026-07-08 · T07 done: `localize/css-rewrite.ts` `rewriteCss(css, baseUrl, resolve)` — css-tree
+  v3 walk of Url + @import atrule preludes; returns rewritten css + refs[]{url,kind,localPath}.
+  Kept PURE via a `resolve(absUrl,kind)=>string|null` callback (null=stay remote); relativization +
+  ResourceStore availability belong to T11's resolver, not here. Traps: css-tree v3 `Url`/`String`
+  nodes are `{type,value:string}` (flat, no nested Raw); set `node.value` then `generate()` RE-ESCAPES
+  special chars — so `new URL('foo\\ bar')` percent-encodes the space to %20 (that's the browser-true
+  ref), while a resolver returning a literal-space path is what exercises generate's `\ `/`\(` escaping.
+  Handle @import String AND url() forms; `return this.skip` on the Atrule so its inner Url isn't
+  double-counted. Left untouched w/o calling resolver: `data:` and `url(#fragment)` (SVG paint refs).
+  Added css-tree@^3 + @types/css-tree (allowlisted). Did NOT build dist (M1 invariant: B10 stays SKIP).

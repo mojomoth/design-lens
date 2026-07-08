@@ -13,6 +13,7 @@
     "verify": "npm run typecheck && npm run test && npm run build && npm run e2e"
   },
   "devDependencies": {
+    "@types/css-tree": "^2.3.11",
     "@types/node": "^20.11.0",
     "eslint": "^9.18.0",
     "tsup": "^8.3.5",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "commander": "^12.1.0",
+    "css-tree": "^3.2.1",
     "playwright": "1.61.1"
   }
 }
