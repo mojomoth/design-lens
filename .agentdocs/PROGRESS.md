@@ -56,3 +56,11 @@ the pinned section below (that section may be edited in place).
   Handle @import String AND url() forms; `return this.skip` on the Atrule so its inner Url isn't
   double-counted. Left untouched w/o calling resolver: `data:` and `url(#fragment)` (SVG paint refs).
   Added css-tree@^3 + @types/css-tree (allowlisted). Did NOT build dist (M1 invariant: B10 stays SKIP).
+- 2026-07-08 · T08 done: `localize/srcset.ts` — WHATWG "parse a srcset attribute" algo (parseSrcset)
+  + stringifySrcset + rewriteSrcset (resolver DI, mirrors css-rewrite). The point of the module:
+  collect the URL as a NON-whitespace run so commas INSIDE a url (data: URI, CDN `w_100,h_50` paths)
+  stay put — kage's bare comma-split mangles these (research/kage-clone.md §4). Descriptor read after
+  ws up to next TOP-LEVEL comma (paren-tracked), preserved verbatim; a url ending in comma(s) is
+  descriptorless (commas stripped). data: candidates never resolved (already inline). 17 unit tests
+  (w/x, descriptorless, comma-in-url data-URI+CDN, whitespace/newline variants, round-trip, resolver
+  null=stay-remote). rewriteSrcset is T14's substitution primitive. Did NOT build dist (M1 invariant).
