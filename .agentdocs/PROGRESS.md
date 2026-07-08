@@ -75,3 +75,13 @@ the pinned section below (that section may be edited in place).
   strips tab/nl/cr/ff anywhere + leading ws before the prefix check (browser-true). Provenance
   comment prepend is T11/writer's job (needs sourceUrl/capturedAt), NOT this pure pass. Added
   cheerio@^1.2.0 (allowlisted). Did NOT build dist (M1 invariant: B10 stays SKIP).
+- 2026-07-08 · T10 done: `output/manifest.ts` (buildManifest/resourceEntry/manifestJson) + `output/report.ts`
+  (buildReport), both PURE. Traps: manifest owns the `clone/` prefix (urlmap emits `assets/…` into
+  HTML; manifest localPath must be `clone/assets/…` because gate A7 joins from PROJECT dir, ADR-010)
+  — resourceEntry takes the urlmap `assets/…` string and prefixes it; buildManifest re-asserts the
+  invariant as defence-in-depth. tool.version locked to VERSION (not caller-overridable, AC-10).
+  resourceEntry hashes the PASSED bytes (bytes/sha256 describe the stored file, not a caller digest).
+  report: six `##` headings + license paragraph are VERBATIM (spec §template); parenthesised hints
+  are content not literal text, so I render a real capture table / remote list / fidelity counters.
+  manifestJson = 2-space JSON + trailing newline (keeps committed-dist diff clean). 18 unit tests
+  (139 total). Did NOT build dist (M1 invariant: B10 stays SKIP until T11 wires the pipeline).
