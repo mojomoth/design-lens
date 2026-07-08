@@ -17,8 +17,12 @@ import type { Browser, BrowserContext, Page, Response } from 'playwright';
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { ResourceStore } from '../localize/resource-store.js';
 
-/** The slice of the Playwright module this module uses (loaded at run time, external to the bundle). */
-interface PlaywrightModule {
+/**
+ * The slice of the Playwright module we use (loaded at run time, external to the bundle).
+ * Exported so `commands/inspect.ts` — which needs a bare browser, not a capturing one — can
+ * `loadRuntimeDep` against the same shape instead of re-declaring it.
+ */
+export interface PlaywrightModule {
   chromium: {
     launch(options?: { headless?: boolean; args?: string[] }): Promise<Browser>;
   };

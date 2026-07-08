@@ -192,3 +192,21 @@ the pinned section below (that section may be edited in place).
   (4) e2e counts come from the CLONE, not the fixture: @percy/dom materializes `:hover`/`:focus` into an inline `<style>`
   as `rgb(51, 71, 255)`, so basic's brand color is used 14× (7+5+2), and hex/rgb() must merge into ONE cluster.
   (5) clusters sort by LIGHTNESS desc, not count — `colors[0]` is white; the dominant color is not first.
+- 2026-07-08 · T18 done: `analyze/heuristics.ts` (role table, thresholds, PURE) + `analyze/inspect.ts`
+  (`probeElements` runs in-page; `classify` decides in Node) + `commands/inspect.ts` (serve→render→probe→stdout).
+  330 tests (ratchet 273). Gate green; sealed `--all`: **A1–A18 ALL PASS** — full fixture parity (T19's AC).
+  DESIGN SEAM: measure in the page, judge in Node. Roles depend on culori deltaE + cross-element ranking, so
+  deciding in-page would drag culori into `page.evaluate` AND make every rule untestable without Chromium.
+  TRAPS: (1) alpha-0 AGAIN — `rgba(0,0,0,0)` is the DEFAULT `<a>`/`<button>` background and culori reads it as
+  BLACK (deltaE≈1.0 from white), so the fallback-CTA rule tags every short link unless alpha-0 is dropped.
+  (2) `getComputedStyle().backgroundImage` is ABSOLUTE and embeds inspect's EPHEMERAL port ⇒ `relativizeUrl`
+  strips the served origin, else stdout differs every run. (3) `hero-image` resolves to the hero SECTION, not the
+  `<img>`: spec ranks img ∪ background-image by rect AREA, and the 1440×834 band beats the 960×480 img. Correct,
+  surprising. (4) `hero-heading` runs BEFORE `cta`; with no `<h1>` its largest-text fallback legitimately eats the
+  first text-bearing `<a>` — synthetic CTA unit fixtures need an h1 or they test nothing. (5) SVG has no
+  `innerText` (the sealed logo is `a.logo > svg`) ⇒ textContent fallback. (6) `probeElements` crosses into the page
+  as minified source: it must close over NOTHING — `SELECTORS` is passed as an arg, like `capture/stamp.ts`.
+  (7) sealed A18 greps `"role":"logo"` (no space) ⇒ default output stays COMPACT single-line; `--pretty` opts out.
+  NOT duplicated: exported `PlaywrightModule` from `capture/browser.ts` instead of re-declaring it — but did NOT
+  reuse `launchCapture`, whose ResourceStore reads every response body inspect would throw away.
+  `.agentdocs/ARCHITECTURE.md` is a B1-protected doc, so no new `capture/probe.ts`: stayed inside its module map.

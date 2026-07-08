@@ -4,13 +4,14 @@
  * Kept as a pure factory (no `parse`, no `process.exit`) so unit tests can drive it in-process
  * with `exitOverride()`/`configureOutput()` and assert output without spawning a process. The
  * six subcommands (clone/tokens/inspect/screenshot/serve/verify — spec 00-product §Interfaces)
- * are registered here as later tasks land; `inspect`/`screenshot`/`serve`/`verify` are still to
- * come, alongside the locked `--version` flag.
+ * are registered here as later tasks land; `screenshot`/`serve`/`verify` are still to come,
+ * alongside the locked `--version` flag.
  */
 
 import { Command } from 'commander';
 import { VERSION } from './version.js';
 import { registerCloneCommand } from './commands/clone.js';
+import { registerInspectCommand } from './commands/inspect.js';
 import { registerTokensCommand } from './commands/tokens.js';
 
 export function buildProgram(): Command {
@@ -22,5 +23,6 @@ export function buildProgram(): Command {
     .version(VERSION, '--version', 'print the design-lens version and exit');
   registerCloneCommand(program);
   registerTokensCommand(program);
+  registerInspectCommand(program);
   return program;
 }
