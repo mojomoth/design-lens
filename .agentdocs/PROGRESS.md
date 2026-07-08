@@ -64,3 +64,14 @@ the pinned section below (that section may be edited in place).
   descriptorless (commas stripped). data: candidates never resolved (already inline). 17 unit tests
   (w/x, descriptorless, comma-in-url data-URI+CDN, whitespace/newline variants, round-trip, resolver
   null=stay-remote). rewriteSrcset is T14's substitution primitive. Did NOT build dist (M1 invariant).
+- 2026-07-08 · T09 done: `localize/html-rewrite.ts` `sanitizeHtml(html)` — cheerio inert pass
+  (kage §2 list): strip `<script>`, `<noscript>`, `on*` attrs, `javascript:` URLs (href→`#`, else
+  drop), `<meta http-equiv=refresh>`, dead hints (preconnect/dns-prefetch/modulepreload, and
+  preload/prefetch only when `as=script`), IE conditional comments, ensure `<meta charset>`. 16
+  unit tests (pos+neg per rule). Traps: cheerio `$('*')` widens to AnyNode (unlike `$('meta')`) →
+  guard `'attribs' in el` before touching attribs; IE `<!--[if IE]><script>…<![endif]-->` is ONE
+  comment node with the script INSIDE its `.data`, so element removal misses it — must strip the
+  comment (walk `$('*').contents()`, narrow `node.type==='comment'`). `javascript:` detection
+  strips tab/nl/cr/ff anywhere + leading ws before the prefix check (browser-true). Provenance
+  comment prepend is T11/writer's job (needs sourceUrl/capturedAt), NOT this pure pass. Added
+  cheerio@^1.2.0 (allowlisted). Did NOT build dist (M1 invariant: B10 stays SKIP).
