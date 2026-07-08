@@ -427,6 +427,149 @@ describe('clone banner (consent blocking)', () => {
   });
 });
 
+/**
+ * Materialize `test/fixtures/sites/xorigin` into a temp dir with `__CDN_ORIGIN__` replaced by the
+ * live CDN origin. The CDN runs on an ephemeral port, so its origin cannot be committed into the
+ * fixture's CSS — but the fixture must still be readable/greppable on disk, so it holds a placeholder
+ * rather than being generated from a string in this file. The site is flat (index.html + style.css).
+ */
+function materializeXorigin(cdnOrigin: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-xorigin-'));
+  for (const entry of fs.readdirSync(path.join(SITES, 'xorigin'))) {
+    const body = fs.readFileSync(path.join(SITES, 'xorigin', entry), 'utf8');
+    fs.writeFileSync(path.join(dir, entry), body.split('__CDN_ORIGIN__').join(cdnOrigin), 'utf8');
+  }
+  return dir;
+}
+
+/**
+ * T16 — cross-origin webfonts, and the `network` / `css-fetch` split that proves the pipeline knows
+ * WHY it has each font's bytes. Own-suite analogue of sealed assertion A15 (alt-port CDN mirror).
+ *
+ * WHY this exists: browsers load fonts lazily. `webfont.css` (served cross-origin) declares two
+ * faces; the page renders text in "CDN Sans" only. Chromium therefore requests cdn-sans.woff2 during
+ * render and NEVER requests cdn-serif.woff2 — that URL exists solely inside stylesheet text, on a
+ * different origin, reachable only by parsing the CSS and going back for the bytes with the browser
+ * context's request client. Before T16 the serif face stayed a live `http://127.0.0.1:<cdn>/…` URL
+ * inside the clone's CSS: a font that 404s the moment the clone moves machines, and a `via: css-fetch`
+ * the manifest schema allowed but nothing ever emitted. Delete these and that regression is invisible.
+ */
+describe('clone xorigin (cross-origin webfont, css-fetch)', () => {
+  interface ManifestResource {
+    localPath: string;
+    originalUrl: string;
+    contentType: string;
+    via: string;
+  }
+
+  let cdn: StaticServer;
+  let page: StaticServer;
+  let siteDir: string;
+  let out: string;
+  let projectDir: string;
+  let resources: ManifestResource[];
+
+  beforeAll(async () => {
+    // The CDN must be up first: its origin is baked into the page's stylesheet.
+    cdn = await startStaticServer(path.join(SITES, 'cdn'));
+    siteDir = materializeXorigin(cdn.origin);
+    page = await startStaticServer(siteDir);
+
+    out = tmpOut();
+    const result = await runCli(
+      ['clone', page.url('/index.html'), '--out', out, '--project', 'xorigin'],
+      out,
+    );
+    expect(result.code, `clone failed: ${result.stderr}`).toBe(0);
+    projectDir = (JSON.parse(result.stdout.trim()) as { projectDir: string }).projectDir;
+    resources = (
+      JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as {
+        resources: ManifestResource[];
+      }
+    ).resources;
+  });
+
+  afterAll(async () => {
+    await page.close();
+    await cdn.close();
+    fs.rmSync(siteDir, { recursive: true, force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  });
+
+  // why (T16 AC): the unused face is the one no browser ever asks for. It must still land under
+  // clone/assets/ with its provenance told truthfully — `css-fetch`, not `network` (we did not
+  // capture it) and not `refetch` (no DOM reference named it).
+  it('localizes the unused cross-origin @font-face as via: css-fetch', () => {
+    const serif = resources.find((r) => r.originalUrl === `${cdn.origin}/fonts/cdn-serif.woff2`);
+    expect(serif, `cdn-serif.woff2 missing from manifest:\n${JSON.stringify(resources, null, 2)}`)
+      .toBeDefined();
+    expect(serif!.via).toBe('css-fetch');
+    expect(serif!.localPath.startsWith('clone/assets/')).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, serif!.localPath))).toBe(true);
+    expect(fs.statSync(path.join(projectDir, serif!.localPath)).size).toBeGreaterThan(0);
+  });
+
+  // why: the split is the claim. If css-fetch silently swallowed the rendered face too (e.g. the
+  // collector ran before `drainResponses`, or fetchMissing stopped honouring the store), this catches
+  // it — and it re-proves the ADR-011 cross-origin capture path (--disable-web-security + bypassCSP)
+  // that sealed A15 depends on: a CORS-unheadered CDN font DOES load at render.
+  it('still captures the USED cross-origin face at render, as via: network', () => {
+    const sans = resources.find((r) => r.originalUrl === `${cdn.origin}/fonts/cdn-sans.woff2`);
+    expect(sans, `cdn-sans.woff2 missing from manifest:\n${JSON.stringify(resources, null, 2)}`)
+      .toBeDefined();
+    expect(sans!.via).toBe('network');
+    expect(fs.existsSync(path.join(projectDir, sans!.localPath))).toBe(true);
+  });
+
+  // why: the cross-origin @import chain must be followed and rewritten. The CDN stylesheet lands in
+  // its OWN assets/<host>/ directory (a different host slug than the page's), and both faces are
+  // rewritten to paths relative to THAT directory — not the page root. A base-URL bug here yields
+  // `assets/<page-host>/fonts/…`, a path with no file behind it.
+  it('localizes the cross-origin @import and rewrites both font src to relative paths', () => {
+    const webfontCss = resources.find((r) => r.originalUrl === `${cdn.origin}/webfont.css`);
+    expect(webfontCss, 'the cross-origin @import target was not localized').toBeDefined();
+
+    const css = fs.readFileSync(path.join(projectDir, webfontCss!.localPath), 'utf8');
+    expect(css).toMatch(/url\(fonts\/cdn-sans\.woff2\)/);
+    expect(css).toMatch(/url\(fonts\/cdn-serif\.woff2\)/);
+
+    // The page sheet's @import now points into the CDN's asset directory, not at the live CDN.
+    const pageCss = resources.find((r) => r.originalUrl === `${page.origin}/style.css`);
+    expect(pageCss, 'the page stylesheet was not localized').toBeDefined();
+    expect(fs.readFileSync(path.join(projectDir, pageCss!.localPath), 'utf8')).toMatch(
+      /@import url\((?!http)[^)]*webfont\.css\)/,
+    );
+  });
+
+  // why: the point of localizing at all. Sealed A4 forbids the capture host anywhere inside clone/;
+  // a css-fetch that wrote bytes but never rewrote the reference would still leave a live URL behind.
+  it('leaves no reference to either live origin inside clone/', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        // Only text files: a woff2's bytes could coincidentally spell the host substring.
+        else if (/\.(?:html|css)$/.test(entry.name) && fs.readFileSync(full, 'utf8').includes('127.0.0.1')) {
+          offenders.push(full);
+        }
+      }
+    };
+    walk(path.join(projectDir, 'clone'));
+    expect(offenders).toEqual([]);
+  });
+
+  // why: `stats.fonts` feeds the REPORT "Capture results" font row, whose byte counts back the
+  // license notice's "font files and their source hosts are listed above" (spec 03). A font that
+  // localizes but is not counted makes that notice a lie.
+  it('counts both faces in manifest stats.fonts', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as {
+      stats: { fonts: number };
+    };
+    expect(manifest.stats.fonts).toBe(2);
+  });
+});
+
 describe('clone unreachable URL', () => {
   it('exits 1 and writes no clone when navigation fails', async () => {
     // Bind then release a port so it is guaranteed free (connection refused, not a hang).

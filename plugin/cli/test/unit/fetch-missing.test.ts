@@ -6,17 +6,22 @@
  * the pipeline reaches back to the network AFTER render, so its failure semantics are load-bearing:
  * a dead variant must degrade to a warning + a `manifest.remote[]` entry, never a thrown clone.
  * These cases pin, without a browser:
- *   - which URLs the collector considers (all candidates, deduped, document order; never `data:`),
- *   - that success lands in the store tagged `via: 'refetch'` (what makes the manifest honest),
+ *   - which URLs the srcset collector considers (all candidates, deduped, document order; never `data:`),
+ *   - which URLs the CSS collector digs out of stylesheet text (T16: the unused `@font-face` a browser
+ *     never requests, resolved against the SHEET's origin, through nested cross-origin `@import`s),
+ *   - that success lands in the store tagged with the caller's `via` (what makes the manifest honest),
  *   - that retries actually retry, and that exhausting them fails softly,
  *   - that already-captured URLs are never refetched (no duplicate request at the studied site).
- * Remove them and a regression here shows up only as a silently broken image inside a clone.
+ * Remove them and a regression here shows up only as a silently broken image or a dead `@font-face`
+ * inside a clone — output nothing in the pipeline validates.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_RETRIES,
+  MAX_CSS_IMPORT_DEPTH,
+  collectCssUrls,
   collectSrcsetUrls,
   fetchMissing,
   type RefetchClient,
@@ -25,6 +30,11 @@ import {
 import { ResourceStore } from '../../src/localize/resource-store.js';
 
 const PAGE = 'https://example.com/pages/index.html';
+
+/** Seed `store` with a stylesheet body at `url`, as the render's response handler would have. */
+function seedCss(store: ResourceStore, url: string, css: string): void {
+  store.record({ url, status: 200, contentType: 'text/css', body: Buffer.from(css, 'utf8'), via: 'network' });
+}
 
 /** Build a fake `APIResponse`; `status` < 400 counts as ok, matching Playwright's `ok()`. */
 function response(status: number, contentType: string, body: string): RefetchResponse {
@@ -106,6 +116,172 @@ describe('collectSrcsetUrls', () => {
   // `src` values or an empty-string candidate.
   it('returns nothing when the document has no srcset', () => {
     expect(collectSrcsetUrls('<img src="a.png"><p>text</p>', PAGE)).toEqual([]);
+  });
+});
+
+describe('collectCssUrls', () => {
+  // why (T16, the core case): browsers load fonts LAZILY — an `@font-face` no element renders in is
+  // never requested, so its woff2 is absent from the store and no DOM attribute names it. If this
+  // collector does not parse stylesheet text, that font can never be localized and the clone ships a
+  // rule pointing at the live web. This asserts the URL is dug out of a STORED sheet's body.
+  it('finds a url() inside a stored stylesheet the render captured', () => {
+    const store = new ResourceStore();
+    const sheet = 'https://example.com/css/site.css';
+    seedCss(store, sheet, '@font-face { src: url(../fonts/unused.woff2) format("woff2"); }');
+    const html = `<link rel="stylesheet" href="${sheet}">`;
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual(['https://example.com/fonts/unused.woff2']);
+  });
+
+  // why: a reference inside a stylesheet resolves against THAT SHEET's URL, not the page's. Resolving
+  // against the page would send a cross-origin CDN font request to the page's own origin — a 404 that
+  // silently degrades to `fetch-failed`. This is the bug the xorigin e2e fixture exists to catch.
+  it('resolves references against the stylesheet URL, not the page URL', () => {
+    const store = new ResourceStore();
+    const sheet = 'https://cdn.example.net/webfont.css';
+    seedCss(store, sheet, '@font-face { src: url(fonts/cdn.woff2); }');
+    const html = `<link rel="stylesheet" href="${sheet}">`;
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual(['https://cdn.example.net/fonts/cdn.woff2']);
+  });
+
+  // why: the @import target itself must be offered even when its bytes are missing — that is the only
+  // way a chain of uncaptured sheets can ever be walked (the caller fetches it, then re-collects).
+  // A collector that only descended into stored sheets would stop dead at the first missing one.
+  it('offers an @import target whose body is absent from the store', () => {
+    const store = new ResourceStore();
+    const sheet = 'https://example.com/css/site.css';
+    seedCss(store, sheet, '@import url(missing.css);');
+    const html = `<link rel="stylesheet" href="${sheet}">`;
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual(['https://example.com/css/missing.css']);
+  });
+
+  // why: this is the fixpoint the clone loop depends on. Round 1 surfaces the @import; after its bytes
+  // land, round 2 must surface the font hiding INSIDE it. If recursion into newly-stored sheets broke,
+  // a two-level chain would silently lose its leaf assets.
+  it('descends into a nested @import once its body reaches the store', () => {
+    const store = new ResourceStore();
+    const outer = 'https://example.com/css/site.css';
+    const inner = 'https://cdn.example.net/fonts.css';
+    seedCss(store, outer, `@import url(${inner});`);
+    const html = `<link rel="stylesheet" href="${outer}">`;
+
+    // Round 1: the inner sheet is missing, so only it is offered.
+    expect(collectCssUrls(html, PAGE, store)).toEqual([inner]);
+
+    // Round 2: with the inner sheet stored, its own font surfaces (resolved against the CDN).
+    seedCss(store, inner, '@font-face { src: url(f/serif.woff2); }');
+    expect(collectCssUrls(html, PAGE, store)).toEqual([inner, 'https://cdn.example.net/f/serif.woff2']);
+  });
+
+  // why: `<style>` blocks carry the folded CSSOM rules (adoptedStyleSheets, insertRule) the serializer
+  // emits. A background-image on an element this capture never painted lives only there.
+  it('collects url() from <style> blocks and inline style="" against the page URL', () => {
+    const store = new ResourceStore();
+    const html =
+      '<style>.a { background: url(../img/never-painted.png); }</style>' +
+      '<div style="background-image:url(inline.png)"></div>';
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual([
+      'https://example.com/img/never-painted.png',
+      'https://example.com/pages/inline.png',
+    ]);
+  });
+
+  // why: a `data:` payload is already inline and `url(#gradient)` names an SVG node in this document.
+  // Requesting either is a guaranteed-failing round trip that pollutes report.warnings[].
+  it('never offers data: payloads, fragments, or non-http schemes', () => {
+    const store = new ResourceStore();
+    const html =
+      '<style>' +
+      '.a { background: url(data:image/gif;base64,R0lGOD); }' +
+      '.b { fill: url(#gradient); }' +
+      '.c { background: url(blob:https://example.com/x); }' +
+      '.d { background: url(real.png); }' +
+      '</style>';
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual(['https://example.com/pages/real.png']);
+  });
+
+  // why: the same font referenced by two faces (woff2 + a `format()` fallback naming the same file)
+  // must be fetched once. Duplicate requests at a site we are merely studying are what politeness costs.
+  it('deduplicates URLs fragment-insensitively, preserving discovery order', () => {
+    const store = new ResourceStore();
+    const html =
+      '<style>' +
+      '.a { background: url(b.png); }' +
+      '.b { background: url(a.png); }' +
+      '.c { background: url(b.png#frag); }' +
+      '</style>';
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual([
+      'https://example.com/pages/b.png',
+      'https://example.com/pages/a.png',
+    ]);
+  });
+
+  // why: a `<link>` stylesheet missing from the store was discovered in the HTML, not inside CSS.
+  // Refetching it here would stamp it `via: css-fetch` — a lie the manifest carries forever. It must
+  // stay remote with reason `fetch-failed` (spec 02 §6). Deleting this lets provenance rot silently.
+  it('does not offer a <link> stylesheet whose own body is absent from the store', () => {
+    const store = new ResourceStore();
+    const html = '<link rel="stylesheet" href="https://example.com/css/uncaptured.css">';
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual([]);
+  });
+
+  // why: `rel="preload stylesheet"` is token-separated and `rel="preload"` alone is not a stylesheet.
+  // A substring match on `rel` would walk a preloaded font's bytes as if they were CSS text.
+  it('parses rel as tokens, ignoring non-stylesheet links', () => {
+    const store = new ResourceStore();
+    const multi = 'https://example.com/css/multi.css';
+    const preload = 'https://example.com/css/preload.css';
+    seedCss(store, multi, '.a { background: url(m.png); }');
+    seedCss(store, preload, '.b { background: url(p.png); }');
+    const html =
+      `<link rel="preload stylesheet" href="${multi}">` + `<link rel="preload" href="${preload}">`;
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual(['https://example.com/css/m.png']);
+  });
+
+  // why: a circular @import (a→b→a) is legal CSS and appears in the wild via shared partials. Without
+  // the visited-set guard the collector recurses until the stack blows — taking the whole clone down.
+  it('terminates on a circular @import chain', () => {
+    const store = new ResourceStore();
+    const a = 'https://example.com/css/a.css';
+    const b = 'https://example.com/css/b.css';
+    seedCss(store, a, `@import url(${b});`);
+    seedCss(store, b, `@import url(${a}); .b { background: url(leaf.png); }`);
+    const html = `<link rel="stylesheet" href="${a}">`;
+
+    expect(collectCssUrls(html, PAGE, store)).toEqual([b, a, 'https://example.com/css/leaf.png']);
+  });
+
+  // why: the depth bound is the backstop against an adversarial (or generated) import chain. It must
+  // stop descending, NOT stop collecting — the sheet at the boundary is still offered for fetching.
+  it('stops descending at MAX_CSS_IMPORT_DEPTH but still offers the boundary sheet', () => {
+    const store = new ResourceStore();
+    const url = (n: number): string => `https://example.com/css/s${n}.css`;
+    // A chain longer than the cap, every level stored: s0 → s1 → … → s(depth+1).
+    for (let n = 0; n <= MAX_CSS_IMPORT_DEPTH + 1; n++) {
+      seedCss(store, url(n), `@import url(${url(n + 1)}); .s${n} { background: url(x${n}.png); }`);
+    }
+    const html = `<link rel="stylesheet" href="${url(0)}">`;
+
+    const found = collectCssUrls(html, PAGE, store);
+
+    // Walking s0 is depth 0, so sheets s1…s(MAX) are descended into and s(MAX+1) is only offered.
+    expect(found).toContain(url(MAX_CSS_IMPORT_DEPTH));
+    expect(found).toContain(`https://example.com/css/x${MAX_CSS_IMPORT_DEPTH}.png`);
+    expect(found).toContain(url(MAX_CSS_IMPORT_DEPTH + 1));
+    expect(found).not.toContain(`https://example.com/css/x${MAX_CSS_IMPORT_DEPTH + 1}.png`);
+  });
+
+  // why: a document whose CSS names no external resource must cost zero requests.
+  it('returns nothing when no CSS references anything external', () => {
+    const store = new ResourceStore();
+    expect(collectCssUrls('<style>.a { color: red; }</style>', PAGE, store)).toEqual([]);
   });
 });
 
@@ -236,5 +412,25 @@ describe('fetchMissing', () => {
     await fetchMissing(client, [url], store, { timeoutMs: 4321 });
 
     expect(seen).toEqual([4321]);
+  });
+
+  // why (T16, spec 03): `css-fetch` and `refetch` are DIFFERENT provenance claims — "discovered inside
+  // CSS and fetched" vs "re-fetched post-render". Only the caller knows where the reference was found,
+  // so it must be able to say. Hardcoding `refetch` here would make every localized webfont lie about
+  // how it was discovered, and `css-fetch` would be a value the manifest schema allows but never emits.
+  it('stamps the caller-supplied via on fetched bytes, defaulting to refetch', async () => {
+    const store = new ResourceStore();
+    const font = 'https://cdn.example.net/fonts/serif.woff2';
+    const image = 'https://example.com/a@2x.png';
+    const client = fakeClient({
+      [font]: [response(200, 'font/woff2', 'WOFF2')],
+      [image]: [response(200, 'image/png', 'PNG')],
+    });
+
+    await fetchMissing(client, [font], store, { via: 'css-fetch' });
+    await fetchMissing(client, [image], store);
+
+    expect(store.get(font)?.via).toBe('css-fetch');
+    expect(store.get(image)?.via).toBe('refetch');
   });
 });

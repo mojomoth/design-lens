@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Cross-origin webfont fixture</title>
+    <!-- style.css cross-origin-@imports the CDN's webfont.css; see that file for the two faces. -->
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <h1>Cross-origin webfont</h1>
+    <p>
+      This page renders in “CDN Sans”, loaded from a second origin during render. It never renders
+      anything in “CDN Serif”, so that face's woff2 is referenced only from CSS text and must be
+      fetched after the render to be localized.
+    </p>
+  </body>
+</html>

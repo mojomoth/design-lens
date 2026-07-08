@@ -1,0 +1,33 @@
+/* cdn fixture — a fake webfont CDN served on a SECOND ephemeral port, cross-origin to the page.
+   Mirrors the sealed fixture's alt-port CDN (`.harness/fixture/serve.mjs`, assertion A15).
+
+   Two faces, differing only in whether the page ever renders text in them. That difference is the
+   whole point of this file, because it is what splits the two capture paths (T16):
+
+     "CDN Sans"  — the xorigin page sets `font-family: "CDN Sans"` on <body>, so Chromium fetches
+                   cdn-sans.woff2 while rendering ⇒ the ResourceStore holds it ⇒ `via: network`.
+                   (That it loads at all, cross-origin and without CORS headers, is what
+                   `--disable-web-security` + `bypassCSP` buy us — ADR-011.)
+
+     "CDN Serif" — declared here and used by NOTHING. Browsers load fonts lazily: no element renders
+                   in this family, so no request is ever made and the bytes never reach the store.
+                   The URL exists ONLY inside this stylesheet's text. Localizing it therefore
+                   requires parsing the CSS and going back for the bytes ⇒ `via: css-fetch`.
+
+   Both `src` URLs are RELATIVE: they must resolve against THIS sheet's URL (the CDN origin), not
+   against the page that @imports it. A collector that resolves against the page URL would fetch
+   from the wrong origin and 404. */
+
+@font-face {
+  font-family: "CDN Sans";
+  src: url(fonts/cdn-sans.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "CDN Serif";
+  src: url(fonts/cdn-serif.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}

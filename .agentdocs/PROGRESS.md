@@ -154,3 +154,23 @@ the pinned section below (that section may be edited in place).
   surface from `getCosmeticsFilters`; with no hints you get `""`. A2 dropped 53→50 (banner subtree gone).
   Sealed `--all`: A1–A16 PASS; A17/A18 remain (T17/T18). Added T30 — spec-02 lists `--max-asset-mb` /
   `--include-media` but no task owned them. 215 tests. Full gate green.
+- 2026-07-08 · T16 done: `collectCssUrls(html, pageUrl, store)` in `localize/fetch-missing.ts` (pure) +
+  `FetchMissingOptions.via` (`RefetchVia = 'refetch'|'css-fetch'`, default `refetch`). clone.ts now runs
+  TWO refetch stages: (a) srcset ⇒ `refetch`, (b) a CSS fixpoint loop ⇒ `css-fetch`. `css-fetch` was a
+  manifest value the schema allowed but nothing emitted — now it has exactly one producer.
+  KEY INSIGHT (what makes the AC honest): browsers load fonts LAZILY. A `@font-face` no element renders
+  in is never requested, so its woff2 is absent from the store AND unnamed by any DOM attribute — it
+  exists only in stylesheet text. That, not CORS, is why a CSS-discovered font needs refetching:
+  cross-origin capture already works at render (ADR-011 `--disable-web-security` + `bypassCSP`, sealed
+  A15). New fixtures `sites/cdn/` (2 faces: one used ⇒ `network`, one unused ⇒ `css-fetch`) + `sites/xorigin/`.
+  TRAPS: (1) CSS refs resolve against the SHEET's url, not the page's — a page-relative resolve sends the
+  CDN font request to the wrong origin. (2) The collect must LOOP: an uncaptured `@import` yields no refs
+  until its own bytes land, so round N+1 re-collects; an `attempted` set keeps it strictly monotone (a
+  permanently-dead font must not be retried every round) and `MAX_CSS_IMPORT_DEPTH=8` bounds both the
+  in-call recursion and the round count. (3) A `<link rel=stylesheet>` missing from the store is NOT
+  offered: it was discovered in HTML, so stamping it `css-fetch` would be a lie — it stays `fetch-failed`.
+  (4) Ephemeral CDN port can't be committed into fixture CSS ⇒ `__CDN_ORIGIN__` placeholder, substituted
+  into a tmp copy by the e2e. Consolidated the duplicated isCss/isFont/isImage trios (localize.ts +
+  clone.ts) into `localize/media-type.ts` — fetch-missing needed the same predicate to decide what to
+  descend into. 18 new tests (233 total). dist rebuilt (1.99 MB). Gate green; sealed `--all`: A1–A16 PASS,
+  A17/A18 remain (T17/T18).

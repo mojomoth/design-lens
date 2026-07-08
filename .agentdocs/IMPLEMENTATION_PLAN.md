@@ -40,7 +40,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T13 (P2) Add the scroll/lazy-load sweep that triggers IntersectionObserver images before serialization | AC: the own e2e `clone spa` asserts the lazy image is localized under `clone/assets/` and referenced by `src` | Spec: 02-clone-engine.md
 - [x] T14 (P2) Localize both `srcset` candidates, refetching the variant not loaded at the 1440px capture viewport, recording `via` in the manifest | AC: the own e2e `clone basic` asserts both srcset variants are localized and the refetched one has `via: refetch` | Spec: 03-clone-format.md
 - [x] T15 (P2) Block consent/cookie banners via `--remove-selector` and `@ghostery/adblocker-playwright` `--filter-list`, with adblocker match/cosmetic unit tests | AC: the own e2e `clone banner --remove-selector "#cookie-banner"` and `--filter-list …` both produce a clone with no cookie-banner element | Spec: 02-clone-engine.md
-- [ ] T16 (P2) Refetch CSS-discovered/cross-origin webfonts with a real browser UA (the sealed alt-port CDN mirror) | AC: the own e2e cross-origin-webfont case localizes the font under `clone/assets/` with a manifest `via` of `css-fetch` or `refetch` | Spec: 03-clone-format.md
+- [x] T16 (P2) Refetch CSS-discovered/cross-origin webfonts with a real browser UA (the sealed alt-port CDN mirror) | AC: the own e2e cross-origin-webfont case localizes the font under `clone/assets/` with a manifest `via` of `css-fetch` or `refetch` | Spec: 03-clone-format.md
 
 ## Milestone 3 — Analysis, inventory & remaining commands (M3)
 

@@ -31,6 +31,7 @@ import { localPathFor } from './urlmap.js';
 import { rewriteCss, type CssRefKind } from './css-rewrite.js';
 import { rewriteSrcset } from './srcset.js';
 import { ResourceStore } from './resource-store.js';
+import { isCssResource, isFontResource, isImageResource } from './media-type.js';
 import type { ManifestRemote, RemoteReason, ResourceVia } from '../output/manifest.js';
 
 /** The href of the empty override stylesheet the writer creates; linked LAST in `<head>`. */
@@ -74,19 +75,6 @@ function isUnlocalizable(raw: string): boolean {
   );
 }
 
-/** Does a content type / path name denote a stylesheet (⇒ rewrite recursively, not store raw)? */
-function isCss(contentType: string, assetPath: string): boolean {
-  return /text\/css/i.test(contentType) || assetPath.endsWith('.css');
-}
-
-function isFont(contentType: string, assetPath: string): boolean {
-  return /^font\//i.test(contentType) || /\.(?:woff2?|ttf|otf|eot)$/i.test(assetPath);
-}
-
-function isImage(contentType: string, assetPath: string): boolean {
-  return /^image\//i.test(contentType) || /\.(?:png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i.test(assetPath);
-}
-
 /**
  * Localise every capturable reference in `html`. `pageUrl` is the document's own (final) URL —
  * relative references resolve against it. `store` holds the bytes captured during render.
@@ -128,7 +116,7 @@ export function localizeDocument(html: string, pageUrl: string, store: ResourceS
     };
     assets.set(assetPath, entry);
 
-    if (kind === 'stylesheet' || isCss(stored.contentType, assetPath)) {
+    if (kind === 'stylesheet' || isCssResource(stored.contentType, assetPath)) {
       const resolveInCss = (refUrl: string, refKind: CssRefKind): string | null => {
         const target = localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', absoluteUrl);
         if (target === null) return null;
@@ -256,9 +244,9 @@ export function localizeDocument(html: string, pageUrl: string, store: ResourceS
     assets: assetList,
     remote: [...remote.values()],
     stats: {
-      images: assetList.filter((a) => isImage(a.contentType, a.assetPath)).length,
-      fonts: assetList.filter((a) => isFont(a.contentType, a.assetPath)).length,
-      cssFiles: assetList.filter((a) => isCss(a.contentType, a.assetPath)).length,
+      images: assetList.filter((a) => isImageResource(a.contentType, a.assetPath)).length,
+      fonts: assetList.filter((a) => isFontResource(a.contentType, a.assetPath)).length,
+      cssFiles: assetList.filter((a) => isCssResource(a.contentType, a.assetPath)).length,
     },
   };
 }

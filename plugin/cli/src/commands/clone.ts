@@ -9,8 +9,9 @@
  *   3. stamp `data-dl-id` incl. open shadow roots, apply `--remove-selector` + the consent
  *      engine's cosmetic selectors (capture/stamp)
  *   4. serialize (@percy/dom, own CSSOM walk as fallback) (capture/serialize)
- *   5. refetch references the render never requested, e.g. unused srcset variants
- *      (localize/fetch-missing) — the last stage that needs the browser
+ *   5. refetch references the render never requested — unused srcset variants and CSS-discovered
+ *      assets such as unused `@font-face` faces (localize/fetch-missing) — the last stage that
+ *      needs the browser (its request client carries the real Chromium UA)
  *   6. sanitize to an inert document (localize/html-rewrite)
  *   7. localize every captured reference to `assets/…` (localize/localize)
  *   8. beautify HTML + every localized stylesheet (output/beautify)
@@ -44,8 +45,14 @@ import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capt
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
 import { sanitizeHtml } from '../localize/html-rewrite.js';
-import { collectSrcsetUrls, fetchMissing } from '../localize/fetch-missing.js';
+import {
+  collectCssUrls,
+  collectSrcsetUrls,
+  fetchMissing,
+  MAX_CSS_IMPORT_DEPTH,
+} from '../localize/fetch-missing.js';
 import { localizeDocument, type LocalizedAsset } from '../localize/localize.js';
+import { isCssResource, isFontResource, isImageResource } from '../localize/media-type.js';
 import { beautifyHtml, beautifyCss } from '../output/beautify.js';
 import {
   buildManifest,
@@ -96,15 +103,15 @@ export interface CloneResult {
 
 /** A `.css` body must be beautified and never treated as opaque bytes; fonts/images pass through. */
 function isCssAsset(asset: LocalizedAsset): boolean {
-  return /text\/css/i.test(asset.contentType) || asset.assetPath.endsWith('.css');
+  return isCssResource(asset.contentType, asset.assetPath);
 }
 
 function isFontAsset(asset: LocalizedAsset): boolean {
-  return /^font\//i.test(asset.contentType) || /\.(?:woff2?|ttf|otf|eot)$/i.test(asset.assetPath);
+  return isFontResource(asset.contentType, asset.assetPath);
 }
 
 function isImageAsset(asset: LocalizedAsset): boolean {
-  return /^image\//i.test(asset.contentType) || /\.(?:png|jpe?g|gif|svg|webp|avif|ico|bmp)$/i.test(asset.assetPath);
+  return isImageResource(asset.contentType, asset.assetPath);
 }
 
 /** Sum the count/bytes of the assets matching `pred` into one REPORT capture row. */
@@ -226,22 +233,53 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     capture.warnings.push(...serialized.warnings);
     // Ensure every captured response body has landed in the store before we ask what is MISSING.
     await capture.drainResponses();
-    // Refetch uncaptured references (optional stage, spec 02 §M2). Chromium requests exactly one
-    // `srcset` candidate — the one matching this viewport and `--dsf` — so every other variant is
-    // referenced but never captured. Go back for them through the browser context's request client
-    // (real Chromium UA) so the clone carries ALL candidates, not just the one this capture picked.
-    // Individual URL failures come back in `failed` and become warnings; the localize pass then
-    // records them in `manifest.remote[]` as `fetch-failed`. A throw here degrades to one warning —
-    // a refetch must never block a clone (degradation ladder, spec 02 §Error handling).
+    // Refetch uncaptured references (optional stage, spec 02 §M2), through the browser context's
+    // request client so every request carries the real Chromium UA — load-bearing for webfont CDNs,
+    // which serve a lone TTF to an unknown UA but woff2 to Chrome. Individual URL failures come back
+    // in `failed` and become warnings; the localize pass then records them in `manifest.remote[]` as
+    // `fetch-failed`. A throw here degrades to ONE warning — a refetch must never block a clone
+    // (degradation ladder, spec 02 §Error handling).
     try {
-      const referenced = collectSrcsetUrls(serializedHtml, finalUrl);
-      const missing = referenced.filter((url) => !capture.store.has(url));
-      if (missing.length > 0) {
-        const outcome = await fetchMissing(capture.context.request, missing, capture.store, {
-          timeoutMs: Math.max(1_000, Math.min(deadline - Date.now(), 15_000)),
+      const refetchTimeout = (): number => Math.max(1_000, Math.min(deadline - Date.now(), 15_000));
+
+      // (a) srcset variants. Chromium requests exactly one candidate — the one matching this
+      // viewport and `--dsf` — so every other variant is referenced but never captured. Go back for
+      // them so the clone carries ALL candidates, not just the one this capture happened to pick.
+      const srcsetMissing = collectSrcsetUrls(serializedHtml, finalUrl).filter(
+        (url) => !capture.store.has(url),
+      );
+      if (srcsetMissing.length > 0) {
+        const outcome = await fetchMissing(capture.context.request, srcsetMissing, capture.store, {
+          timeoutMs: refetchTimeout(),
+          via: 'refetch',
         });
         for (const failure of outcome.failed) {
           capture.warnings.push(`refetch failed: ${failure.url} (${failure.detail})`);
+        }
+      }
+
+      // (b) CSS-discovered references: an unused `@font-face src`, a `background-image` on an
+      // element this capture never painted, a nested `@import`. The browser never requested them,
+      // and no DOM attribute names them — only stylesheet text does.
+      //
+      // This LOOPS because discovery depends on what is in the store: an `@import`ed sheet that was
+      // itself uncaptured yields no references until its own bytes arrive. Each round fetches one
+      // more level of the chain and re-collects. `attempted` makes the loop strictly monotone (a URL
+      // is tried at most once, so a permanently-failing font cannot be retried every round), which
+      // together with the round cap guarantees termination.
+      const attempted = new Set<string>();
+      for (let round = 0; round < MAX_CSS_IMPORT_DEPTH; round++) {
+        const cssMissing = collectCssUrls(serializedHtml, finalUrl, capture.store).filter(
+          (url) => !capture.store.has(url) && !attempted.has(url),
+        );
+        if (cssMissing.length === 0) break;
+        for (const url of cssMissing) attempted.add(url);
+        const outcome = await fetchMissing(capture.context.request, cssMissing, capture.store, {
+          timeoutMs: refetchTimeout(),
+          via: 'css-fetch',
+        });
+        for (const failure of outcome.failed) {
+          capture.warnings.push(`css-fetch failed: ${failure.url} (${failure.detail})`);
         }
       }
     } catch (err) {

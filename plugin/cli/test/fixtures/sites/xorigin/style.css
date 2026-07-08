@@ -1,0 +1,33 @@
+/* xorigin fixture — the PAGE stylesheet. Same origin as index.html.
+
+   `__CDN_ORIGIN__` is a placeholder: the CDN runs on an ephemeral port chosen at test time, so the
+   origin cannot be committed here. `test/e2e/clone.test.ts` materializes this directory into a temp
+   dir and substitutes the live CDN origin before serving it (tests never touch the live web).
+
+   The cross-origin `@import` is deliberate: it forces the localizer to follow an @import chain
+   ACROSS origins, rewriting the import to a relative path into a second `assets/<host>/` directory. */
+@import url(__CDN_ORIGIN__/webfont.css);
+
+:root {
+  --brand: #3347ff;
+}
+
+body {
+  margin: 0;
+  /* "CDN Sans" is USED ⇒ Chromium fetches it during render (via: network).
+     "CDN Serif" is never named here or anywhere else ⇒ it can only arrive via css-fetch. */
+  font-family: "CDN Sans", system-ui, sans-serif;
+  color: #101828;
+  background: #ffffff;
+}
+
+h1 {
+  color: #3347ff;
+  font-size: 40px;
+  margin: 24px 32px;
+}
+
+p {
+  margin: 0 32px 24px;
+  line-height: 1.5;
+}
