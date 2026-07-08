@@ -56,7 +56,16 @@
     app.appendChild(form);
     input.value = 'set-by-js@example.com';
 
-    // 5) IntersectionObserver lazy image three viewport-heights down; real src set on intersect.
+    // 5) Reference to an asset the server does not have (a broken link, as real sites carry). Its
+    //    bytes never reach the ResourceStore, so it can never be localized: the clone must keep the
+    //    reference as authored and record it in manifest.remote[] with reason "fetch-failed".
+    var absent = document.createElement('img');
+    absent.id = 'absent-asset';
+    absent.alt = 'Intentionally absent image';
+    absent.src = 'img/absent.png';
+    app.appendChild(absent);
+
+    // 6) IntersectionObserver lazy image three viewport-heights down; real src set on intersect.
     var spacer = document.createElement('div');
     spacer.style.height = '300vh';
     app.appendChild(spacer);

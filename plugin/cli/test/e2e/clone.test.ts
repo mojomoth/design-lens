@@ -240,6 +240,44 @@ describe('clone basic (M1 spine)', () => {
     expect(report).toContain('## License & usage notice');
   });
 
+  // why (T27, spec 10 §Layer 1): the license notice promises "font files and their source hosts are
+  // listed above", and commercial-font licence checks depend on it. The basic fixture localizes
+  // `fonts/brand.woff2` from the capture origin, so the real pipeline — not just the pure builder —
+  // must surface that file AND its host under `## Capture results`. A regression that drops the font
+  // list leaves the notice pointing at nothing while every other REPORT assertion still passes.
+  it('lists each localized font file with its origin host under ## Capture results', () => {
+    const report = fs.readFileSync(path.join(projectDir, 'REPORT.md'), 'utf8');
+    expect(report).toContain('## Capture results');
+    const captureSection = report.slice(
+      report.indexOf('## Capture results'),
+      report.indexOf('## Left remote'),
+    );
+    // The host is the live fixture origin (127.0.0.1:<ephemeral port>) — REPORT.md sits OUTSIDE
+    // `clone/`, which is the only tree sealed assertion A4 forbids the capture host from.
+    const originHost = new URL(server.origin).host; // `127.0.0.1:<ephemeral port>`
+    const fontLine = new RegExp(
+      `- clone/assets/\\S+brand\\S*\\.woff2 — from ${originHost.replace(/\./g, '\\.')}$`,
+      'm',
+    );
+    expect(captureSection, `no font line in:\n${captureSection}`).toMatch(fontLine);
+  });
+
+  // why (T27, spec 10 §Layer 1): `robotsDisallowed` must be present on EVERY clone — a missing key is
+  // indistinguishable from `false` to a naive reader, so the "record and proceed" stance would become
+  // "silently omit". The fixture server serves no robots.txt, which is exactly the fetch-failure path
+  // the spec says must record `false` without warning fatally, not abort the clone.
+  it('records source.robotsDisallowed even when the origin serves no robots.txt', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as {
+      source: { robotsDisallowed: boolean };
+    };
+    expect(manifest.source).toHaveProperty('robotsDisallowed');
+    expect(manifest.source.robotsDisallowed).toBe(false);
+    const report = fs.readFileSync(path.join(projectDir, 'REPORT.md'), 'utf8');
+    expect(report.slice(report.indexOf('## Source'), report.indexOf('## Capture results'))).toContain(
+      'robots.txt:',
+    );
+  });
+
   it('creates an empty dl-overrides.css linked last in <head>', () => {
     const overrides = path.join(projectDir, 'clone', 'assets', 'dl-overrides.css');
     expect(fs.existsSync(overrides)).toBe(true);
@@ -253,6 +291,7 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
   let out: string;
   let projectDir: string;
   let indexHtml: string;
+  let cloneStderr: string;
 
   beforeAll(async () => {
     server = await startStaticServer(path.join(SITES, 'spa'));
@@ -264,6 +303,7 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
     expect(result.code, `clone failed: ${result.stderr}`).toBe(0);
     projectDir = (JSON.parse(result.stdout.trim()) as { projectDir: string }).projectDir;
     indexHtml = fs.readFileSync(path.join(projectDir, 'clone', 'index.html'), 'utf8');
+    cloneStderr = result.stderr;
   });
 
   afterAll(async () => {
@@ -319,6 +359,39 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
     expect(match, `lazy <img> src not localized under assets/:\n${indexHtml}`).not.toBeNull();
     // The referenced file must actually exist on disk under clone/.
     expect(fs.existsSync(path.join(projectDir, 'clone', match![1]))).toBe(true);
+  });
+
+  // why (T27, spec 10 §Layer 1): "Nothing in the clone may have untraceable origin." The spa fixture
+  // references `img/absent.png`, which the server does not have — the one reference that CANNOT be
+  // localized. It must therefore surface in `manifest.remote[]` with a reason and the element that
+  // referenced it. Without this, a broken reference would vanish from the provenance record entirely:
+  // absent from `resources[]` (never fetched) and absent from `remote[]` (never recorded), leaving
+  // the clone pointing at the live web with nothing in the manifest saying so. The other manifest
+  // assertions all cover resources that DID localize, so only this test exercises `remote[]` at all.
+  it('records the un-localizable reference in manifest.remote[] with a reason and referrer', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(projectDir, 'manifest.json'), 'utf8')) as {
+      remote: { url: string; reason: string; referencedBy: string }[];
+      resources: { originalUrl: string }[];
+    };
+    const entry = manifest.remote.find((r) => r.url.endsWith('/img/absent.png'));
+    expect(entry, `absent.png missing from manifest.remote[]: ${JSON.stringify(manifest.remote)}`).toBeDefined();
+    expect(entry!.reason).toBe('fetch-failed');
+    // `referencedBy` names the element that pointed at it, so a user can find it in the clone.
+    expect(entry!.referencedBy).toMatch(/^dl-\d+$/);
+    // It is remote precisely BECAUSE it never localized — it must not also claim to be a resource.
+    expect(manifest.resources.some((r) => r.originalUrl.endsWith('/img/absent.png'))).toBe(false);
+  });
+
+  // why (T27, spec 10 §Layer 1 + §Interfaces): the completion one-liner is the last thing a human
+  // sees, must be verbatim, and must go to stderr — stdout carries only the machine JSON that agents
+  // parse. A stray `console.log` of this notice would corrupt every `JSON.parse(result.stdout)` in
+  // this suite; asserting stdout stays parseable is what pins the I/O contract, not just the wording.
+  it('prints the verbatim ethics notice to stderr as the last line of a clone', () => {
+    const NOTICE =
+      'Note: this clone is for private design study only — see REPORT.md "License & usage notice" before shipping anything derived.';
+    expect(cloneStderr).toContain(NOTICE);
+    const lines = cloneStderr.trimEnd().split('\n');
+    expect(lines[lines.length - 1]).toBe(NOTICE);
   });
 });
 

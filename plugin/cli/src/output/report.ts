@@ -10,7 +10,8 @@
  * Spec: specs/03-clone-format.md §REPORT.md template.
  */
 
-import type { ManifestRemote } from './manifest.js';
+import { isFontResource } from '../localize/media-type.js';
+import type { ManifestRemote, ManifestResource } from './manifest.js';
 
 /** The verbatim license notice — reproduced exactly (including line breaks) from the spec. */
 const LICENSE_NOTICE = `This clone is for private design study and derivation. All content, images, logos, fonts and text
@@ -22,6 +23,42 @@ all photography, and check font licenses (font files and their source hosts are 
 export interface CaptureRow {
   count: number;
   bytes: number;
+}
+
+/** One localized webfont: where its bytes landed, and the host they came from. */
+export interface FontFile {
+  /** Project-dir-relative path, under `clone/assets/`. */
+  localPath: string;
+  /** Origin host of `originalUrl`, including the port when non-default (e.g. `fonts.gstatic.com`). */
+  host: string;
+}
+
+/** Shown instead of a host when a resource's `originalUrl` is not a parseable absolute URL. */
+const UNKNOWN_HOST = 'unknown host';
+
+/**
+ * Extract the localized webfonts from the manifest's `resources[]`, in manifest order.
+ *
+ * Spec 10 §Layer 1 requires font provenance to be VISIBLE for commercial-font licence checks: the
+ * `assets/<host>/<path>` layout encodes the host, but a reader must not have to spelunk directories
+ * for it. This is the one place that turns `originalUrl` back into a host, so the report and the
+ * license notice's "font files and their source hosts are listed above" cannot become a lie.
+ *
+ * A resource whose `originalUrl` does not parse is listed with {@link UNKNOWN_HOST} rather than
+ * dropped — an unattributable font is exactly what a licence check must see, not what it must miss.
+ */
+export function fontFilesFrom(resources: ManifestResource[]): FontFile[] {
+  return resources
+    .filter((r) => isFontResource(r.contentType, r.localPath))
+    .map((r) => {
+      let host: string;
+      try {
+        host = new URL(r.originalUrl).host || UNKNOWN_HOST;
+      } catch {
+        host = UNKNOWN_HOST;
+      }
+      return { localPath: r.localPath, host };
+    });
 }
 
 /** Everything the report renders. Counts/bytes come straight from the manifest and pipeline. */
@@ -43,6 +80,8 @@ export interface ReportInput {
     other: CaptureRow;
     /** Human summary of consent/banner blocking (e.g. "none", "#cookie-banner removed"). */
     consentBlocking: string;
+    /** Every localized font file with its origin host — the licence-check surface (spec 10). */
+    fontFiles: FontFile[];
   };
   /** References left remote (manifest `remote[]`); rendered one bullet each with its reason. */
   remote: ManifestRemote[];
@@ -71,6 +110,14 @@ export function buildReport(input: ReportInput): string {
       ? `- Final URL: ${source.finalUrl}\n`
       : '';
 
+  // Rendered as a list, not a directory hint: a licence check reads REPORT.md, not `find clone/`.
+  const fontBlock =
+    capture.fontFiles.length === 0
+      ? 'Localized font files: none — this capture localized no webfonts.'
+      : `Localized font files (check each licence before shipping derived work):\n${capture.fontFiles
+          .map((f) => `- ${f.localPath} — from ${f.host}`)
+          .join('\n')}`;
+
   const remoteBlock =
     input.remote.length === 0
       ? 'None — every referenced resource was localised.'
@@ -95,6 +142,8 @@ ${captureRow('CSS', capture.css)}
 ${captureRow('Other', capture.other)}
 
 Consent/banner blocking: ${capture.consentBlocking}
+
+${fontBlock}
 
 ## Left remote
 ${remoteBlock}

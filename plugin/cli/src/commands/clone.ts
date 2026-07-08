@@ -68,12 +68,12 @@ import {
   type ManifestResource,
   type ManifestStats,
 } from '../output/manifest.js';
-import { buildReport, type CaptureRow } from '../output/report.js';
+import { COMPLETION_NOTICE, provenanceComment } from '../output/provenance.js';
+import { buildReport, fontFilesFrom, type CaptureRow } from '../output/report.js';
 import { screenshotPath, writeCloneTree, writePng, writeProjectDocs } from '../output/writer.js';
 import { summarizeVerify, verifyClone } from './verify.js';
 import { baseSlug, nextFreeSlug } from '../lib/slug.js';
 import { PLAYWRIGHT_PIN } from '../lib/pins.js';
-import { VERSION } from '../version.js';
 
 /**
  * `page.goto` budget for the `clone-full.png` re-render. Not drawn from `--timeout`: that budget is
@@ -338,12 +338,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     }
   }
 
-  // The provenance comment deliberately omits the raw source URL: the sealed A4 assertion forbids
-  // the capture host (e.g. `127.0.0.1`) from appearing anywhere inside `clone/`, and a loopback
-  // source URL would smuggle it into line 1. The source URL + capture time live in
-  // `manifest.source` and `REPORT.md` (both outside `clone/`), which A4 does not scan (ADR-011).
-  const provenance = `<!-- Cloned by design-lens v${VERSION} at ${capturedAt} for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`;
-  const html = `${provenance}\n${beautifyHtml(localized.html)}\n`;
+  // Template, version lock and the reason the source URL is absent all live in `output/provenance`
+  // (ADR-011), which `verify` also reads — so a stamp this line writes can never be one verify rejects.
+  const html = `${provenanceComment(capturedAt)}\n${beautifyHtml(localized.html)}\n`;
 
   const resources: ManifestResource[] = localized.assets.map((asset) =>
     resourceEntry(asset.body, {
@@ -444,6 +441,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
         (a) => !isImageAsset(a) && !isFontAsset(a) && !isCssAsset(a),
       ),
       consentBlocking,
+      // Derived from the manifest resources, not from `localized.assets`: the report must list the
+      // same `clone/assets/…` paths a reader will find in `manifest.json` (spec 10 §Layer 1).
+      fontFiles: fontFilesFrom(resources),
     },
     remote: localized.remote,
     // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
@@ -459,9 +459,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   process.stderr.write(
     `design-lens: wrote ${resources.length} asset(s) to ${projectDir} (${warnings} warning(s))\n`,
   );
-  process.stderr.write(
-    'design-lens: this clone is for private design study — review REPORT.md before deriving work from it.\n',
-  );
+  // Spec 10 §Layer 1: verbatim, on stderr (the human channel — stdout stays machine-only), and LAST,
+  // so the ethics notice is the line still on screen when the clone finishes.
+  process.stderr.write(`${COMPLETION_NOTICE}\n`);
 
   return { projectDir, warnings };
 }

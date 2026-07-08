@@ -13,8 +13,9 @@ does not refuse.
 - Every successful `clone` MUST write a `## License & usage notice` section into
   `.design-lens/<slug>/REPORT.md` containing the notice text below VERBATIM (the sealed gate
   greps REPORT.md for the heading string — ACCEPTANCE.md AC-07).
-- `clone/index.html` MUST begin with the provenance comment defined below, before `<html>`. The
-  version in the comment MUST equal `manifest.json` `tool.version` and the CLI `--version` output.
+- `clone/index.html` MUST begin with the provenance comment, before `<html>`. Its exact template is
+  owned by `specs/03-clone-format.md` §Provenance comment (see below). The version in the comment
+  MUST equal `manifest.json` `tool.version` and the CLI `--version` output.
 - `manifest.json` MUST carry the full source-URL mapping: every localized asset appears in
   `resources[]` with its `originalUrl`, and every non-localized reference appears in `remote[]`
   with `url`, `reason`, and `referencedBy` (schema in specs/03-clone-format.md). Nothing in the
@@ -67,8 +68,10 @@ does not refuse.
   all photography, and check font licenses (font files and their source hosts are listed above).
   ```
 
-- `clone/index.html` provenance comment (first line of the file; substitute URL/date):
-  `<!-- Cloned by design-lens v0.1.0 from <URL> at <ISO date>. For private design study and derivation only — see ../REPORT.md -->`
+- `clone/index.html` provenance comment (first line of the file; substitute the ISO capture date).
+  Template owned by `specs/03-clone-format.md`; the raw source URL is deliberately absent, because
+  sealed assertion A4 forbids the capture host anywhere inside `clone/` (ADR-011):
+  `<!-- Cloned by design-lens v0.1.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`
 - Completion one-liner (stderr, last line of clone output):
   `Note: this clone is for private design study only — see REPORT.md "License & usage notice" before shipping anything derived.`
 - Brand checklist block for BOTH `customize-clone/SKILL.md` and `build-from-design/SKILL.md`

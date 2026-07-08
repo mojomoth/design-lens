@@ -225,3 +225,35 @@ Format for new entries (append at the bottom, never edit existing ones):
   Consumers that need a loadable path (the reverse-design skill) must resolve `faces[]` against the
   stylesheet that declared the face, exactly as a browser does; `tokens.json` deliberately does not
   pretend that a single flat path exists.
+
+## ADR-014: `specs/10-ethics.md` still carried the pre-ADR-011 provenance template
+- Date: 2026-07-08 · Status: accepted (spec-drift, T27 build iteration)
+- Context: two specs give two different templates for the SAME line — line 1 of `clone/index.html`.
+  `specs/10-ethics.md` §Interfaces says
+  `<!-- Cloned by design-lens v0.1.0 from <URL> at <ISO date>. For private design study and
+  derivation only — see ../REPORT.md -->`, embedding the raw source URL.
+  `specs/03-clone-format.md` §Provenance comment says the URL-free form
+  `<!-- Cloned by design-lens v0.1.0 at <capturedAt> for private design study and derivation only.
+  Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`.
+  ADR-011 decided the URL-free form and edited `specs/03` — but it never named `specs/10`, so the
+  superseded template survived there. This is not a stylistic difference: the sealed assertion A4
+  (immutable ground truth) forbids ZERO occurrences of the capture host anywhere inside `clone/`,
+  and the sealed fixture is served from `127.0.0.1:4630`. Emitting spec 10's template against that
+  fixture puts `http://127.0.0.1:4630/index.html` on line 1 of a file inside `clone/` → `FAIL A4`.
+  The two specs cannot both hold; the sealed gate wins (ADR-006), and spec 03's form already ships.
+- Decision: `specs/10-ethics.md` adopts spec 03's URL-free template verbatim and cites ADR-011 for
+  why the URL is absent. Spec 10 keeps everything it uniquely owns — the comment is mandatory,
+  undisableable, precedes `<html>`, and its version MUST equal `manifest.tool.version` and the CLI
+  `--version` output. That version lock is now enforced by construction rather than by convention:
+  `plugin/cli/src/output/provenance.ts` is the single producer (reading the single-source-of-truth
+  `VERSION`) and also exports the `PROVENANCE_LINE` regex that `verify` validates with. Those were
+  two independent string literals in `clone.ts` and `verify.ts`; `clone` could have emitted a stamp
+  its own `verify` rejected. One module, one template, round-trip asserted in unit tests.
+- Consequences: changes `.agentdocs/specs/10-ethics.md` (the provenance-comment bullet in
+  §Interfaces & contracts, and the §Requirements sentence that pointed at it). No behaviour change —
+  the shipped clone already emitted spec 03's form, so no clone on disk is invalidated and no test
+  expectation moves. `specs/03-clone-format.md` remains the owner of the template's bytes; spec 10
+  now points at it instead of restating it, so the next amendment cannot desynchronize them again.
+  The remaining spec-10 Layer-1 duties landed with this ADR's commit (T27): the REPORT.md
+  `## Capture results` font-host list, `manifest.remote[]` coverage of un-localizable references,
+  and the verbatim stderr completion notice.

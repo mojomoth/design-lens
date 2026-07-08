@@ -327,3 +327,27 @@ the pinned section below (that section may be edited in place).
   malformed JSON, node off PATH): each bails at the first error, one actionable stderr line, no leaked
   $DL_HOME. Chromium was a cache hit via PLAYWRIGHT_BROWSERS_PATH — never ran `playwright install` myself.
   Remaining: M5 T27-T30 (T28 → S9b). S1 still red until the plan is fully ticked.
+- 2026-07-08 · T27 done: font-host list in REPORT `## Capture results`, verbatim stderr completion
+  notice, `manifest.remote[]` e2e coverage; new `src/output/provenance.ts`. +18 tests (433, ratchet 415).
+  Gate green; `e2e-assert.sh --all` A1-A18 green (clone output changed → ran it, per AGENTS.md).
+  SPEC DRIFT (ADR-014): `specs/10-ethics.md` still carried the PRE-ADR-011 provenance template
+  (`… from <URL> at <date> …`). ADR-011 chose the URL-free form but edited only specs/02+03, never
+  naming spec 10. Emitting spec 10's template = `http://127.0.0.1:4630/…` on line 1 inside `clone/`
+  → hard `FAIL A4`. Spec 10 now points at spec 03 for the bytes. Do NOT "restore" the URL.
+  TRAP 1 (real duplication, now consolidated): the template lived as TWO independent literals — a
+  template string in `clone.ts` and a regex in `verify.ts`. Nothing tied them; `clone` could emit a
+  stamp its own `verify` rejects. Both now come from `output/provenance.ts`, round-trip unit-tested.
+  TRAP 2: the license notice has ALWAYS promised "font files and their source hosts are listed
+  above" and nothing listed them — a `| Fonts | 1 | 2048 |` row names no file and no host, and
+  `test/unit/report.test.ts` asserted that sentence, locking the lie in place. `fontFilesFrom()`
+  recovers the host from `resources[].originalUrl` (NOT from the slugged `assets/<host>/` dir, which
+  is lossy: `127-0-0-1-4631` cannot be inverted). Unparseable URL → "unknown host", never dropped.
+  TRAP 3: `remote[]` had ZERO e2e coverage and only `fetch-failed` is emitted today (oversize /
+  media-skipped land in T30, cross-origin-iframe is unimplemented — `crossOriginIframes: 0` is
+  hardcoded in clone.ts:451). Added `img/absent.png` to the `spa` fixture (JS-built, so spec 08's
+  "EMPTY <body>" holds; adds no file, so its file list holds). Chose `spa` over `basic`/`banner`:
+  spec 08 says banner MUST be "a copy of basic", so a marker in one needs it in both, and a broken
+  <img> in `basic` risks perturbing the inspect hero-image and tokens assertions.
+  TRAP 4: REPORT.md/manifest.json sit OUTSIDE `clone/`, so printing the capture host there is legal
+  (A4 only scans `clone/`). That is the whole reason the font-host list can exist at all.
+  Remaining: T28 (docs → S9b), T29 (dist/lock rebuild), T30 (--max-asset-mb, --include-media).

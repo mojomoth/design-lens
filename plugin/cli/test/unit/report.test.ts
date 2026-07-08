@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildReport, type ReportInput } from '../../src/output/report.js';
+import { buildReport, fontFilesFrom, type ReportInput } from '../../src/output/report.js';
+import type { ManifestResource } from '../../src/output/manifest.js';
 
 const INPUT: ReportInput = {
   title: 'Example Site',
@@ -16,6 +17,7 @@ const INPUT: ReportInput = {
     css: { count: 2, bytes: 1024 },
     other: { count: 0, bytes: 0 },
     consentBlocking: 'none',
+    fontFiles: [{ localPath: 'clone/assets/example-com/fonts/brand.woff2', host: 'example.com' }],
   },
   remote: [],
   fidelity: { canvasConverted: 0, shadowRootsSerialized: 0, crossOriginIframes: 0 },
@@ -75,6 +77,85 @@ describe('buildReport — capture table content', () => {
     expect(md).toContain('| Fonts | 1 | 2048 |');
     expect(md).toContain('| CSS | 2 | 1024 |');
     expect(md).toContain('Consent/banner blocking: none');
+  });
+});
+
+// why (T27, spec 10 §Layer 1): font provenance MUST be visible for commercial-font licence checks —
+// the notice paragraph literally promises "font files and their source hosts are listed above". The
+// `| Fonts | 1 | 2048 |` row alone does not name a single file or host, so before this section the
+// notice pointed at nothing. If these tests are removed the report can silently go back to lying.
+describe('buildReport — localized font files with origin hosts', () => {
+  it('lists each localized font file with the host its bytes came from, under Capture results', () => {
+    const md = buildReport(INPUT);
+    expect(md).toContain('- clone/assets/example-com/fonts/brand.woff2 — from example.com');
+    // "listed above" is only true if the list precedes the notice that claims it.
+    expect(md.indexOf('brand.woff2')).toBeLessThan(md.indexOf('## License & usage notice'));
+    // And the list belongs to `## Capture results`, not to a later section.
+    expect(md.indexOf('## Capture results')).toBeLessThan(md.indexOf('brand.woff2'));
+    expect(md.indexOf('brand.woff2')).toBeLessThan(md.indexOf('## Left remote'));
+  });
+
+  it('says so explicitly when a capture localized no webfonts', () => {
+    const md = buildReport({ ...INPUT, capture: { ...INPUT.capture, fontFiles: [] } });
+    expect(md).toContain('Localized font files: none');
+  });
+
+  it('lists every font file, not just the first', () => {
+    const md = buildReport({
+      ...INPUT,
+      capture: {
+        ...INPUT.capture,
+        fontFiles: [
+          { localPath: 'clone/assets/example-com/a.woff2', host: 'example.com' },
+          { localPath: 'clone/assets/fonts-gstatic-com/b.woff2', host: 'fonts.gstatic.com' },
+        ],
+      },
+    });
+    expect(md).toContain('- clone/assets/example-com/a.woff2 — from example.com');
+    expect(md).toContain('- clone/assets/fonts-gstatic-com/b.woff2 — from fonts.gstatic.com');
+  });
+});
+
+/** Build a manifest resource; only the fields `fontFilesFrom` reads need to be meaningful. */
+function resource(localPath: string, originalUrl: string, contentType: string): ManifestResource {
+  return { localPath, originalUrl, contentType, bytes: 0, sha256: '', via: 'network' };
+}
+
+// why (T27): this is the ONLY place a font's origin host is recovered from its `originalUrl`. It must
+// select exactly the fonts (a font served as `application/octet-stream` is still a font), keep the
+// port that distinguishes two hosts, and never drop a resource it cannot attribute — an unattributable
+// font is precisely what a licence check needs to see. Without these, the report's font list would
+// quietly omit CDN fonts served with a wrong content type: the licence-risk case that matters most.
+describe('fontFilesFrom', () => {
+  it('selects fonts by content type or extension, and ignores non-fonts', () => {
+    expect(
+      fontFilesFrom([
+        resource('clone/assets/example-com/f.woff2', 'https://example.com/f.woff2', 'font/woff2'),
+        resource('clone/assets/example-com/s.css', 'https://example.com/s.css', 'text/css'),
+        resource('clone/assets/example-com/i.png', 'https://example.com/i.png', 'image/png'),
+        // Served with a wrong/generic content type: the `.otf` extension still makes it a font.
+        resource('clone/assets/cdn-example-com/x.otf', 'https://cdn.example.com/x.otf', 'application/octet-stream'),
+      ]),
+    ).toEqual([
+      { localPath: 'clone/assets/example-com/f.woff2', host: 'example.com' },
+      { localPath: 'clone/assets/cdn-example-com/x.otf', host: 'cdn.example.com' },
+    ]);
+  });
+
+  it('keeps the port in the host, so two origins on one hostname stay distinguishable', () => {
+    expect(
+      fontFilesFrom([resource('clone/assets/127-0-0-1-4631/a.woff2', 'http://127.0.0.1:4631/a.woff2', 'font/woff2')]),
+    ).toEqual([{ localPath: 'clone/assets/127-0-0-1-4631/a.woff2', host: '127.0.0.1:4631' }]);
+  });
+
+  it('lists an unparseable originalUrl as an unknown host rather than dropping the font', () => {
+    expect(fontFilesFrom([resource('clone/assets/x/a.woff2', 'not a url', 'font/woff2')])).toEqual([
+      { localPath: 'clone/assets/x/a.woff2', host: 'unknown host' },
+    ]);
+  });
+
+  it('returns an empty list when nothing was localized', () => {
+    expect(fontFilesFrom([])).toEqual([]);
   });
 });
 

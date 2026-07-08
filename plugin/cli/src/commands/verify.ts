@@ -39,6 +39,7 @@ import type { Command } from 'commander';
 
 import { OVERRIDES_LOCAL_PATH } from '../analyze/css-sources.js';
 import { OVERRIDES_HREF } from '../localize/localize.js';
+import { PROVENANCE_LINE } from '../output/provenance.js';
 
 /** The cheerio document API, named without importing a second cheerio export (tsup aliases the package). */
 type CheerioDocument = ReturnType<typeof cheerio.load>;
@@ -87,15 +88,6 @@ export interface VerifyInput {
   /** Does this project-dir-relative path resolve to a file? (Injected: keeps the core pure.) */
   resourceExists: (localPath: string) => boolean;
 }
-
-/**
- * Line 1 of `clone/index.html`, per the spec's exact template. The version and the ISO timestamp are
- * the only free fields; every other byte is fixed, so a reworded or truncated stamp is caught here.
- * The source URL is deliberately NOT in the template (ADR-011: sealed A4 forbids the capture host
- * anywhere inside `clone/`).
- */
-const PROVENANCE_LINE =
-  /^<!-- Cloned by design-lens v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)? at \S+ for private design study and derivation only\. Source URL and capture metadata: see \.\.\/manifest\.json and \.\.\/REPORT\.md\. -->$/;
 
 /** Never let a detail line grow unbounded: a clone with 4000 broken assets must stay readable. */
 const MAX_LISTED = 5;
