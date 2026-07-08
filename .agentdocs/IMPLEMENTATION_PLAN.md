@@ -62,7 +62,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 
 - [x] T27 (P3) Populate clone ethics artifacts: manifest `remote[]{url,reason,referencedBy}`, `source.robotsDisallowed`, REPORT `## Capture results` with font hosts, and the provenance comment version equal to `--version` | AC: the own e2e asserts a remote-only reference appears in `manifest.remote[]` with a reason and REPORT.md contains `## Capture results` | Spec: 10-ethics.md
 - [x] T28 (P3) Write the root `README.md` dual-install blocks, `plugin/README.md` with `## Fair use & respect for designers`, and `plugin/NOTICE.md` | AC: `grep -i 'plugin marketplace add' README.md && grep -i 'codex plugin marketplace add' README.md` succeed and `plugin/README.md` + `plugin/NOTICE.md` exist | Spec: 10-ethics.md
-- [ ] T29 (P3) Rebuild and commit the reproducible `dist/design-lens.cjs` bundle and `package-lock.json` so the strict gate sees no drift | AC: `cd plugin/cli && npm run build && git diff --quiet -- dist` exits 0 | Spec: 01-packaging.md
+- [x] T29 (P3) Rebuild and commit the reproducible `dist/design-lens.cjs` bundle and `package-lock.json` so the strict gate sees no drift | AC: `cd plugin/cli && npm run build && git diff --quiet -- dist` exits 0 | Spec: 01-packaging.md
 - [ ] T30 (P3) Implement the unowned `clone` flags `--max-asset-mb <n>` (default 25) and `--include-media`, leaving oversize/bulk-media bodies remote | AC: the own e2e asserts `clone basic --max-asset-mb 0.001` leaves an image in `manifest.remote[]` with reason `oversize`, and a clone without `--include-media` leaves an `.mp4` reference remote with reason `media-skipped` | Spec: 02-clone-engine.md
 
 ## Deferred / Optional (does NOT block completion)

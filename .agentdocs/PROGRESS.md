@@ -372,3 +372,24 @@ the pinned section below (that section may be edited in place).
   appears in NOTICE.md — mutation-tested (dropped the culori row → red). That guard is the point:
   `npm install --save` otherwise rots NOTICE silently and nothing else in the repo notices.
   Remaining: T29 (dist/lock rebuild), T30 (--max-asset-mb, --include-media). Neither touched by this.
+- 2026-07-08 · T29 done: dist + lock were ALREADY reproducible — `npm ci` from the committed lock then
+  `npm run build` reproduces `dist/design-lens.cjs` BYTE-IDENTICAL (sha256 d9e71e9b…6067). AC ran verbatim,
+  exit 0; `--strict` now shows `PASS S5 dist committed & fresh` + `PASS S2`. Only S1 red (T30 open).
+  So the real work was closing three gaps the gate cannot see. +10 tests (450, ratchet 440), all
+  mutation-tested (each fails on its own mutation and no other): new `test/unit/packaging.test.ts`.
+  TRAP 1 (cost me node_modules): `npm ci --dry-run` DELETES node_modules before honoring --dry-run.
+  Never probe lock sync that way — read package-lock.json, or accept a real `npm ci` (2s here).
+  TRAP 2: `git checkout -- <file>` to undo a mutation ALSO reverts uncommitted intentional edits in
+  that file (it reverts to HEAD, not to pre-mutation). It silently un-did my .gitignore fix and
+  contaminated two later mutation runs. Use `cp` to a backup instead; re-run a baseline after.
+  TRAP 3: B5 runs `npm ci || npm install`. A lock desynced from package.json does NOT fail the gate —
+  npm install rewrites the lock in the worktree and exits 0, and S5's `git diff` is scoped to `dist`
+  only. Nothing enforced T29's lockfile half; `packaging.test.ts` now does (root-entry mirror +
+  resolved/integrity per dep). Same file closes the 4th leg of pins.ts's documented lockstep
+  (PLAYWRIGHT_PIN vs package.json vs sealed config.env) — bootstrap.test.ts only covered bootstrap.sh.
+  TRAP 4: spec 01 §Repo layout MUSTs `test-output/` in root .gitignore; it was simply absent (no gate
+  reads .gitignore). Added, with a test. Not spec drift — an unimplemented MUST, so no ADR.
+  NOTE: git pathspecs are cwd-relative — `git diff --quiet -- plugin/cli/dist` run from inside
+  plugin/cli matches nothing and exits 0 (a false PASS). The AC's `-- dist` is correct only from there.
+  Remaining: T30 (--max-asset-mb, --include-media) is the last open task; it will change clone output,
+  so it MUST `npm run build` + commit dist and re-run `e2e-assert.sh --all`.

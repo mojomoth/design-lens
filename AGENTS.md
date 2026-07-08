@@ -33,5 +33,9 @@ Ralph loop in `.harness/`. Product truth lives in `.agentdocs/specs/`; the task 
 - The placeholder scanner greps `plugin/skills` + `plugin/scripts` case-insensitively for
   TODO/FIXME/XXX/PLACEHOLDER substrings — prose there must dodge those words (tiny sealed allowlist).
 - Tests never touch the live web. Fixture servers on 127.0.0.1 only.
+- `npm ci --dry-run` DELETES `node_modules` before honoring the flag. To check lock↔package.json sync,
+  read `package-lock.json` (or just run a real `npm ci`) — never dry-run it.
+- `git diff -- <path>` takes a CWD-relative pathspec: `git diff --quiet -- plugin/cli/dist` from inside
+  `plugin/cli` matches nothing and exits 0. Run gate ACs from the directory they name.
 
 Keep this file under 60 lines: durable operational facts only, no status reports.

@@ -1,5 +1,6 @@
 node_modules/
 .design-lens/
+test-output/
 .harness/logs/
 .harness/status/
 .harness/STOP
