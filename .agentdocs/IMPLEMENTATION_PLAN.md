@@ -36,7 +36,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 
 ## Milestone 2 — Clone fidelity (M2)
 
-- [ ] T12 (P2) Swap in the `@percy/dom` serializer (canvas→data-URI img, shadow DOM→`<template shadowroot>`, live input value→attr) ensuring `data-dl-id` stamps survive | AC: `bash .harness/e2e-assert.sh --m1` still exits 0 and the own e2e `clone spa` finds a `data:image` img, `<template shadowroot`, and the JS-set input value | Spec: 02-clone-engine.md
+- [x] T12 (P2) Swap in the `@percy/dom` serializer (canvas→data-URI img, shadow DOM→`<template shadowroot>`, live input value→attr) ensuring `data-dl-id` stamps survive | AC: `bash .harness/e2e-assert.sh --m1` still exits 0 and the own e2e `clone spa` finds a `data:image` img, `<template shadowroot`, and the JS-set input value | Spec: 02-clone-engine.md
 - [ ] T13 (P2) Add the scroll/lazy-load sweep that triggers IntersectionObserver images before serialization | AC: the own e2e `clone spa` asserts the lazy image is localized under `clone/assets/` and referenced by `src` | Spec: 02-clone-engine.md
 - [ ] T14 (P2) Localize both `srcset` candidates, refetching the variant not loaded at the 1440px capture viewport, recording `via` in the manifest | AC: the own e2e `clone basic` asserts both srcset variants are localized and the refetched one has `via: refetch` | Spec: 03-clone-format.md
 - [ ] T15 (P2) Block consent/cookie banners via `--remove-selector` and `@ghostery/adblocker-playwright` `--filter-list`, with adblocker match/cosmetic unit tests | AC: the own e2e `clone banner --remove-selector "#cookie-banner"` and `--filter-list …` both produce a clone with no cookie-banner element | Spec: 02-clone-engine.md

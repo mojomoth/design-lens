@@ -120,6 +120,8 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
 
   let serializedHtml: string;
   let styleRules: number;
+  let canvasConverted: number;
+  let shadowRootsSerialized: number;
   let elementsStamped: number;
   let finalUrl: string;
   let title: string;
@@ -147,6 +149,10 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     const serialized = await serializeDom(capture.page);
     serializedHtml = serialized.html;
     styleRules = serialized.styleRules;
+    canvasConverted = serialized.canvasConverted;
+    shadowRootsSerialized = serialized.shadowRootsSerialized;
+    // Surface a percy-fallback (or any serializer) warning into the run's warning count.
+    capture.warnings.push(...serialized.warnings);
     // Ensure every captured response body has landed in the store before we localize against it.
     await capture.drainResponses();
   } finally {
@@ -222,8 +228,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       consentBlocking: 'none (M1 spine; consent blocking lands in M2)',
     },
     remote: localized.remote,
-    // M1 own serializer does not convert canvas/shadow DOM — those fidelity upgrades land in M2.
-    fidelity: { canvasConverted: 0, shadowRootsSerialized: 0, crossOriginIframes: 0 },
+    // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
+    // cross-origin iframe capture is still deferred (spec 02 §M2), so that counter stays 0.
+    fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: 0 },
     verify: 'Not run during clone; run `design-lens verify <projectDir>` (M3).',
   });
 

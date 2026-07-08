@@ -215,6 +215,26 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
   it('strips the building <script> so the SPA clone is inert', () => {
     expect(indexHtml).not.toMatch(/<script/i);
   });
+
+  // why (T12): the @percy/dom serializer must convert the painted <canvas> — whose bitmap lives only
+  // in GPU memory and is lost by outerHTML — into an inline data: <img>. If percy is not injected or
+  // restore drops the canvas resource, the clone shows a blank/broken image instead of the chart.
+  it('converts the painted canvas into an inline data: image (percy serializer)', () => {
+    expect(indexHtml).toMatch(/<img[^>]+src="data:image\//i);
+  });
+
+  // why (T12): open shadow roots vanish from outerHTML; percy must emit them as declarative
+  // `<template shadowroot>` so the clone renders the custom element's shadow content. A regression
+  // to the outerHTML fallback drops the shadow tree entirely.
+  it('serializes the open shadow root as a declarative <template shadowroot>', () => {
+    expect(indexHtml).toMatch(/<template shadowroot/i);
+  });
+
+  // why (T12): the input value is set by JS as a property AFTER load, invisible to outerHTML. Percy
+  // reflects the live value into a `value=""` attribute; without it the clone loses form state.
+  it('captures the JS-set input value as an attribute', () => {
+    expect(indexHtml).toContain('set-by-js@example.com');
+  });
 });
 
 describe('clone unreachable URL', () => {

@@ -97,3 +97,15 @@ the pinned section below (that section may be edited in place).
   (dots→`-`, updated T06 tests), drop sourceUrl from provenance (now in manifest/REPORT), launch
   Chromium `--disable-web-security`+`bypassCSP` so the cross-origin font is captured at render (A15).
   e2e hooks need `hookTimeout` (real Chromium > 10 s default). All 153 tests + `--m1` green.
+- 2026-07-08 · T12 done: @percy/dom is now the primary serializer; own CSSOM walk kept as auto-
+  fallback on percy throw/empty (only both failing is fatal). Bundle embedded gzip+base64 in
+  generated `capture/percy-dom-src.ts` (`node scripts/gen-percy-src.mjs`) — raw 105 KB blows B2c's
+  2 MiB gate; gzip→36 KB, dist now 2.084 MB (~13 KB headroom — watch future embeds). TRAP: percy
+  output is NOT standalone — hides src/href behind `data-percy-serialized-attribute-*`, externalizes
+  canvas PNG + adopted/blob sheets to `render.percy.local` resources[], litters `data-percy-*`. New
+  PURE `capture/percy-restore.ts` (cheerio, 9 cases) reifies stand-ins, inlines canvas as `data:` img
+  + adopted sheets as `<style>` from resources[], strips markers — without inlining the spa
+  `rgb(1,2,3)` rule (only in the soon-stripped page `<script>`) vanishes. TRAPS: B3 greps src for
+  literal "placeholder" (say "stand-in"); cheerio parks `<template>` content in a fragment
+  `$('template span')` can't cross (assert on html); `.text()` on `<style>` is rawtext so CSS `>`
+  survives; input needs no restore. All 163 tests + `--m1` + full gate green.
