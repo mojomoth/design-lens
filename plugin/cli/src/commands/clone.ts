@@ -4,8 +4,10 @@
  * This module owns ONLY sequencing and I/O: every stage is an already-unit-tested pure/side-effect
  * module (capture/*, localize/*, output/*). The ordered pipeline (spec 02-clone-engine §M1) is:
  *   1. launch Chromium with resource capture wired (capture/browser)
+ *   1b. arm consent/cookie blocking before the first request goes out (capture/consent)
  *   2. navigate + settle, read robots.txt (capture/settle)
- *   3. stamp `data-dl-id` incl. open shadow roots, apply `--remove-selector` (capture/stamp)
+ *   3. stamp `data-dl-id` incl. open shadow roots, apply `--remove-selector` + the consent
+ *      engine's cosmetic selectors (capture/stamp)
  *   4. serialize (@percy/dom, own CSSOM walk as fallback) (capture/serialize)
  *   5. refetch references the render never requested, e.g. unused srcset variants
  *      (localize/fetch-missing) — the last stage that needs the browser
@@ -29,6 +31,15 @@ import path from 'node:path';
 import type { Command } from 'commander';
 
 import { launchCapture } from '../capture/browser.js';
+import {
+  applyConsentBlocking,
+  createConsentBlocker,
+  defaultFilterListCachePath,
+  httpFilterListDownloader,
+  resolveConsentFilterList,
+  DEFAULT_FILTER_LIST_URL,
+  type ConsentBlockingStatus,
+} from '../capture/consent.js';
 import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capture/settle.js';
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
@@ -67,6 +78,10 @@ export interface CloneRunOptions {
   removeSelectors: string[];
   /** `--no-scroll` disables the lazy-load scroll sweep (spec 02 §M2). */
   noScroll: boolean;
+  /** `--no-block-cookies` disables consent blocking entirely (spec 02 §M2). */
+  blockCookies: boolean;
+  /** `--filter-list <file>`: a local adblock list REPLACING the downloaded default consent list. */
+  filterList?: string;
   /** `--user-agent` override; omitted ⇒ the real default Chromium UA. */
   userAgent?: string;
 }
@@ -132,7 +147,39 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   let title: string;
   let userAgent: string;
   let robotsDisallowed: boolean;
+  let consentBlocking: ConsentBlockingStatus = 'disabled';
+  let cosmeticSelectors: () => string[] = () => [];
   try {
+    // Consent blocking (optional, spec 02 §M2) — armed between launch and navigate so the very
+    // first document's requests are already filtered. Any failure to obtain or parse a list is a
+    // warning, never fatal: a clone with a cookie banner beats no clone at all.
+    if (opts.blockCookies) {
+      const list = await resolveConsentFilterList({
+        ...(opts.filterList !== undefined ? { filterListPath: opts.filterList } : {}),
+        cachePath: defaultFilterListCachePath(),
+        listUrl: DEFAULT_FILTER_LIST_URL,
+        // Bounded by the whole-run budget: a hanging list server must not eat the navigation's time.
+        timeoutMs: Math.max(1_000, Math.min(deadline - Date.now(), 10_000)),
+        now: Date.now(),
+        download: httpFilterListDownloader,
+        warnings: capture.warnings,
+      });
+      if (list === null) {
+        consentBlocking = 'unavailable';
+      } else {
+        try {
+          cosmeticSelectors = (await applyConsentBlocking(capture.page, createConsentBlocker(list.text)))
+            .cosmeticSelectors;
+          consentBlocking = 'enabled';
+          process.stderr.write(`design-lens: consent blocking enabled (filter list: ${list.origin})\n`);
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          capture.warnings.push(`consent blocking could not be enabled: ${detail}`);
+          consentBlocking = 'unavailable';
+        }
+      }
+    }
+
     let settle;
     try {
       settle = await navigateAndSettle(capture.page, {
@@ -166,7 +213,10 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     }
     robotsDisallowed = await checkRobotsDisallowed(capture.context, finalUrl);
     userAgent = await capture.page.evaluate(() => navigator.userAgent);
-    elementsStamped = await stampDom(capture.page, opts.removeSelectors);
+    // `--remove-selector` matches AND everything the consent engine's cosmetic rules matched on this
+    // page are REMOVED here (not hidden): a clone is markup, so a `display:none` banner would still
+    // be in it. Cosmetic selectors are read now, after settle+sweep, so DOM-derived rules are in.
+    elementsStamped = await stampDom(capture.page, [...opts.removeSelectors, ...cosmeticSelectors()]);
     const serialized = await serializeDom(capture.page);
     serializedHtml = serialized.html;
     styleRules = serialized.styleRules;
@@ -268,7 +318,7 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
         localized.assets,
         (a) => !isImageAsset(a) && !isFontAsset(a) && !isCssAsset(a),
       ),
-      consentBlocking: 'none (M1 spine; consent blocking lands in M2)',
+      consentBlocking,
     },
     remote: localized.remote,
     // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
@@ -335,6 +385,8 @@ export function registerCloneCommand(program: Command): void {
     .option('--timeout <s>', 'whole-run budget in seconds', '90')
     .option('--settle <ms>', 'extra quiet time after networkidle, in ms', '1500')
     .option('--no-scroll', 'disable the lazy-load scroll sweep before serialization')
+    .option('--no-block-cookies', 'disable consent/cookie-banner blocking')
+    .option('--filter-list <file>', 'local adblock filter list, replacing the default consent list')
     .option('--remove-selector <css>', 'remove matching elements before capture (repeatable)', collect, [])
     .option('--user-agent <ua>', 'override the Chromium user agent')
     .action(
@@ -348,6 +400,8 @@ export function registerCloneCommand(program: Command): void {
           timeout: string;
           settle: string;
           scroll: boolean;
+          blockCookies: boolean;
+          filterList?: string;
           removeSelector: string[];
           userAgent?: string;
         },
@@ -362,6 +416,9 @@ export function registerCloneCommand(program: Command): void {
             settleMs: Number(options.settle),
             // Commander maps `--no-scroll` to `options.scroll === false`; default is true.
             noScroll: options.scroll === false,
+            // Likewise `--no-block-cookies` arrives as `options.blockCookies === false`.
+            blockCookies: options.blockCookies !== false,
+            ...(options.filterList !== undefined ? { filterList: options.filterList } : {}),
             removeSelectors: options.removeSelector,
             ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
           };

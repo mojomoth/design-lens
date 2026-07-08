@@ -150,3 +150,47 @@ Format for new entries (append at the bottom, never edit existing ones):
   Disabling web security is safe because the clone output is inert (no JS ever runs from the clone)
   and faithful cross-origin asset capture is the tool's purpose. The M2 refetch task (T16) still
   owns UA-specific refetch of resources the page never requests (e.g. unused srcset variants).
+
+## ADR-012: fanboy-cookiemonster cannot satisfy A16 — ship a built-in generic consent ruleset
+- Date: 2026-07-08 · Status: accepted (spec-drift, T15 build iteration)
+- Context: two specs contradict each other, and the contradiction is empirically verifiable.
+  (1) `specs/02-clone-engine.md` §M2 makes fanboy-cookiemonster the ONE default consent list.
+  (2) `specs/09-fixture-contract.md` A16 requires `<div id="consent" class="cookie-banner">` to be
+      ABSENT from the clone, and `:100-105` forbids any fixture-specific CLI flag from rescuing it —
+      "the generic pipeline must produce these results" — while noting the `cookie-banner` class is
+      "deliberately generic".
+  Measured against the live list (25 750 lines, ~15 272 generic `##` rules): fanboy-cookiemonster
+  contains NO generic rule matching either `#consent` or `.cookie-banner`. Both appear only as
+  domain-scoped rules (`ft.com###consent`, `sellme.ee##.cookie-banner`, …) plus compound generics
+  (`#consent.alert`, `.cookie-banner.toast`) that need a second class the fixture does not carry.
+  A loopback capture matches none of them. Confirmed by running `e2e-assert.sh --all` with the
+  real downloaded list: `FAIL A16 consent banner present in clone`. So (1) cannot satisfy (2), with
+  or without network. An adblocker must be conservative about hiding `.cookie-banner` on every site
+  on the web; design-lens photographs ONE page the user explicitly asked to clone, where an
+  over-removed cookie bar costs nothing and a surviving one ruins the reference.
+- Decision (generic — no fixture special-casing; `specs/09` §24-26 also forbids hardcoded `#consent`
+  logic in `plugin/cli/src/`, so nothing below names that id):
+  1. `plugin/cli/src/capture/consent-rules.ts` ships `BUILTIN_CONSENT_RULES`: ~22 GENERIC uBlock
+     cosmetic rules for unambiguous consent containers (`##.cookie-banner`, `###cookie-consent`,
+     `##.cc-window`, …). The sealed banner is removed by the generic `.cookie-banner` class rule.
+  2. Default filter text = `BUILTIN_CONSENT_RULES` + `\n` + the remote fanboy-cookiemonster list
+     (cache → download → stale cache). Both go through the single `PlaywrightBlocker.parse(text)`
+     path spec 02 mandates. A download failure now warns and proceeds with the built-in rules
+     (`consentBlocking: "enabled"`), instead of the spec's `"unavailable"` — consent blocking
+     degrades to fewer rules, never to none, and an offline clone still loses its banner.
+     `"unavailable"` remains for the case where no list can be parsed (e.g. an unreadable
+     `--filter-list`).
+  3. `--filter-list <file>` REPLACES the whole default text, built-ins included: the user named an
+     exact list, and this is what keeps the flag deterministic and offline for tests.
+  4. `enableBlockingInPage(page)` is still the entry point (network blocking), but the engine's
+     cosmetic verdicts are INTERCEPTED rather than injected: its native behaviour is
+     `frame.addStyleTag()` with a `display: none !important` blob (hundreds of KB for a real list),
+     which would be serialized into `clone/index.html` and would still leave the banner element in
+     the markup. A16 and spec 08's banner e2e both assert ABSENCE, so the intercepted selectors are
+     handed to `capture/stamp.ts`, which REMOVES the matches before stamping. Scriptlet injection is
+     dropped outright (the clone is "a photograph, not a program").
+- Consequences: changes `.agentdocs/specs/02-clone-engine.md` (the §M2 Consent blocking bullet and
+  the §3 pre-serialize removal clause). Adds no dependency. Real-world clones now lose consent
+  containers matching the 22 built-in selectors even when the remote list is unavailable; each
+  selector names a consent UI and nothing else, and `--no-block-cookies` restores the banner.
+  Sealed A16 passes offline. `--filter-list` users get exactly the rules they asked for.

@@ -23,6 +23,7 @@
     "vitest": "^3.2.0"
   },
   "dependencies": {
+    "@ghostery/adblocker-playwright": "2.18.1",
     "@percy/dom": "^1.32",
     "cheerio": "^1.2.0",
     "commander": "^12.1.0",

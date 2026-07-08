@@ -52,7 +52,8 @@ Stages run in this order; each stage is one module with unit tests.
    REPORT.md — the clone PROCEEDS (transparency, not blocking). Any robots fetch/parse failure ⇒
    `false`, no warning.
 3. **Pre-serialize DOM mutations** (`capture/stamp.ts`, via `page.evaluate`) — (a) remove every
-   `--remove-selector` match; (b) stamp `data-dl-id="dl-N"` (document-order counter, N from 1) on
+   `--remove-selector` match, and every match of the cosmetic selectors the consent engine returned
+   for this page (M2, ADR-012); (b) stamp `data-dl-id="dl-N"` (document-order counter, N from 1) on
    every element under `document.body`, including elements inside OPEN shadow roots, skipping
    `script`/`style`. Ids MUST be unique and MUST survive serialization (sealed gate: ≥ 30 unique).
    No capture-time metadata file is written — `inspect` measures the served clone live (ADR-002).
@@ -94,13 +95,20 @@ Stages run in this order; each stage is one module with unit tests.
    one-line ethics notice to stderr and the result JSON to stdout. Write failures are fatal.
 
 ### M2 fidelity (gate: `bash .harness/e2e-assert.sh --all`)
-- **Consent blocking** (`capture/consent.ts`, applied between launch and navigate) — default list
-  fanboy-cookiemonster, downloaded to `~/.design-lens/cache/filterlists/` with a 7-day TTL (file
-  mtime); the blocker is ALWAYS constructed via file-read + `PlaywrightBlocker.parse(text)` so the
-  cached-download path and `--filter-list <file>` (local list, deterministic tests, no network)
-  share one code path; then `blocker.enableBlockingInPage(page)` (network blocking AND cosmetic
-  hiding). `--no-block-cookies` disables. Any download/parse failure ⇒ warn, proceed, record
-  `consentBlocking: "unavailable"` (values: `enabled|disabled|unavailable`).
+- **Consent blocking** (`capture/consent.ts`, applied between launch and navigate) — the blocker is
+  ALWAYS constructed via `PlaywrightBlocker.parse(text)` over filter-list TEXT, so every source
+  shares one code path. Default text = the built-in generic consent ruleset
+  (`capture/consent-rules.ts`) followed by fanboy-cookiemonster, downloaded to
+  `~/.design-lens/cache/filterlists/` with a 7-day TTL (file mtime); the built-in ruleset is
+  REQUIRED because fanboy-cookiemonster carries no generic rule for the common `.cookie-banner`
+  container, only domain-scoped ones (ADR-012). `--filter-list <file>` (local list, deterministic
+  tests, no network) REPLACES that default text entirely, built-ins included. Then
+  `blocker.enableBlockingInPage(page)` gives network blocking; the engine's cosmetic verdicts are
+  INTERCEPTED rather than injected, and their selectors are removed by `capture/stamp.ts` — a clone
+  is markup, so hiding would leave the banner in the file (ADR-012). `--no-block-cookies` disables.
+  A download failure ⇒ warn, proceed with the built-in rules alone (still `enabled`); a list that
+  cannot be read or parsed ⇒ warn, proceed, record `consentBlocking: "unavailable"`
+  (values: `enabled|disabled|unavailable`).
 - **Lazy-load sweep** (in `capture/settle.ts`, after settle, unless `--no-scroll`) — scroll by
   `viewportHeight * 0.8` every 150 ms to `document.body.scrollHeight`, dispatching synthetic
   `scroll` events (IntersectionObserver libs); re-race networkidle (15 s cap); scroll back to top;
@@ -180,7 +188,7 @@ so rewriting may precede fetching; the pipeline resolves fetches before the fina
 ```
 index.ts                    # commander wiring only
 commands/{clone,tokens,inspect,screenshot,serve,verify}.ts
-capture/{browser,consent,settle,stamp,serialize}.ts
+capture/{browser,consent,consent-rules,settle,stamp,serialize}.ts
 localize/{resource-store,urlmap,html-rewrite,css-rewrite,srcset,fetch-missing}.ts
 output/{writer,manifest,report,beautify}.ts
 analyze/{tokens,inspect,heuristics}.ts

@@ -135,3 +135,22 @@ the pinned section below (that section may be edited in place).
   never on the on-disk name. 15 new tests (184 total). dist rebuilt: 1.990 MiB — only ~10 KB under
   B2c's 2 MiB gate, so any future in-bundle embed needs the gzip+base64 trick T12 used.
   Sealed `--all` now: A1–A15 PASS incl. A14; A16/A17/A18 remain (T15/T17/T18).
+- 2026-07-08 · T15 done: `capture/consent.ts` + `capture/consent-rules.ts`; dep `@ghostery/adblocker-playwright@2.18.1`
+  (exact, external — bundle still 1.99 MB). Flags `--no-block-cookies`, `--filter-list <file>` added.
+  SPEC DRIFT → ADR-012 (+ minimal `specs/02` edit, same commit): fanboy-cookiemonster has NO generic
+  rule for `.cookie-banner`/`#consent` — only domain-scoped (`ft.com###consent`, `sellme.ee##.cookie-banner`)
+  and compound (`#consent.alert`) — so spec-02's default could never satisfy sealed A16 (proved: ran
+  `--all` with the live list ⇒ FAIL A16). Fix: ship 22 GENERIC built-in consent rules, prepended to the
+  remote list; download failure now degrades to built-ins (`enabled`), not `unavailable`. A16 now PASSES.
+  TRAPS: (1) `enableBlockingInPage` APPLIES cosmetics via `frame.addStyleTag()` — a 100s-of-KB
+  `display:none` blob that percy would serialize into `clone/index.html`, and hiding ≠ removing. Both
+  `this.injectStylesIntoFrame`/`injectScriptletsIntoFrame` dispatch through the instance, so override them:
+  collect selectors → hand to `stampDom` (removes) → drop scriptlets (clone is inert). (2) `--filter-list`
+  must REPLACE built-ins, else its e2e proves nothing; every banner e2e is now PAIRED with a survives-case.
+  (3) consent is ON by default ⇒ e2e would hit the live web; every `runCli` now gets a tmp `DESIGN_LENS_HOME`
+  with a pre-seeded no-match cache (`lib/home.ts` consolidates the home lookup shared with runtime-deps).
+  (4) mtime of a just-written cache file can be a few ms in the FUTURE — a strict `age>=0` freshness test
+  re-downloads every run; tolerate 60 s skew. (5) `##.cookie-banner` etc. need DOM hints (ids/classes) to
+  surface from `getCosmeticsFilters`; with no hints you get `""`. A2 dropped 53→50 (banner subtree gone).
+  Sealed `--all`: A1–A16 PASS; A17/A18 remain (T17/T18). Added T30 — spec-02 lists `--max-asset-mb` /
+  `--include-media` but no task owned them. 215 tests. Full gate green.

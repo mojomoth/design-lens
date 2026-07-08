@@ -30,10 +30,45 @@ interface CliResult {
   stderr: string;
 }
 
-/** Run the bundle with `args`; resolve with the exit code and captured streams (never rejects). */
+/**
+ * The REMOTE half of the default consent list, seeded into a fresh temp home's cache so the 7-day
+ * TTL is satisfied and no download is ever attempted (tests never touch the live web — guardrails).
+ *
+ * Its single rule matches NOTHING in any fixture, on purpose: it stands in for fanboy-cookiemonster
+ * without contributing any removal. Anything the default clone removes is therefore attributable to
+ * design-lens's own built-in consent rules (ADR-012) — which is exactly what the default-clone test
+ * below asserts, mirroring sealed assertion A16.
+ */
+const SEEDED_DEFAULT_LIST = [
+  '! design-lens e2e: stands in for the downloaded fanboy-cookiemonster list.',
+  '! Matches nothing in any fixture, so default-clone removals come from the built-in rules alone.',
+  '###dl-e2e-remote-list-matches-nothing',
+  '',
+].join('\n');
+
+/** Make a throwaway `DESIGN_LENS_HOME` whose consent filter-list cache is already fresh. */
+function tmpHome(): string {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-home-'));
+  const cacheDir = path.join(home, 'cache', 'filterlists');
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.writeFileSync(path.join(cacheDir, 'fanboy-cookiemonster.txt'), SEEDED_DEFAULT_LIST, 'utf8');
+  return home;
+}
+
+/**
+ * Run the bundle with `args`; resolve with the exit code and captured streams (never rejects).
+ *
+ * Every run is pinned to a throwaway `DESIGN_LENS_HOME` (see {@link tmpHome}) because consent
+ * blocking is ON by default: without a seeded cache the CLI would download its filter list, and
+ * tests never touch the live web (guardrails). It also keeps runs independent of whatever the
+ * developer's real `~/.design-lens` cache happens to hold.
+ */
 function runCli(args: string[], cwd: string): Promise<CliResult> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [BUNDLE, ...args], { cwd });
+    const child = spawn(process.execPath, [BUNDLE, ...args], {
+      cwd,
+      env: { ...process.env, DESIGN_LENS_HOME: tmpHome() },
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
@@ -284,6 +319,111 @@ describe('clone spa (M1 CSSOM-walk serializer)', () => {
     expect(match, `lazy <img> src not localized under assets/:\n${indexHtml}`).not.toBeNull();
     // The referenced file must actually exist on disk under clone/.
     expect(fs.existsSync(path.join(projectDir, 'clone', match![1]))).toBe(true);
+  });
+});
+
+/**
+ * T15 — consent/cookie-banner blocking.
+ *
+ * WHY: a banner is the most common thing standing between a reference site and a usable design
+ * clone, and its survival is invisible to every other assertion — a clone with a fixed-position
+ * consent bar still exits 0 and still validates. Each removal test below is paired with a case that
+ * makes the banner SURVIVE, so a passing test attributes the removal to the mechanism under test
+ * rather than to some other stage (or to the banner never rendering at all):
+ *   • `--no-block-cookies`                       → survives  (fixture sanity + kill switch)
+ *   • default clone                              → removed   (built-in generic rules, ADR-012 / A16)
+ *   • `--remove-selector` (+ blocking disabled)  → removed   (the flag alone did it)
+ *   • `--filter-list <fixture>`                  → removed   (its `###cookie-banner` cosmetic rule)
+ *   • `--filter-list <matches nothing>`          → survives  (the flag REPLACED the built-ins)
+ *
+ * Removal, not hiding, is the contract: the adblocker's native behaviour is to inject a
+ * `display: none !important` stylesheet, which would leave the banner in `clone/index.html`.
+ */
+describe('clone banner (consent blocking)', () => {
+  let server: StaticServer;
+  const outs: string[] = [];
+
+  /** Clone the banner fixture with `flags` and return the written `clone/index.html`. */
+  async function cloneBanner(flags: string[], project: string): Promise<string> {
+    const out = tmpOut();
+    outs.push(out);
+    const result = await runCli(
+      ['clone', server.url('/index.html'), '--out', out, '--project', project, ...flags],
+      out,
+    );
+    expect(result.code, `clone failed: ${result.stderr}`).toBe(0);
+    const parsed = JSON.parse(result.stdout.trim()) as { projectDir: string };
+    return fs.readFileSync(path.join(parsed.projectDir, 'clone', 'index.html'), 'utf8');
+  }
+
+  beforeAll(async () => {
+    server = await startStaticServer(path.join(SITES, 'banner'));
+  });
+
+  afterAll(async () => {
+    await server.close();
+    for (const out of outs) fs.rmSync(out, { recursive: true, force: true });
+  });
+
+  it('keeps the banner when --no-block-cookies disables the stage', async () => {
+    // Anchors every other case: the fixture really does render a banner, and the kill switch really
+    // does turn the stage off rather than being an ignored flag.
+    const indexHtml = await cloneBanner(['--no-block-cookies'], 'banner-off');
+    expect(indexHtml).toMatch(/id="cookie-banner"/);
+    expect(indexHtml).toMatch(/We use cookies/);
+  });
+
+  it('removes the banner on a DEFAULT clone via the built-in generic rules', async () => {
+    // The own-suite mirror of sealed A16. The seeded remote list matches nothing, so this passes
+    // only because `consent-rules.ts` carries a generic `##.cookie-banner` / `###cookie-banner`
+    // rule (ADR-012) — fanboy-cookiemonster scopes those per-domain and would leave the banner.
+    const indexHtml = await cloneBanner([], 'banner-default');
+    expect(indexHtml).not.toMatch(/id="cookie-banner"/);
+    expect(indexHtml).not.toMatch(/We use cookies/);
+    // Nothing else may be swept up with it.
+    expect(indexHtml).toMatch(/id="pricing"/);
+    expect(indexHtml).toMatch(/id="features"/);
+  });
+
+  it('removes the banner via --remove-selector', async () => {
+    const indexHtml = await cloneBanner(['--remove-selector', '#cookie-banner'], 'banner-selector');
+    expect(indexHtml).not.toMatch(/id="cookie-banner"/);
+    // The rest of the page must survive: --remove-selector removes a subtree, not the document.
+    expect(indexHtml).toMatch(/id="pricing"/);
+  });
+
+  it('removes the banner via --remove-selector even with consent blocking off', async () => {
+    // Isolates the flag: with `--no-block-cookies` the built-in rules cannot be what removed it.
+    const indexHtml = await cloneBanner(
+      ['--no-block-cookies', '--remove-selector', '#cookie-banner'],
+      'banner-selector-only',
+    );
+    expect(indexHtml).not.toMatch(/id="cookie-banner"/);
+    expect(indexHtml).toMatch(/id="pricing"/);
+  });
+
+  it('removes the banner via a --filter-list cosmetic rule, without injecting a hide stylesheet', async () => {
+    // `###cookie-banner` is a cosmetic rule. The engine would HIDE the element; the clone must not
+    // contain it at all, nor the `display: none !important` blob the engine wanted to inject.
+    const listPath = path.join(SITES, 'banner', 'filter-list.txt');
+    const indexHtml = await cloneBanner(['--filter-list', listPath], 'banner-filter-list');
+    expect(indexHtml).not.toMatch(/id="cookie-banner"/);
+    expect(indexHtml).not.toMatch(/We use cookies/);
+    expect(indexHtml).not.toMatch(/display:\s*none\s*!important/i);
+    expect(indexHtml).toMatch(/id="pricing"/);
+  });
+
+  it('keeps the banner when --filter-list supplies a list that matches nothing', async () => {
+    // Proves `--filter-list` REPLACES the built-in rules instead of adding to them. Without this,
+    // the test above would pass even if the flag were ignored entirely (the built-ins would remove
+    // the banner anyway) — and a user who passed an explicit list would get surprise removals.
+    const out = tmpOut();
+    outs.push(out);
+    const listPath = path.join(out, 'matches-nothing.txt');
+    fs.writeFileSync(listPath, '! no rule here matches the fixture\n###nothing-at-all\n', 'utf8');
+
+    const indexHtml = await cloneBanner(['--filter-list', listPath], 'banner-inert-list');
+    expect(indexHtml).toMatch(/id="cookie-banner"/);
   });
 });
 

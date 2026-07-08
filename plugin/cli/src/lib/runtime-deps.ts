@@ -17,19 +17,18 @@
 
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+
+import { designLensHome } from './home.js';
 
 const req = createRequire(import.meta.url);
 
 /**
- * Absolute path to the runtime `node_modules` that `bootstrap.sh` populates. Honors
- * `DESIGN_LENS_HOME` exactly as bootstrap and the launcher do (spec 01: bootstrap MUST honor
- * `DESIGN_LENS_HOME`, default `$HOME/.design-lens`) so an installed plugin with a relocated home
- * still resolves its deps.
+ * Absolute path to the runtime `node_modules` that `bootstrap.sh` populates. The home is resolved
+ * through `lib/home.ts` so a relocated `DESIGN_LENS_HOME` moves the runtime deps and the consent
+ * filter-list cache together (spec 01: bootstrap MUST honor `DESIGN_LENS_HOME`).
  */
 function runtimeModulesDir(): string {
-  const home = process.env.DESIGN_LENS_HOME ?? join(homedir(), '.design-lens');
-  return join(home, 'runtime', 'node_modules');
+  return join(designLensHome(), 'runtime', 'node_modules');
 }
 
 /**
