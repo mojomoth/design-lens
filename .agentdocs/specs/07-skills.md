@@ -73,7 +73,9 @@ Before anything else, verify the CLI is available: run `~/.design-lens/bin/desig
 If that file is missing, the plugin bootstrap has not run: ask the user to restart the session
 (a SessionStart hook provisions the runtime), or locate the installed plugin directory with
 `claude plugin list` (Claude Code) or `codex plugin list` (Codex) and run
-`bash <plugin-dir>/scripts/bootstrap.sh`, then retry.
+`bash <plugin-dir>/scripts/bootstrap.sh`, then retry. If design-lens was installed without a
+plugin system (for example via `npx skills add` on Cursor or OpenCode), provision the runtime
+with `npx -y design-lens setup` instead, then retry.
 ```
 
 ### Canonical brand-checklist section (verbatim in customize-clone AND build-from-design)

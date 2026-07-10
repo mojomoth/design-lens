@@ -81,7 +81,9 @@ surface for customizing that clone or building a brand-new page with the same de
 - MCP server (rejected: skills + CLI via shell is fully portable and costs no context tokens).
 - Plugin-packaged subagents (Claude subagents / Codex TOML agents are not portable across both tools).
 - Persistent edit manifest / properties.yaml write-back — explicitly rejected by the user (ADR-002).
-- npm publication of the CLI package (the committed bundle is the distribution).
+- ~~npm publication of the CLI package~~ — moved INTO scope by ADR-016: the CLI is also published
+  to npm as unscoped `design-lens` (with a `setup` subcommand for hook-less installs); the
+  committed bundle remains the plugin-channel distribution.
 - Firefox and WebKit engines (Chromium only).
 
 ## Verified facts (do not re-litigate)

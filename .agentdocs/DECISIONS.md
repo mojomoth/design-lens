@@ -267,3 +267,30 @@ Format for new entries (append at the bottom, never edit existing ones):
   specs/01-packaging.md, and `.harness/verify.sh` I5 (harness re-sealed via bootstrap).
 - Consequences: changes `.agentdocs/specs/00-product.md`, `.agentdocs/specs/01-packaging.md`;
   the codex leg of `verify.sh --install` now passes instead of demoting to a manual check.
+
+## ADR-016: Distribution channels — npm publication, skills-CLI installs, author normalization
+- Date: 2026-07-10 · Status: accepted (post-completion, human-supervised)
+- Context: the product owner directed that design-lens be installable on Claude Code, Codex,
+  Cursor, and OpenCode. The `npx skills add` ecosystem (vercel-labs `skills`) discovers this
+  repo's five skills via `.claude-plugin/plugin.json` (verified locally with `--list`), but it
+  copies SKILL.md directories WITHOUT hooks — the SessionStart bootstrap never runs on Cursor or
+  OpenCode, and the canonical CLI-availability paragraph (spec 07, verbatim in every skill body)
+  only offers plugin-based recovery. specs/00-product.md and specs/01-packaging.md declared npm
+  publication of the CLI out of scope; a published npm package (unscoped name `design-lens`,
+  verified unclaimed) is the only channel-agnostic way for a skill to self-provision the runtime.
+  Separately, the manifests' author/owner metadata (`zipida`) predates publication; the publishing
+  GitHub/npm account is `mojomoth`.
+- Decision: (a) npm publication of `plugin/cli` as unscoped `design-lens` moves INTO scope, with a
+  new `setup` subcommand — a TypeScript port of `bootstrap.sh` sharing the exact version pins — so
+  hook-less installs recover via `npx -y design-lens setup`; the committed bundle remains the
+  plugin-channel distribution. (b) The canonical paragraph in specs/07-skills.md gains one final
+  sentence pointing hook-less installs at `npx -y design-lens setup`; all five SKILL.md bodies
+  update in lockstep. (c) author/owner become `{ "name": "mojomoth" }` (no email) in
+  `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and spec 01's quoted
+  copies of both.
+- Consequences: changes `.agentdocs/specs/00-product.md`, `.agentdocs/specs/01-packaging.md`,
+  `.agentdocs/specs/07-skills.md`. `bootstrap.sh` stays the plugin-channel provisioner; the pin
+  lock (playwright 1.61.1, adblocker 2.18.1) now spans bootstrap.sh, package.json, AND setup.ts,
+  guarded by an extended unit test. `plugin/cli/package.json` drops `private: true` and gains
+  bin/files/repository/engines; `dist/design-lens.cjs` is rebuilt (setup command) and recommitted
+  under the S5 reproducibility gate.

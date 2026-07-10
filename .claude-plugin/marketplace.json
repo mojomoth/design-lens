@@ -1,6 +1,6 @@
 {
   "name": "design-lens",
-  "owner": { "name": "zipida", "email": "work@zipida.com" },
+  "owner": { "name": "mojomoth" },
   "plugins": [
     {
       "name": "design-lens",

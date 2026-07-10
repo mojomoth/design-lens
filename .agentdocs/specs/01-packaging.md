@@ -125,7 +125,7 @@ design-lens/                              # repo root = the marketplace
   "displayName": "Design Lens",
   "version": "0.1.0",
   "description": "Start from great reference designs: clone a site into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
-  "author": { "name": "zipida", "email": "work@zipida.com" },
+  "author": { "name": "mojomoth" },
   "license": "MIT",
   "keywords": ["design", "frontend", "clone", "playwright", "reference"],
   "skills": "./skills/",
@@ -150,7 +150,7 @@ design-lens/                              # repo root = the marketplace
 ```json
 {
   "name": "design-lens",
-  "owner": { "name": "zipida", "email": "work@zipida.com" },
+  "owner": { "name": "mojomoth" },
   "plugins": [
     {
       "name": "design-lens",
@@ -271,7 +271,8 @@ export function loadRuntimeDep<T>(name: string): T {
 
 ## Out of scope
 
-- npm publication of the CLI; auto-update logic beyond the version-scoped marker.
+- Auto-update logic beyond the version-scoped marker. (npm publication of the CLI moved INTO
+  scope — ADR-016: unscoped package `design-lens`, `setup` subcommand mirrors bootstrap.sh.)
 - MCP servers, Claude subagents / Codex TOML agents, the Claude-only `bin/` PATH feature,
   `userConfig`, `CLAUDE.md` at plugin root (not loaded by either tool).
 - Single-file HTML export (AGPL `single-file-cli` — forbidden, ADR-005).
