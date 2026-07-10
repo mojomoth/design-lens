@@ -1,9 +1,12 @@
 # Design Lens
 
+[한국어](./README.ko.md) · [简体中文](./README.zh-CN.md) · [正體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Français](./README.fr.md) · [Português](./README.pt.md) · [Español](./README.es.md) · [Română](./README.ro.md) · [Русский](./README.ru.md) · [Türkçe](./README.tr.md) · [Italiano](./README.it.md) · [Tiếng Việt](./README.vi.md) · [Українська](./README.uk.md) · [Indonesian](./README.id.md) · [हिन्दी](./README.hi.md) · [فارسی](./README.fa.md) · [Беларуская](./README.be.md) · [বাংলা](./README.bn.md)
+
 **Start from great reference designs, not from a blank AI canvas.**
 
-Design Lens is a plugin for **Claude Code** and **OpenAI Codex CLI** that helps you build
-aesthetically excellent frontends by starting from reference designs (awwwards-class sites):
+Design Lens is a plugin for **Claude Code**, **OpenAI Codex CLI**, **Cursor**, and **OpenCode**
+that helps you build aesthetically excellent frontends by starting from reference designs
+(awwwards-class sites):
 
 1. **Clone** — capture a reference page into a self-contained, pretty-printed local mirror:
    JS-rendered final DOM, CSS-in-JS/shadow-DOM styles preserved, every asset localized, every
@@ -15,26 +18,57 @@ aesthetically excellent frontends by starting from reference designs (awwwards-c
 
 ## Install
 
+| Agent | Recommended channel | Runtime provisioning |
+| --- | --- | --- |
+| Claude Code | plugin (below) or `npx skills` | automatic (SessionStart hook) |
+| Codex CLI | plugin (below) or `npx skills` | trust the hook via `/hooks`, or the fallback below |
+| Cursor | `npx skills add mojomoth/design-lens -a cursor` | `npx -y design-lens setup` on first use |
+| OpenCode | `npx skills add mojomoth/design-lens -a opencode` | `npx -y design-lens setup` on first use |
+
+### Channel 1 — plugin (Claude Code / Codex)
+
 Claude Code:
 
 ```bash
-claude plugin marketplace add <repo-url-or-abs-path>
+claude plugin marketplace add mojomoth/design-lens
 claude plugin install design-lens@design-lens
 ```
 
 Codex CLI:
 
 ```bash
-codex plugin marketplace add <repo-url-or-abs-path>
+codex plugin marketplace add https://github.com/mojomoth/design-lens
 codex plugin add design-lens@design-lens
 ```
-
-Dev loop (no install): `claude --plugin-dir ./plugin`.
 
 On first session a `SessionStart` hook provisions `~/.design-lens/` (CLI, pinned Playwright,
 Chromium). **On Codex you must trust the plugin hook via `/hooks` first, or run
 `bash <plugin-cache-dir>/scripts/bootstrap.sh` once by hand** — see
 [`plugin/README.md`](./plugin/README.md).
+
+### Channel 2 — `npx skills` (any skills-capable agent)
+
+```bash
+npx skills add mojomoth/design-lens          # auto-detects installed agents
+npx skills add mojomoth/design-lens -a cursor -a opencode   # or target specific ones
+```
+
+Agents installed this way have no provisioning hook; the skills self-heal by running
+`npx -y design-lens setup` on first use (or run it yourself once).
+
+### Channel 3 — plain CLI via npm
+
+```bash
+npx design-lens setup                        # one-time: ~/.design-lens, Playwright, Chromium
+npx design-lens clone https://example.com    # or use the CLI directly, no plugin at all
+```
+
+**For LLM agents** — paste this into your agent:
+
+> Install design-lens by following https://raw.githubusercontent.com/mojomoth/design-lens/main/INSTALL.md
+
+Dev loop (no install): `claude --plugin-dir ./plugin`. A local absolute path also works in place
+of `mojomoth/design-lens` for `marketplace add`.
 
 Skills (Claude: `/design-lens:<name>`, Codex: `$<name>`): `clone-reference`, `reverse-design`,
 `inspect-elements`, `customize-clone`, `build-from-design`.
