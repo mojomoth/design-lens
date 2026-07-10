@@ -3,8 +3,8 @@
  *
  * Kept as a pure factory (no `parse`, no `process.exit`) so unit tests can drive it in-process
  * with `exitOverride()`/`configureOutput()` and assert output without spawning a process. All
- * six subcommands (clone/tokens/inspect/screenshot/serve/verify — spec 00-product §Interfaces)
- * are registered here, alongside the locked `--version` flag.
+ * six spec-00 subcommands (clone/tokens/inspect/screenshot/serve/verify) are registered here,
+ * plus `setup` (ADR-016 hook-less provisioning), alongside the locked `--version` flag.
  */
 
 import { Command } from 'commander';
@@ -13,6 +13,7 @@ import { registerCloneCommand } from './commands/clone.js';
 import { registerInspectCommand } from './commands/inspect.js';
 import { registerScreenshotCommand } from './commands/screenshot.js';
 import { registerServeCommand } from './commands/serve.js';
+import { registerSetupCommand } from './commands/setup.js';
 import { registerTokensCommand } from './commands/tokens.js';
 import { registerVerifyCommand } from './commands/verify.js';
 
@@ -29,5 +30,6 @@ export function buildProgram(): Command {
   registerScreenshotCommand(program);
   registerServeCommand(program);
   registerVerifyCommand(program);
+  registerSetupCommand(program);
   return program;
 }

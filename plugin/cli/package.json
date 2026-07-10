@@ -1,10 +1,27 @@
 {
   "name": "design-lens",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Design Lens CLI engine — clone a reference site into an editable local mirror.",
   "license": "MIT",
+  "author": { "name": "mojomoth" },
+  "homepage": "https://github.com/mojomoth/design-lens#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mojomoth/design-lens.git",
+    "directory": "plugin/cli"
+  },
+  "keywords": ["design", "frontend", "clone", "playwright", "reference", "claude-code", "codex"],
+  "bin": {
+    "design-lens": "dist/design-lens.cjs"
+  },
+  "files": [
+    "dist",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",

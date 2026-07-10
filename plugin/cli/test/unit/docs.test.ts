@@ -123,4 +123,15 @@ describe('shipped documentation', () => {
     expect(existsSync(PLUGIN_README)).toBe(true);
     expect(existsSync(NOTICE)).toBe(true);
   });
+
+  // why: the npm tarball (ADR-016) ships `plugin/cli/NOTICE.md` — package.json's `files` cannot
+  // reach `../NOTICE.md`, so a byte copy travels with the package to keep discharging the
+  // attribution clause on the npm channel. A copy is exactly the thing that rots: every NOTICE
+  // amendment lands in plugin/NOTICE.md (where all the tests above look), and nothing else would
+  // ever notice the published copy drifting stale.
+  it('plugin/cli/NOTICE.md is a byte-identical copy of plugin/NOTICE.md', () => {
+    const cliNotice = path.join(PLUGIN, 'cli/NOTICE.md');
+    expect(existsSync(cliNotice), 'plugin/cli/NOTICE.md must exist (shipped in the npm tarball)').toBe(true);
+    expect(read(cliNotice)).toBe(read(NOTICE));
+  });
 });
