@@ -1,6 +1,6 @@
 {
   "name": "design-lens",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Design Lens CLI engine — clone a reference site into an editable local mirror.",
   "license": "MIT",

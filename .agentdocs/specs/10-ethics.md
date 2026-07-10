@@ -71,7 +71,7 @@ does not refuse.
 - `clone/index.html` provenance comment (first line of the file; substitute the ISO capture date).
   Template owned by `specs/03-clone-format.md`; the raw source URL is deliberately absent, because
   sealed assertion A4 forbids the capture host anywhere inside `clone/` (ADR-011):
-  `<!-- Cloned by design-lens v0.1.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`
+  `<!-- Cloned by design-lens v0.1.1 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`
 - Completion one-liner (stderr, last line of clone output):
   `Note: this clone is for private design study only — see REPORT.md "License & usage notice" before shipping anything derived.`
 - Brand checklist block for BOTH `customize-clone/SKILL.md` and `build-from-design/SKILL.md`

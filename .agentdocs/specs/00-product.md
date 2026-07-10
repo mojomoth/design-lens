@@ -12,10 +12,10 @@ surface for customizing that clone or building a brand-new page with the same de
 ## Requirements
 
 ### Product identity
-- The product MUST ship as one plugin named `design-lens`, version `0.1.0`, installable in both
+- The product MUST ship as one plugin named `design-lens`, version `0.1.1`, installable in both
   Claude Code and Codex CLI from this single repo (plugin root `plugin/`, marketplace at repo root).
 - Both plugin manifests (`plugin/.claude-plugin/plugin.json`, `plugin/.codex-plugin/plugin.json`)
-  MUST carry version `0.1.0`, identical to `design-lens --version` output.
+  MUST carry version `0.1.1`, identical to `design-lens --version` output.
 - All deterministic logic MUST live in the CLI (`plugin/cli/`, bundled to
   `plugin/cli/dist/design-lens.cjs`); skills MUST be thin prose procedures with no embedded logic.
 

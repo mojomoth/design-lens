@@ -294,3 +294,28 @@ Format for new entries (append at the bottom, never edit existing ones):
   guarded by an extended unit test. `plugin/cli/package.json` drops `private: true` and gains
   bin/files/repository/engines; `dist/design-lens.cjs` is rebuilt (setup command) and recommitted
   under the S5 reproducibility gate.
+
+## ADR-017: Claude manifest must not reference hooks/hooks.json; release 0.1.1
+- Date: 2026-07-10 · Status: accepted (post-completion, human-supervised)
+- Context: the first real remote install (sandboxed `claude plugin install
+  design-lens@design-lens` from github.com/mojomoth/design-lens, Claude Code 2.1.206) installs but
+  FAILS TO LOAD: "Duplicate hooks file detected: ./hooks/hooks.json resolves to already-loaded
+  file … The standard hooks/hooks.json is loaded automatically, so manifest.hooks should only
+  reference additional hook files." Current Claude Code auto-loads the conventional
+  `hooks/hooks.json` and rejects a manifest `hooks` pointer at the same path. The sealed gate
+  never caught this: I4 asserts install success, not load status, and `claude plugin validate
+  --strict` accepts the pointer.
+- Decision: remove the `"hooks"` field from `plugin/.claude-plugin/plugin.json` — the standard
+  path is auto-loaded, so behaviour is unchanged for the SessionStart bootstrap. KEEP the field in
+  `plugin/.codex-plugin/plugin.json`: Codex has its own loader (ADR-003), its auto-load behaviour
+  is unverified, and ADR-015's interactive Codex verification passed with the pointer present.
+  Because v0.1.0 was already tagged, released, and published to npm, the release rule
+  (spec 01 §Manifests: any release bumps version in both manifests and the CLI in one commit)
+  applies: this ships as 0.1.1 — version.ts, both plugin.jsons, cli package.json(+lock), dist
+  rebuild, and the version literals in the specs and version-lock tests move together.
+- Consequences: changes `.agentdocs/specs/00-product.md`, `.agentdocs/specs/01-packaging.md`
+  (Claude manifest quote loses its hooks line; version literals), `.agentdocs/specs/02-clone-engine.md`,
+  `.agentdocs/specs/03-clone-format.md`, `.agentdocs/specs/10-ethics.md` (version literals only).
+  `manifests.test.ts` now encodes the asymmetric contract: Codex manifest points at
+  `./hooks/hooks.json`, Claude manifest must NOT carry a `hooks` key. Old 0.1.0 provenance stamps
+  remain valid to `verify` (PROVENANCE_LINE is deliberately loose-versioned).

@@ -12,7 +12,7 @@ M1 spine, M2 fidelity, M3 polish — the spine must stay green while fidelity la
 - The CLI MUST be a self-contained npm package at `plugin/cli/` (no npm workspaces), bundled by
   tsup to the committed `plugin/cli/dist/design-lens.cjs`. npm scripts MUST be exactly
   `typecheck`, `test`, `e2e`, `build`, `verify` (sealed gate calls these names). `--version` MUST
-  print `0.1.0`, identical to both plugin manifests (AC-10).
+  print `0.1.1`, identical to both plugin manifests (AC-10).
 - I/O discipline: human-readable progress → stderr; machine output (JSON) → stdout — nothing
   else ever goes to stdout; exit 0 on success (warnings allowed), exit 1 on fatal errors.
 - `playwright` and `@ghostery/adblocker-playwright` MUST be resolved via

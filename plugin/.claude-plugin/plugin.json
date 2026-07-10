@@ -2,11 +2,10 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "design-lens",
   "displayName": "Design Lens",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Start from great reference designs: clone a site into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
   "author": { "name": "mojomoth" },
   "license": "MIT",
   "keywords": ["design", "frontend", "clone", "playwright", "reference"],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "skills": "./skills/"
 }

@@ -40,13 +40,13 @@ describe('plugin manifests & marketplace files', () => {
   // catches a half-finished release bump (manifest edited, src/version.ts forgotten, or vice versa)
   // the moment it happens. Claude only ships updates to users on a version bump, so a desynced pair
   // silently strands users on the old plugin. If removed, S4 becomes the only guard and fails late.
-  it('locks version 0.1.0 across both plugin.json manifests and the CLI VERSION constant', () => {
+  it('locks version 0.1.1 across both plugin.json manifests and the CLI VERSION constant', () => {
     const claude = readJson(CLAUDE_PLUGIN);
     const codex = readJson(CODEX_PLUGIN);
 
-    expect(claude['version']).toBe('0.1.0');
-    expect(codex['version']).toBe('0.1.0');
-    expect(VERSION).toBe('0.1.0');
+    expect(claude['version']).toBe('0.1.1');
+    expect(codex['version']).toBe('0.1.1');
+    expect(VERSION).toBe('0.1.1');
 
     // The lock is an equality relation, not three independent literals: assert it as such so a
     // future coordinated bump to e.g. 0.2.0 only needs the literals above changed in one place.
@@ -55,20 +55,23 @@ describe('plugin manifests & marketplace files', () => {
   });
 
   // why: spec 01 requires both plugin.json files to name the same plugin and point at the same skills
-  // and hooks entry points. Codex reads `.codex-plugin/plugin.json` while Claude reads
+  // entry point. Codex reads `.codex-plugin/plugin.json` while Claude reads
   // `.claude-plugin/plugin.json`; if the two drift, one tool silently loads a different skill set than
-  // the other — the exact dual-tool divergence this plugin exists to avoid (ADR-003). Removing this
-  // lets a skills-path typo ship to one tool only, which no e2e in this repo would ever notice.
-  it('keeps name, skills and hooks entry points identical across both plugin manifests', () => {
+  // the other — the exact dual-tool divergence this plugin exists to avoid (ADR-003). The hooks
+  // contract is deliberately ASYMMETRIC since ADR-017: Claude Code auto-loads hooks/hooks.json and
+  // hard-fails at load time on a manifest pointer to that same path ("Duplicate hooks file"), so the
+  // Claude manifest must NOT carry a hooks key, while Codex still needs the explicit pointer.
+  it('keeps name and skills identical; hooks pointer lives ONLY in the Codex manifest', () => {
     const claude = readJson(CLAUDE_PLUGIN);
     const codex = readJson(CODEX_PLUGIN);
 
     for (const manifest of [claude, codex]) {
       expect(manifest['name']).toBe('design-lens');
       expect(manifest['skills']).toBe('./skills/');
-      expect(manifest['hooks']).toBe('./hooks/hooks.json');
       expect(manifest['description']).toBe(claude['description']);
     }
+    expect(codex['hooks']).toBe('./hooks/hooks.json');
+    expect(claude['hooks'], 'a Claude manifest hooks key duplicates the auto-load and breaks plugin load (ADR-017)').toBeUndefined();
   });
 
   // why: spec 01 §Manifests — "All paths inside manifests MUST be relative and start with `./`; no
@@ -78,10 +81,11 @@ describe('plugin manifests & marketplace files', () => {
   // real manifest values rather than trusting review. If removed, a `../cli/dist/...` shortcut would
   // pass every local test and break 100% of installs.
   it('uses only relative ./-prefixed paths that never escape the plugin root', () => {
+    // Claude's manifest has no hooks key since ADR-017 — filter, don't assume symmetry.
     const pathValues = [
       ...['skills', 'hooks'].map((k) => readJson(CLAUDE_PLUGIN)[k]),
       ...['skills', 'hooks'].map((k) => readJson(CODEX_PLUGIN)[k]),
-    ];
+    ].filter((v) => v !== undefined);
 
     for (const value of pathValues) {
       expect(typeof value).toBe('string');
@@ -105,10 +109,14 @@ describe('plugin manifests & marketplace files', () => {
     for (const manifest of [CLAUDE_PLUGIN, CODEX_PLUGIN]) {
       const json = readJson(manifest);
       const skills = path.resolve(PLUGIN, json['skills'] as string);
-      const hooks = path.resolve(PLUGIN, json['hooks'] as string);
       expect(existsSync(skills), `${json['skills'] as string} must exist`).toBe(true);
-      expect(existsSync(hooks), `${json['hooks'] as string} must exist`).toBe(true);
+      if (json['hooks'] !== undefined) {
+        const hooks = path.resolve(PLUGIN, json['hooks'] as string);
+        expect(existsSync(hooks), `${json['hooks'] as string} must exist`).toBe(true);
+      }
     }
+    // The auto-loaded conventional path must exist regardless of any manifest pointer.
+    expect(existsSync(path.join(PLUGIN, 'hooks/hooks.json'))).toBe(true);
   });
 
   // why: spec 01 §Repo & plugin layout — "Both marketplace files MUST reference the plugin via source
