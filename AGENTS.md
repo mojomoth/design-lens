@@ -37,5 +37,8 @@ Ralph loop in `.harness/`. Product truth lives in `.agentdocs/specs/`; the task 
   read `package-lock.json` (or just run a real `npm ci`) — never dry-run it.
 - `git diff -- <path>` takes a CWD-relative pathspec: `git diff --quiet -- plugin/cli/dist` from inside
   `plugin/cli` matches nothing and exits 0. Run gate ACs from the directory they name.
+- Claude Code auto-loads `hooks/hooks.json`; a `hooks` field in `.claude-plugin/plugin.json` pointing
+  there DUPLICATE-fails at load (install still "succeeds" — I4 can't see it). Codex needs the field.
+  Any release: bump version in BOTH manifests + version.ts + cli package.json, rebuild dist (ADR-017).
 
 Keep this file under 60 lines: durable operational facts only, no status reports.
