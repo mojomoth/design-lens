@@ -130,8 +130,52 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
 /** How long to wait for webfonts to resolve before shooting; a slow CDN must not hang the shot. */
 const FONTS_READY_TIMEOUT_MS = 5_000;
 
+/** Readiness is not proof of the intended face: failed faces can leave fallback metrics. */
+export interface FontReadiness {
+  status: 'ready' | 'timeout' | 'unavailable';
+  failedFamilies: string[];
+}
+
+/** Bounded, shared font sampling for screenshots and computed measurements. */
+export async function waitForFonts(page: Page): Promise<FontReadiness> {
+  try {
+    return await page.evaluate(async (timeoutMs: number): Promise<FontReadiness> => {
+      if (!document.fonts) return { status: 'unavailable', failedFamilies: [] };
+      let timer: number | undefined;
+      try {
+        const status = await Promise.race([
+          document.fonts.ready.then(() => 'ready' as const),
+          new Promise<'timeout'>((resolve) => {
+            timer = window.setTimeout(() => resolve('timeout'), timeoutMs);
+          }),
+        ]);
+        const failed = new Set<string>();
+        document.fonts.forEach((face) => {
+          if (face.status === 'error') failed.add(face.family);
+        });
+        return { status, failedFamilies: [...failed].sort() };
+      } finally {
+        if (timer !== undefined) window.clearTimeout(timer);
+      }
+    }, FONTS_READY_TIMEOUT_MS);
+  } catch {
+    return { status: 'unavailable', failedFamilies: [] };
+  }
+}
+
+/** Callers route these diagnostics to stderr; detailed inspection also records the status. */
+export function fontWarnings(fonts: FontReadiness): string[] {
+  const warnings: string[] = [];
+  if (fonts.status === 'timeout') warnings.push('font readiness timed out after 5000ms; fallback metrics may be present');
+  if (fonts.status === 'unavailable') warnings.push('font readiness unavailable; font metrics could not be confirmed');
+  if (fonts.failedFamilies.length > 0) warnings.push(`failed font families: ${fonts.failedFamilies.join(', ')}; fallback metrics may be present`);
+  return warnings;
+}
+
 /** Everything that shapes one PNG. All times are milliseconds. */
 export interface RenderScreenshotOptions {
+  /** Capture callers retain diagnostics in their manifest/report as well as stderr. */
+  onWarning?: (warning: string) => void;
   viewport: { width: number; height: number };
   deviceScaleFactor: number;
   /** Capture the whole scrollable document rather than just the viewport. */
@@ -149,18 +193,11 @@ export interface RenderScreenshotOptions {
  * metrics — the exact thing a design study must not record. The in-page `Promise.race` bounds it:
  * a webfont that never arrives costs {@link FONTS_READY_TIMEOUT_MS}, not the whole run.
  */
-async function waitForPaint(page: Page, settleMs: number): Promise<void> {
-  try {
-    await page.evaluate(
-      (ms: number) =>
-        Promise.race([
-          document.fonts.ready.then(() => undefined),
-          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms)),
-        ]),
-      FONTS_READY_TIMEOUT_MS,
-    );
-  } catch {
-    // A detached frame or a document with no Font Loading API: shoot what is there rather than fail.
+async function waitForPaint(page: Page, settleMs: number, onWarning?: (warning: string) => void): Promise<void> {
+  const fonts = await waitForFonts(page);
+  for (const warning of fontWarnings(fonts)) {
+    onWarning?.(warning);
+    process.stderr.write(`design-lens: warning: ${warning}\n`);
   }
   await page.waitForTimeout(settleMs);
 }
@@ -197,7 +234,7 @@ export async function renderScreenshot(url: string, options: RenderScreenshotOpt
     // Before any navigation, so a reveal animation is frozen at its final state rather than mid-fade.
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(url, { waitUntil: 'load', timeout: options.navigationTimeoutMs });
-    await waitForPaint(page, options.settleMs);
+    await waitForPaint(page, options.settleMs, options.onWarning);
     return await capturePng(page, options.fullPage);
   } finally {
     await browser.close();

@@ -77,9 +77,22 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
 - `--kind <role>` filters output to that role only (valid values = the seven role names; invalid
   value → exit 1 with usage error). `--pretty` switches from compact single-line JSON to 2-space
   indented. An empty result for a role is NOT an error — exit 0 with whatever was found.
+- `--details` enriches only the selected inventory with resolved style measurements and page
+  metadata; default output retains the exact legacy schema below. Measurements are observations
+  of the current clone at the recorded viewport, not claims about original designer intent.
+- `--id dl-N` implies details and selects exactly one stamped light-DOM element, including hidden
+  and boxless containers. It bypasses role caps and visibility filtering. Existing classified
+  roles retain their confidence; unclassified elements have `role: null, confidence: null`.
+  Missing/duplicate IDs, invalid positive-integer IDs and `--id` with `--kind` MUST exit 1 with
+  empty stdout and a useful stderr error. Shadow descendants are unsupported; errors/help MUST
+  state the light-DOM boundary. `--kind` with no match remains exit 0.
+- Before probing, wait up to 5000ms for `document.fonts.ready` after navigation. A timeout,
+  unavailable readiness or failed font families MUST produce a stderr warning; measurement
+  continues with the available metrics. Detailed output records readiness and failed families.
 - Elements array ordering: table role order, then ascending numeric `data-dl-id` within a role.
 - The browser and server MUST be closed before exit. Exit 1 only for: missing
-  `<projectDir>/clone/index.html`, server bind failure, or browser launch/navigation failure.
+  `<projectDir>/clone/index.html`, invalid options/ID selection, server bind failure, or browser
+  launch/navigation/measurement failure.
 - Gate anchor: on a clone of the `basic` fixture, output MUST contain `logo`, ≥ 2 `nav-link`,
   `hero-heading`, `hero-image`, and `cta`, each resolving to the fixture's unambiguous element.
 
@@ -89,7 +102,7 @@ Command lines (skills invoke via the launcher `~/.design-lens/bin/design-lens`):
 
 ```
 design-lens tokens <projectDir> [--stdout]
-design-lens inspect <projectDir> [--kind logo|nav-link|hero-heading|hero-image|cta|footer|section] [--viewport WxH] [--pretty]
+design-lens inspect <projectDir> [--kind logo|nav-link|hero-heading|hero-image|cta|footer|section | --id dl-N] [--viewport WxH] [--details] [--pretty]
 ```
 
 `tokens.json` schema (exact shape; all arrays may be empty, never absent):
@@ -142,6 +155,31 @@ px rounded to integers; `styles` = computed `color`, `background-color` (key `ba
 Modules (per ARCHITECTURE.md map): `src/commands/tokens.ts`, `src/commands/inspect.ts` (wiring);
 `src/analyze/tokens.ts`, `src/analyze/inspect.ts`, `src/analyze/heuristics.ts` (pure logic —
 heuristics selectors/thresholds unit-testable without a browser); `src/lib/static-server.ts` (serving).
+
+### Detailed inspection (opt-in)
+
+`--details` and `--id` keep `elements` and `colors`, adding `page`:
+`{ viewport: {width, height}, deviceScaleFactor, rootFontSize, body: {rect, styles, details},
+fonts: {status: "ready" | "timeout" | "unavailable", failedFamilies: string[]} }`.
+Each element adds a `details` object; body uses the same measurement shape without inventing a
+stamp. The default top-level and element shapes above remain unchanged without these options.
+
+- `visible`: painted visibility using the same rule as role selection.
+- `parentDlId`: the direct parent's stamp or null; `childDlIds`: stamps on direct children in DOM
+  order, including hidden children, excluding unstamped children. No flattening across wrappers.
+- `currentSrc`: the browser-selected image URL, normalized relative to clone root for local
+  assets, null on non-images or absent selection. Existing `src` remains the editable attribute.
+- `typography`: resolved `fontWeight`, `lineHeight`, `letterSpacing`, `textAlign`, `textTransform`.
+- `box`: resolved width/height, min/max width/height, boxSizing, four margin and padding longhands,
+  each edge's border Width/Style/Color, four corner radius longhands, and boxShadow.
+- `layout`: resolved display, position, top/right/bottom/left, rowGap, columnGap,
+  gridTemplateColumns/Rows, flexDirection/Wrap, alignItems, justifyContent, overflowX/Y.
+
+CSS values remain browser-returned strings, including `normal`, `auto`, CSS colors and alpha.
+Rects remain rounded CSS pixels. Page metadata describes the actual viewport and DSF, not a
+guessed device. Only selected elements and body are enriched in one browser evaluation; no
+full-DOM detailed export or persistent inventory is created. Parent IDs allow targeted follow-up
+queries for layout containers not covered by semantic roles.
 
 ## Out of scope
 

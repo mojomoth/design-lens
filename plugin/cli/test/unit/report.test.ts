@@ -190,6 +190,25 @@ describe('buildReport — fidelity notes', () => {
     expect(md).toContain('Closed shadow DOM is undetectable and may be missing.');
     expect(md).toContain('JS interactivity was intentionally removed');
   });
+
+  // why: a clone can render with fallback fonts while its structural verify passes. Keeping the
+  // browser warning in Fidelity notes prevents the saved report from hiding that degradation;
+  // normalizing line breaks also keeps a multiline diagnostic inside one existing section.
+  it('retains font-render warnings as single lines under the existing fidelity heading', () => {
+    const md = buildReport({
+      ...INPUT,
+      warnings: [
+        'clone render: failed font families: Brand Sans;\r\n  fallback metrics may be present',
+        'clone render: font readiness timed out after 5000ms;\n fallback metrics may be present',
+      ],
+    });
+    const fidelity = md.split('## Fidelity notes\n')[1].split('\n## Verify')[0];
+    expect(fidelity).toContain('- Warning: clone render: failed font families: Brand Sans; fallback metrics may be present');
+    expect(fidelity).toContain('- Warning: clone render: font readiness timed out after 5000ms; fallback metrics may be present');
+    expect(md.split('\n').filter((line) => line.startsWith('## '))).toEqual(
+      buildReport(INPUT).split('\n').filter((line) => line.startsWith('## ')),
+    );
+  });
 });
 
 // why: the Source section must show robots status and the final URL when a redirect occurred; a

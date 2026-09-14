@@ -204,6 +204,12 @@ export interface InspectDocument {
   colors: 'see tokens.json';
 }
 
+/** Directly addressed containers need no invented semantic role. */
+export interface UnclassifiedInspectElement extends Omit<InspectElement, 'role' | 'confidence'> {
+  role: null;
+  confidence: null;
+}
+
 export interface ClassifyContext {
   /** The ephemeral server origin, stripped back out of computed `background-image` urls. */
   origin: string;
@@ -312,12 +318,14 @@ function pickBest(pattern: RolePattern, matches: Candidate[]): Candidate {
   return byDocOrder[0];
 }
 
-function toElement(
+export function toElement(candidate: Candidate, role: Role, confidence: number, origin: string): InspectElement;
+export function toElement(candidate: Candidate, role: null, confidence: null, origin: string): UnclassifiedInspectElement;
+export function toElement(
   candidate: Candidate,
-  role: Role,
-  confidence: number,
+  role: Role | null,
+  confidence: number | null,
   origin: string,
-): InspectElement {
+): Omit<InspectElement, 'role' | 'confidence'> & { role: Role | null; confidence: number | null } {
   const { probe, dlId } = candidate;
   return {
     dlId,

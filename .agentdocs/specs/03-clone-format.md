@@ -107,7 +107,8 @@ URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`),
 ## Capture results   (table: images/fonts/css/other — count, bytes; consent blocking status)
 ## Left remote       (each with reason)
 ## Fidelity notes    (canvas converted: N; open shadow roots serialized: N; cross-origin iframes left live: N;
-                      closed shadow DOM is undetectable and may be missing; JS interactivity intentionally removed)
+                      closed shadow DOM is undetectable and may be missing; JS interactivity intentionally removed;
+                      recorded capture warnings, including clone-render font fallback diagnostics)
 ## Verify            (pass/warn summary from the verify routine)
 ## License & usage notice
 This clone is for private design study and derivation. All content, images, logos, fonts and text

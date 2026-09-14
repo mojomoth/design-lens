@@ -416,3 +416,12 @@ JSON contract. Role candidates now use Chromium painted visibility, including an
 and restored child visibility. New targeted tests: 21 parser cases + 6 browser cases passed;
 existing 432 unit tests and typecheck passed before the added tests. The full gate is running
 against the unchanged T31 bundle while the next source-only iteration begins.
+
+## T32 — detailed rendered evidence (2026-09-14)
+
+T31 full gate completed ALL GREEN (453 unit cases, 88 e2e cases, sealed spine). Added opt-in
+computed styles/relationships/page evidence and direct light-DOM ID lookup. Default wire output
+is unchanged. Fonts are bounded and fallback diagnostics survive in metadata and clone reports.
+Detailed geometry/styles share one measured frame, including active CSS animation. T32 typecheck,
+ESLint, 20 detailed e2e cases, one clone-font propagation e2e and 18 report unit cases passed.
+Full regression plus sealed --all follows against this committed bundle.

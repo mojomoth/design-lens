@@ -389,6 +389,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       fullPage: true,
       navigationTimeoutMs: CLONE_RERENDER_TIMEOUT_MS,
       settleMs: opts.settleMs,
+      onWarning: (warning) => {
+        capture.warnings.push(`clone render: ${warning}`);
+      },
     });
     writePng(screenshotPath(projectDir, 'clone-full.png'), cloneFullPng);
   } catch (err) {
@@ -462,6 +465,7 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
     // cross-origin iframe capture is still deferred (spec 02 §M2), so that counter stays 0.
     fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: 0 },
+    warnings: capture.warnings,
     verify: summarizeVerify(verifyReport),
   });
 

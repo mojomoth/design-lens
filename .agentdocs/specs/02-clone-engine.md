@@ -133,6 +133,9 @@ Stages run in this order; each stage is one module with unit tests.
 - **Screenshots** — before closing the page: `screenshots/original-viewport.png` and
   `original-full.png`; after writing, serve `clone/` on an EPHEMERAL port
   (`lib/static-server.ts`), re-render, write `screenshots/clone-full.png`.
+  Re-render and standalone screenshots share bounded font readiness with inspection (spec 05).
+  Font timeout/unavailability/failed-family warnings MUST go to stderr; clone re-render warnings
+  MUST also join the capture warning count and REPORT.md fidelity notes.
 - **Verify routine** — `verify <projectDir>` integrity check (also run at the end of `clone` as
   warnings, not fatal); MUST still pass after agent edits (dl-overrides.css rule + text edit).
 - Commands `tokens`/`inspect`/`screenshot`/`serve` wired per their own specs; bootstrap/hooks,

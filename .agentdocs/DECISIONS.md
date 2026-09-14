@@ -331,3 +331,19 @@ Format for new entries (append at the bottom, never edit existing ones):
 - Consequences: `02-clone-engine.md` and `05-element-inventory.md` change in this same commit.
   No inventory persistence, new dependency, capture format change, or harness modification.
   The approved follow-up tasks are recorded as T31–T35 in IMPLEMENTATION_PLAN.md.
+
+## ADR-019: Opt-in computed evidence and direct element inspection
+- Date: 2026-09-14 · Status: accepted (user-approved improvement plan)
+- Context: four computed style fields and exclusive semantic roles cannot describe nested layout
+  containers, responsive token resolution or font fallback. Static CSS tokens intentionally
+  estimate relative units and count declarations, rather than observe the rendered page.
+- Decision: `inspect --details` enriches selected elements and page metadata; `--id` explicitly
+  addresses one light-DOM element, including hidden/boxless containers, with nullable semantic
+  labels rather than fabricated roles. Keep the default JSON and tokens.json unchanged. Share
+  bounded font readiness between screenshots and inspection; warn on timeout/unavailability or
+  failed faces, and include the outcome in detailed inspection.
+- Consequences: `05-element-inventory.md` defines the additive interface and errors in this
+  commit. `02-clone-engine.md` and `03-clone-format.md` retain font diagnostics from clone
+  re-rendering in its warning count and report instead of leaving them only on stderr.
+  No new dependency or stored inventory; shadow traversal and automatic multi-viewport
+  aggregation remain outside this change. Detailed measurements are batched for selected nodes.

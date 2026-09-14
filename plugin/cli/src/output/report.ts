@@ -90,6 +90,8 @@ export interface ReportInput {
     shadowRootsSerialized: number;
     crossOriginIframes: number;
   };
+  /** Capture and re-render diagnostics, retained beside the fidelity caveats. */
+  warnings?: string[];
   /** Pass/warn summary from the verify routine; free text so warnings can be enumerated. */
   verify: string;
 }
@@ -125,6 +127,11 @@ export function buildReport(input: ReportInput): string {
           .map((r) => `- ${r.url} — ${r.reason} (referenced by ${r.referencedBy})`)
           .join('\n');
 
+  // A multiline browser diagnostic must remain one report entry, not create extra headings.
+  const warningBlock = (input.warnings ?? [])
+    .map((warning) => `\n- Warning: ${warning.replace(/\s+/g, ' ').trim()}`)
+    .join('');
+
   return `# Clone Report: ${input.title}
 
 ## Source
@@ -153,7 +160,7 @@ ${remoteBlock}
 - Open shadow roots serialized: ${fidelity.shadowRootsSerialized}
 - Cross-origin iframes left live: ${fidelity.crossOriginIframes}
 - Closed shadow DOM is undetectable and may be missing.
-- JS interactivity was intentionally removed — the clone is a photograph, not a program.
+- JS interactivity was intentionally removed — the clone is a photograph, not a program.${warningBlock}
 
 ## Verify
 ${input.verify}
