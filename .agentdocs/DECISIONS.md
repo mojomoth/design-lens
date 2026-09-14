@@ -347,3 +347,20 @@ Format for new entries (append at the bottom, never edit existing ones):
   re-rendering in its warning count and report instead of leaving them only on stderr.
   No new dependency or stored inventory; shadow traversal and automatic multi-viewport
   aggregation remain outside this change. Detailed measurements are batched for selected nodes.
+
+## ADR-020: Analysis separates measured evidence from transferable design proposals
+- Date: 2026-09-14 · Status: accepted (user-approved improvement plan)
+- Context: CSS occurrence counts were interpreted as painted-area shares, and mandatory reasons
+  encouraged certainty about unobserved designer intent. Variations only changed surfaces while
+  requiring every new product to keep the reference skeleton.
+- Decision: keep DESIGN.md's twelve section prefixes and existing artifact paths, adding evidence
+  provenance/limitations and observed, inferred, proposed, unavailable distinctions. Require
+  capture-size and mobile evidence or an explicit gap. Use rendered detailed inspection to
+  corroborate static estimates, never assign visual-area percentages from CSS counts. Reusable
+  principles state evidence, possible reason, applicability, implementation and verification.
+  Default to three variations with a recommendation; distinguish clone-compatible token swaps
+  from intentional new-product structure changes, recording the target and selection in the
+  existing VARIATIONS.md. Explicit analysis-only requests still end at the analysis artifacts.
+- Consequences: `04-design-analysis.md`, `05-element-inventory.md`, and `07-skills.md` change in
+  the same commit as the reverse-design skill and templates. No new artifact schema, command,
+  dependency, or CLI token algorithm is introduced by this step.

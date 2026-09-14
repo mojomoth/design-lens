@@ -1,185 +1,204 @@
-# LENSES.md — how a senior designer reads a page
+# LENSES.md — reason from a reference, design for a different product
 
-Twelve lenses, one per heading of `templates/DESIGN.template.md`. Work them in order: the early
-lenses are made of eyes, the later ones of data, and a designer who reads `tokens.json` before
-looking at the page will describe a stylesheet instead of a design.
+Use the twelve lenses in order after gathering the evidence described in SKILL.md. The aim is
+an explanation a developer can apply: what was observed, why it might work, when it transfers,
+and how to check the new implementation. Write explanations in the user's language while keeping
+the twelve required English heading prefixes.
 
-## The persona contract
+## The evidence contract
 
-Three rules govern every line you write. They are what separates a design analysis from a CSS dump.
+Use these labels in prose or table columns wherever the distinction affects a decision:
 
-1. **Decision + reason.** Never state a decision without the hypothesized intent behind it. Not
-   "the h1 is 64px" but "the h1 jumps to 64px — 4× body — because the value proposition has to be
-   read before the eye finds anything else." You are reverse-briefing the designer: recover the
-   brief they were working from.
-2. **Quantify.** px, ratios, percentages, hex/OKLCH, ms. "Generous whitespace" is worthless;
-   "96px between sections, 1.5× the 64px rhythm inside them" is a spec someone can build from.
-3. **Cite.** Every claim names its evidence: a `tokens.json` key (`typography.scaleRatioGuess`), a
-   `data-dl-id` from inspect (`dl-42`), a screenshot region ("hero, upper third of
-   `original-viewport.png`"), or a grepped CSS rule. A claim with no citation is taste, and taste
-   does not survive review.
+- **Observed-reference:** visible in a named original screenshot, or a dated later source shot.
+  State the region and viewport. An impression about mood or eye order is your reading of it.
+- **Observed-clone:** measured in the local render or found in captured CSS/HTML. Cite the ID,
+  viewport, computed field, token key, or CSS rule. State whether it is rendered evidence or a
+  declaration; neither proves that a visibly different original behaved the same way.
+- **Inferred:** a possible design reason, audience, behavior, or missing value. Give the supporting
+  evidence and its limitation. A plausible explanation is not a recovered designer's brief.
+- **Proposed:** a decision for the new product, including values and states the reference does not
+  establish. Explain the target need it serves and how the build will verify it.
+- **Unavailable:** the capture or available tools cannot establish the claim. Say what is missing
+  instead of filling the gap with invented precision.
 
-Evidence lives in four places, all inside `.design-lens/<slug>/`: `screenshots/` (the eyes),
-`tokens.json` (the quantities — run `~/.design-lens/bin/design-lens tokens .design-lens/<slug>`),
-`inspect --pretty` on stdout (the structure), and `manifest.json` at the project root (what was
-captured, and from where). Read `clone/index.html` and the captured CSS only through greps and
-small line windows around the matches — never open them whole.
+Keep citations close to the claim. Quantify where the evidence supports a number; do not invent
+measurements for mood, attention, or intent. One label can cover a clearly scoped paragraph or
+table row; there is no need to repeat it on every sentence.
 
----
+Read `REPORT.md` and `manifest.json` before trusting the clone. Record capture date, viewport,
+missing assets, source/clone differences, and the time of later source screenshots in DESIGN's
+preface. A font status of `ready` means readiness settled; check `failedFamilies` too. A computed
+font-family stack does not by itself prove which face rendered.
+
+`tokens.json` describes captured stylesheets, including rules that may be inactive or unused.
+Color `count` is CSS occurrence frequency, not visible area, element count, or a 60-30-10 ratio.
+`palette.primaryGuess`, `typography.scaleRatioGuess`, and `spacing.base` are guesses. Static
+relative-unit conversions use a 16px basis, which may differ from measured root/body sizes.
+Clustering can merge intentional variants; it is not proof of a broken design system. Prefer
+rendered measurements for a stated viewport, retaining CSS statistics as context.
+
+Use `inspect --details` at the capture viewport and 390x844. Its `page` gives root/body geometry
+and font status; element `details` gives typography, box, layout, direct parent/child IDs, and the
+selected `currentSrc`. Use `--id` for a container or hidden alternative; do not combine it with
+`--kind`. A null role or parent ID is valid. Role confidence describes a heuristic match only.
+Lookup is light DOM only; open shadow descendants are not covered by this command. Inspect output
+is ephemeral, so re-run it after edits. Access HTML and captured CSS through greps and short line
+windows, never the whole cloned document.
 
 ## 1. First Impression
 
-**Look at:** `screenshots/original-full.png` for five seconds, then `original-viewport.png`. Nothing
-else. No tokens, no markup — this is the only lens that is spoiled by data.
+**Look at:** `original-full.png`, then `original-viewport.png`, before tokens or markup.
 
-**Answer:** Three mood adjectives. Who this page thinks you are. What your eye hits 1st, 2nd, 3rd —
-and for each hop, which mechanism caused it: size, contrast, position, or isolation. Write it down
-now; you will never be this naive about the page again, and the first impression is the only
-evidence you have of how a real visitor meets it.
+**Answer:** Three mood words, the perceived audience, and the first three things you notice. For
+each, name the visible mechanism: scale, contrast, position, grouping, or isolation. Phrase the
+sequence as your impression; it is not eye-tracking data. Cite the screenshot region and keep
+these early impressions even if later evidence qualifies them.
 
 ## 2. Design Intent
 
-**Look at:** `original-viewport.png` plus the hero copy — grep `clone/index.html` for `<h1` and
-`<h2` and read the window around each match.
+**Look at:** the original first screen and small HTML windows around its heading and main action;
+then the target product context already available in the conversation or project.
 
-**Answer:** Who it is for (and how the design says so). The feeling it sells — trust, energy,
-luxury, calm, urgency, competence. The one business problem the design exists to solve: a signup, a
-download, a sales call, a reassurance. Everything downstream is that problem's fingerprint.
+**Answer:** The likely audience, feeling, and primary task the reference supports. Separate what
+the copy explicitly promises from your hypothesis about why the design supports it. Identify any
+mismatch with the target: a signup page, reading experience, and management workspace can share
+visual principles while requiring different structures. If no target was supplied, leave target
+fit conditional. Do not invent conversion results or a business brief.
 
 ## 3. Layout & Grid
 
-**Look at:** `inspect .design-lens/<slug> --pretty --kind section` rects (x/y/width/height in CSS px
-at a 1440×900 viewport), greps for `@media` in the captured CSS, and `original-full.png` for the
-page's vertical shape.
+**Look at:** full-page screenshots, section/container IDs from inspect, `details.box`,
+`details.layout`, `page.body`, and targeted media-query rules. Query the actual parent container
+with `--id` when a heading or card does not explain the grid.
 
-**Answer:** Container max-width in px (read it off the widest section rect, or grep `max-width`).
-The column system and its gutters. The breakpoints, in ascending px, and what each one changes.
-Vertical rhythm: the px gaps between section rects, and whether they form a scale (`spacing.scalePx`
-in tokens.json, `spacing.base` of 8 or 4). Density: where whitespace is spent lavishly and where it
-is withheld — and what that spending buys.
+**Answer:** Measured content width, container constraints, columns, gaps, padding, and section
+rhythm at each inspected viewport. Preserve units such as `auto` when they are what the browser
+reports. Separate a declared breakpoint from behavior actually observed at a tested width; two
+screenshots do not establish the exact breakpoint. Explain what the density appears to support.
+Do not turn an outer section width into a claimed container max-width without checking its box
+and parent. If source and clone reflow differ, name that limit before transferring the layout.
 
 ## 4. Visual Hierarchy
 
-**Look at:** `original-viewport.png` alongside `inspect --pretty`: `styles.fontSize` and `rect` for
-every element, `role` for the ones that matter (`hero-heading`, `hero-image`, `cta`).
+**Look at:** original first screen, clone comparison, and measured heading/action sizes and rects
+at matching viewports.
 
-**Answer:** The ordered eye path, first fixation to last. For each focal point, the engineering:
-size (ratio to body text), contrast (OKLCH lightness gap against its background), position (rect
-x/y against the fold), isolation (px of clear space around it). Then count focal points per
-viewport-height of scroll — one strong focus per screen is a designed page, four is a bazaar.
+**Answer:** The main focal point, supporting information, and next action. Explain which size
+ratios, alignment, contrast, or clear space support your reading. Distinguish the reference's
+visible hierarchy from the clone's measured geometry. Propose a hierarchy appropriate to the
+target task; a large marketing headline may become a compact workspace title. Do not treat a
+fixed number of focal points per screen as a universal design rule.
 
 ## 5. Typography
 
-**Look at:** `tokens.json` → `typography.families[]` (`name`, `usage` of body/heading/both, `faces`
-paths), `typography.sizesPx`, `typography.scaleRatioGuess`, `typography.weights`,
-`typography.lineHeights`. Then the screenshots, for what the pairing *feels* like.
+**Look at:** `tokens.json` typography candidates and captured font-face rules, then measured
+`styles.fontSize`, `styles.fontFamily`, `details.typography`, and page root/body font information.
 
-**Answer:** The families and why they were paired (contrast of form? shared skeleton? a display face
-carrying all the personality while a workhorse carries the reading?). The scale: `sizesPx` and the
-`scaleRatioGuess` — is it a named ratio (1.25 major third, 1.333 perfect fourth, 1.5 perfect fifth)
-or hand-tuned? The job of each weight. Body line-height versus heading line-height, and why they
-differ. Casing habits (all-caps eyebrows? sentence-case headings?). Finally: which single
-typographic decision carries the brand's personality — usually one, rarely two.
+**Answer:** The roles of heading/body/label type, measured size and line-height relationships,
+weights, tracking, casing, and likely pairing rationale. Compare static guesses with actual
+rendered values, especially for rem, em, variables, and fluid sizes. A guessed modular ratio is
+not an observed intentional scale. Note failed or unavailable fonts before attributing the
+reference's personality to a face. Define original or appropriately available font alternatives
+for new work; the clone's font files are evidence, not assets to copy.
 
 ## 6. Color System
 
-**Look at:** `tokens.json` → `colors[]` (each cluster's `hex`, `oklch`, `count`, `roles`,
-`clusterOf`) and `palette` (`primaryGuess`, `neutrals`, `accents`).
+**Look at:** token color clusters and their CSS roles, the screenshots, and computed foreground
+and background colors on relevant elements and parents.
 
-**Answer:** A palette table: OKLCH + hex, role (text/background/border/shadow/fill), and usage share
-— compute each cluster's `count` as a percentage of the summed counts. Does the distribution follow
-60-30-10, or something else (a two-tone system, a rainbow of accents)? The contrast strategy: which
-pairs carry text, and do they clear 4.5:1? Semantic colors, if any (success/warn/error), and whether
-they were designed or inherited from a framework. Note that `clusterOf` reveals near-duplicates —
-several hexes collapsing into one cluster usually means a design system that leaked.
+**Answer:** A palette table with value, role, evidence, and CSS occurrence count where useful.
+Describe visual prominence from the screenshot without converting declaration counts into painted
+percentages. Treat a guessed primary color as a candidate until the visible actions and surfaces
+support it. For contrast claims, identify the actual foreground/background pair, including
+transparency and underlying surfaces, and state the measured ratio only when established. An
+OKLCH lightness difference is not a contrast ratio. Mark unmeasured contrast unavailable and
+propose a check for the build; do not declare compliance from a token dump.
 
 ## 7. Imagery & Iconography
 
-**Look at:** `manifest.json` → `resources[]` entries whose `contentType` is an image type (their
-`bytes` and `localPath`), the `clone/assets/` tree, and the screenshots for how the images are
-actually used. `inspect --kind hero-image` gives you the hero's `src` and rect.
+**Look at:** original and clone screenshots, manifest image resources, asset sizes/paths, and the
+hero image's `src`, selected `details.currentSrc`, and rect at both widths.
 
-**Answer:** Photography or illustration, and what that choice claims about the product. The
-treatment: duotone, grain, gradient overlay, mask, drop shadow, no treatment at all. The icon
-system: stroke or filled, stroke weight, corner style, whether icons match the type's weight.
-The image-to-text ratio down the page — an image-heavy page sells a feeling, a text-heavy page
-sells a case.
+**Answer:** The image's role, crop, treatment, and relationship with the text; icon shape and
+weight where visible. Distinguish the stored source attribute from the responsive resource that
+actually rendered. Explain what can transfer as a composition rule while the original image,
+logo, icon artwork, or distinctive source copy is replaced. Missing images or font icons limit
+what can be concluded about the reference.
 
 ## 8. Motion & Interaction
 
-**Look at:** `tokens.json` → `motion.durationsMs`, `motion.easings`, `motion.keyframes`; then grep
-the captured CSS for `transition`, `animation`, `@keyframes`, `:hover`, `:focus-visible`,
-`prefers-reduced-motion`.
+**Look at:** token motion candidates and captured CSS around transitions, animation bindings,
+keyframes, hover, focus-visible, and reduced-motion rules.
 
-**Answer:** The duration ladder in ms — micro (hover, ~150ms), medium (reveals, ~300ms), macro
-(page transitions, 600ms+) — and whether it is a ladder or a single value used everywhere. The
-easing family, and whether entrances and exits differ. What animates, and WHY: attention (a pulsing
-badge), affordance (a hover lift that says *clickable*), or delight (a flourish that pays nothing
-but is worth it anyway). Scroll behavior and hover language.
-
-**Motion honesty:** the clone is inert by design — no scripts, no event handlers, a photograph and
-not a program. So JS-driven motion left no trace here. Anything you cannot point at in captured CSS
-is an inference, and must be written as one: *"the hero copy likely fades up on load (inferred from
-the `fadeUp` keyframes in tokens.json `motion.keyframes`; no bound trigger survives in the clone)."*
-Never launder an inference into a fact.
+**Answer:** Which CSS rules exist, where they are bound, their durations/easings, and possible
+purposes. A named keyframe does not prove it ran. The clone is inert: source scripts, event
+handlers, menu logic, and JavaScript-driven responsive changes are unavailable here. A later
+mobile screenshot shows a state, not a tested interaction. Distinguish an observed CSS state
+rule, an inferred trigger, and a proposed implementation state. Specify keyboard focus, relevant
+loading/empty/error states, and reduced-motion behavior as proposals when the target needs them.
 
 ## 9. Component Patterns
 
-**Look at:** `inspect --pretty` roles — `logo`, `nav-link`, `hero-heading`, `hero-image`, `cta`,
-`footer`, `section` — and grep `clone/index.html` for each element's `data-dl-id`, reading a small
-window around the match. `styles` on each element gives you `color`, `background`, `fontSize`,
-`fontFamily`; `rect` gives you the geometry.
+**Look at:** role IDs, parent/container details, direct children, small HTML windows, and relevant
+CSS state and media-query rules. Include components that serve the target, not a fixed list of
+marketing sections regardless of the page being studied.
 
-**Answer:** A rebuild-ready recipe per component — nav, hero, card, CTA, footer. Each recipe is a
-spec, not a description: structure (what contains what), spacing (px padding, px gaps), and states
-(rest, hover, focus, disabled — from the CSS greps, since the clone cannot show you a hover). Write
-them so a developer who never saw the reference could build the component and land within a few px.
+**Answer:** For each useful component, record its purpose, structure, measured spacing/type/box,
+responsive behavior, and states. Cite IDs and viewport for measured values. Distinguish observed
+CSS states from proposed hover/focus/disabled or application states. Record absent evidence as
+unavailable rather than claiming a complete interaction specification. Explain what the new
+product keeps, changes, or replaces and give an observable build check. An unstamped parent or
+unclassified wrapper can still be a relevant container; a hidden element can explain an
+alternative layout, but is not evidence of a visible component at that width.
 
 ## 10. Signature Moves
 
-**Look at:** everything above, at once. This lens has no new evidence — it has synthesis.
+**Look at:** the strongest supported observations from sections 1–9.
 
-**Answer:** The two or three techniques that make this design THIS design, and not a competent
-generic page. Name each one ("the 4× hero jump", "the single accent hue rationed to CTAs only",
-"the 1px hairline grid that never breaks"). Quantify it. Cite it. If you removed the move, would
-the page still be recognizable? If yes, it was not a signature — keep hunting.
+**Answer:** Two or three techniques that distinguish the reference, each with evidence and a
+possible reason it works. Quantify the implementation where supported. Explain what is lost if
+the technique disappears and where it would be inappropriate. A named principle such as reserving
+an accent for the primary action should survive a change of brand color; a copied logo should not.
 
 ## 11. What NOT to Copy
 
-**Look at:** the brand assets in `manifest.json` `resources[]` (logo files, photography), the copy
-voice in the grepped headings, and the contrast/target-size numbers you gathered in lenses 4 and 6.
+**Look at:** source identity and assets, distinctive copy, observed usability problems, and the
+limits recorded above.
 
-**Answer:** Two lists. First, the brand identity — logo and wordmark, mascots, proprietary or
-licensed typefaces, commissioned photography and illustration, the copy voice itself. These are the
-company, not the design; reusing them is passing off, and no variation may carry them forward.
-Second, the mistakes: contrast failures (below 4.5:1 for body text), touch targets under 44px, text
-baked into images, dated ornament. A reverse-brief that copies the flaws was not a brief, it was a
-tracing.
+**Answer:** Identify original logos, marks, mascots, proprietary font files, photography,
+illustrations, icon artwork, and source copy that must be replaced in new work. Name observable
+mistakes and propose checks for suspected ones; do not call a design inaccessible from an
+unmeasured ratio or an assumed target-size threshold. Also reject structural choices that do not
+serve the target, such as forcing a repeated-use management screen into a promotional hero layout.
+Keep this practical and specific to the evidence.
 
 ## 12. Reusable Principles
 
-**Look at:** your own sections 1–11.
+**Look at:** supported observations and target needs from sections 1–11.
 
-**Answer:** Five to ten transferable rules, each traceable to an observation above, each phrased so
-it can be applied to a *different* product with a different brand. "Ration the accent hue: one hue,
-CTAs only, under 5% of painted pixels" travels. "Use `#3347ff`" does not. This section is the reason
-the analysis exists — everything before it is evidence for it.
+**Answer:** Five to ten transferable rules. Each rule contains:
 
----
+| Evidence | Possible why | Conditions for reuse | Implementation for the target | Check |
+|---|---|---|---|---|
+| A cited observation above | A clearly identified hypothesis | Where it helps, and when to adapt it | A concrete proposed decision | What to inspect in the rendered result |
 
-## Writing rules
+Use these rules to choose a direction in VARIATIONS.md. They should change implementation choices,
+not just rename colors. Where no target exists, state a conditional implementation and check.
+Do not prescribe unsupported pixel percentages or claim the reference's business outcomes.
 
-- **Every heading, every time.** All twelve numbered headings appear in `DESIGN.md`, in order,
-  copied from the template. A section with no evidence gets exactly one line saying so ("No
-  `@keyframes` or `transition` rules survived the capture; motion is unanalyzable here"). Headings
-  are never dropped — an absent section is itself a finding.
-- **Prose, not bullets, where the reasoning matters.** Lenses 1, 2, and 10 are arguments. Lenses 3,
-  5, 6, and 9 are specs, and specs may be tables.
-- **The em-dash test.** If a sentence has a number but no "because", it is not finished.
-- **VARIATIONS.md** comes after DESIGN.md, never before: you cannot vary a design you have not yet
-  understood. Fill `templates/VARIATIONS.template.md` — 3 to 5 named directions, at least one
-  conservative and one bold, every **Change** row a concrete old → new token value.
-- **The chat summary is ten lines, maximum.** Signature moves, palette in one line, type in one
-  line, the recommended variation, the one risk. Point at the two files; never paste them into the
-  conversation. Then offer the next step: customize-clone to apply a variation to the clone, or
-  build-from-design to start new work from `DESIGN.md`.
+## Writing and handoff
+
+- Preserve all twelve numbered heading prefixes. A section with no evidence still explains what
+  is unavailable; it is never silently omitted.
+- Write connected prose for reasoning and compact tables for values, recipes, and checks. Use the
+  user's language for explanations. Keep hypotheses and proposed design decisions visibly separate
+  from measured facts; do not force every impression into a number.
+- Write DESIGN.md before VARIATIONS.md. Default to three useful named directions, allowing three
+  to five when warranted: one conservative, one bold, and one adapted to the target product.
+- Clone customization uses the token-change table while retaining its layout. New work can change
+  structure to serve its brief, with each change tied to a transferable principle and a check.
+- Populate the selected direction and recommendation from available context. Preserve a user-chosen
+  direction; otherwise choose the best fit and continue an already-requested build. An analysis-only
+  request ends with the two documents, not an unrequested implementation.
+- Keep the chat summary within ten lines and link to the documents. State material evidence limits
+  once, and carry the selected principles and verification criteria into the next requested flow.

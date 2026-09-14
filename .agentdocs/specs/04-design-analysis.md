@@ -2,169 +2,212 @@
 
 ## Purpose
 
-Defines the `reverse-design` skill: how the agent turns a clone (`.design-lens/<slug>/`, see
-specs/03-clone-format.md) into `DESIGN.md` + `VARIATIONS.md` through a senior-designer persona.
-The CLI supplies evidence (screenshots, tokens.json, inspect JSON); ALL analysis prose is written
-by the agent following this spec's methodology, templates, and LENSES.md. The sealed gate AC-13
-greps the template files shipped with the skill.
+Defines how `reverse-design` turns a reference clone (`.design-lens/<slug>/`, spec 03) into an
+evidence-based `DESIGN.md` and adaptable `VARIATIONS.md`. These artifacts support clone
+customization and new work for the user's product. The CLI supplies screenshots, CSS statistics
+and live measurements; the agent explains design choices, separates observation from inference,
+and records the target design and verification brief. The sealed AC-13 gate checks template anchors.
 
 ## Requirements
 
-### Files
-- The skill MUST ship exactly these four files:
-  `plugin/skills/reverse-design/SKILL.md`, `plugin/skills/reverse-design/LENSES.md`,
-  `plugin/skills/reverse-design/templates/DESIGN.template.md`,
-  `plugin/skills/reverse-design/templates/VARIATIONS.template.md`.
-- SKILL.md frontmatter MUST contain only `name: reverse-design` and `description`; the
-  description MUST cover triggers: "analyze a design", "extract a style guide / design system
-  from a site", "why does this site look good".
-- The skill body MUST NOT contain `$ARGUMENTS`, `$<digit>`, `{{`, backtick-command
-  interpolation, or `CLAUDE_PLUGIN_ROOT` (AC-12). The only executable path referenced MUST be
-  `~/.design-lens/bin/design-lens`. The body MUST begin with the canonical CLI-availability-check
-  paragraph (verbatim — defined once in specs/07-skills.md).
+### Files and portability
 
-### Procedure (the SKILL.md body encodes exactly this)
-- The target site/clone comes from the user's message. If no clone exists for it, the skill
-  MUST run the clone-reference flow first.
-- Evidence MUST be gathered in this order — vision before code:
-  1. View `screenshots/original-full.png` and `screenshots/original-viewport.png` (image read)
-     and form the first impression BEFORE reading any tokens or markup.
-  2. Run `~/.design-lens/bin/design-lens tokens .design-lens/<slug>`, then read `tokens.json`.
-  3. Run `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty` for structure
-     (roles, dl-ids, rects, key computed styles).
-  4. Targeted greps of `clone/index.html` and captured CSS only (landmarks, headings, `@media`,
-     `transition`/`animation` rules) — read small windows around matches.
-  5. OPTIONAL mobile view: `~/.design-lens/bin/design-lens screenshot --url <URL> --width 390
-     --height 844 --out .design-lens/<slug>/screenshots/mobile.png`.
-- The agent MUST NOT open the full `clone/index.html` into context (it is large); access is
-  grep + targeted line-window reads only. SKILL.md MUST state this rule explicitly.
-- Persona: the agent is a senior product/brand designer reverse-briefing the site. Every
-  observation MUST pair the *decision* with a *hypothesized reason* ("Type scale jumps 1.5× at
-  the hero — the designer wants the value prop read before anything else"). Every claim MUST be
-  quantified (px, ratios, hex/OKLCH, ms) and MUST cite its evidence (a `tokens.json` key, a
-  `data-dl-id`, a screenshot region, or a grepped CSS rule).
-- Motion honesty: the clone is inert (no JS, ADR-001), so motion evidence is CSS-only
-  (transitions, `@keyframes`, tokens.json `motion`). Anything not backed by captured CSS MUST be
-  labeled as inference, never stated as fact.
-- The agent MUST read LENSES.md before writing, then fill `templates/DESIGN.template.md` and
-  write the result to `.design-lens/<slug>/DESIGN.md`. All 12 numbered headings MUST appear in
-  DESIGN.md in order; a section with no evidence gets one line saying so — headings are never
-  dropped.
-- Then fill `templates/VARIATIONS.template.md` → `.design-lens/<slug>/VARIATIONS.md`:
-  3–5 named variations; every variation keeps the layout skeleton and changes tokens/mood; at
-  least one MUST be conservative (safe, close to reference) and one bold (strong departure);
-  every **Change** row MUST be a concrete old → new token value pair — no vague directions.
-- Executive summary: after writing both files, the agent MUST present at most 10 lines in chat
-  (signature moves, palette + type one-liners, recommended variation, one risk), MUST NOT dump
-  the file contents into the conversation, and SHOULD offer next steps: customize-clone (apply
-  a variation to the clone) or build-from-design (new page from DESIGN.md).
+- Ship exactly four files: `plugin/skills/reverse-design/SKILL.md`, `LENSES.md`,
+  `templates/DESIGN.template.md` and `templates/VARIATIONS.template.md` inside that skill folder.
+- SKILL.md frontmatter contains only `name: reverse-design` and `description`. The description
+  covers analyzing a design, extracting a style guide/design system from a site, and explaining
+  why a site looks good; it also describes the two resulting artifacts.
+- Follow the argument-free, executable-path and canonical availability-paragraph contracts in
+  spec 07. Target URLs, clone paths and product intent come from the conversation, not runtime
+  argument interpolation. The canonical launcher is `~/.design-lens/bin/design-lens`.
 
-### Templates (gate-relevant)
-- DESIGN.template.md MUST contain the 12 heading lines exactly as given in Interfaces below —
-  each line begins with the exact string the sealed gate greps (`## 1. First Impression` …
-  `## 12. Reusable Principles`) and carries its guidance after an em dash (AC-13).
-- VARIATIONS.template.md MUST contain the literal string `## Variation` (AC-13).
+### Procedure (required behavior; prose and step numbering may vary)
+
+1. Resolve the reference and existing clone from context. Run clone-reference if needed. Carry
+   forward the user's target product, content, stack and build intent from the conversation and
+   repository. Ask only for missing essentials that cannot be discovered. Known information and
+   a request to build must not trigger a compulsory questionnaire or variation-selection pause.
+2. Gather evidence in this order, preserving vision before code:
+   - First view `screenshots/original-full.png`, `original-viewport.png` and `clone-full.png`.
+     Form the initial impression before reading tokens or markup, and identify capture differences.
+   - Read `manifest.json` and `REPORT.md` for source, capture time, viewport, remote resources
+     and warnings. Preserve all three capture PNGs and previous analysis images. Any new screenshot
+     uses an unused descriptive filename with an increasing suffix.
+   - Run `tokens` and read `tokens.json` as statistics over captured CSS.
+   - Run `inspect --details --viewport <capture-width>x<capture-height> --pretty` and
+     `inspect --details --viewport 390x844 --pretty` through the canonical launcher. Use roles
+     to locate elements, then `--id dl-N` for relevant containers outside the role vocabulary.
+     Follow direct `parentDlId` values to measure grid/flex parents; consult `childDlIds`,
+     `page.rootFontSize`, `page.body` and `page.fonts`. Body itself has no stamped ID.
+   - Read small grep windows around IDs, landmarks, headings, named CSS variables, media/container
+     conditions and transition/animation rules. Confirm applicable declarations with the computed
+     measurements rather than treating every captured rule as active.
+   - Gather reference and clone screenshot evidence at the capture desktop viewport and at
+     390×844. Compare matching reference/clone views and record discrepancies. Fresh pairs use
+     the same viewport, full-page/viewport mode and explicit `--dsf 1`; never overwrite capture PNGs.
+     The saved original/clone capture pair is historical evidence. Do not assume an original PNG's
+     DSF from the manifest, which records only CSS viewport dimensions. If matching scale cannot
+     be established, mark comparison limits or take a separately named and dated fresh desktop
+     reference/clone pair. Do not claim an unmatched image proves fidelity.
+3. Read the skill's `LENSES.md`, fill `templates/DESIGN.template.md`, and write `DESIGN.md` in the
+   clone project root. Keep all 12 numbered prefixes in order, including sections without evidence.
+4. Fill `templates/VARIATIONS.template.md` and write `VARIATIONS.md` in the same root. Produce
+   three named directions by default; 3–5 are allowed when useful. Include conservative and bold
+   options. Separate clone-compatible token changes from structural adaptations for a new product.
+5. Present at most ten lines in chat with signature moves, palette/type, recommended direction,
+   the largest limitation and artifact paths. Do not paste the full documents. For an already
+   requested build, continue into build-from-design and verification without a mandatory pause.
+   For analysis-only requests, deliver the artifacts and identify the appropriate next step.
+
+Never open the full cloned `index.html` into context; use grep and targeted reads. Inspection
+JSON remains ephemeral stdout, not a saved inventory. Direct ID inspection can measure hidden
+elements but only in light DOM; missing shadow-root evidence is not proof that a component is absent.
+
+Desktop and mobile evidence are required, or the corresponding facts must be marked unknown with
+the reason they could not be obtained. A clone-only mobile screenshot demonstrates the clone's
+response, not the source's. A live mobile image taken later may show changed content, consent UI
+or another state; record its time and these differences. Structural `verify` passing does not
+establish visual fidelity. Missing evidence alone does not require abandoning an authorized build;
+record the limit and choose explicitly proposed behavior where the target requirements allow it.
+
+### Evidence and interpretation
+
+Use these five explicit labels throughout both artifacts:
+
+| Label | Meaning |
+| --- | --- |
+| `observed-reference` | Directly seen reference screenshots, with capture time and viewport. |
+| `observed-clone` | Current clone render, computed measurement, DOM or inspected captured CSS declaration. |
+| `inferred` | A hypothesized reason, design intent or generalization beyond the observation. |
+| `proposed` | A new choice for the user's product, including intended behavior and verification criteria. |
+| `unavailable` | Missing evidence or an unknown fact; state what was unavailable and why. |
+
+- Pair an observed design choice with a hypothesized reason, labeling the reason as inference.
+  Quantify measurable claims in px, ratios, hex/OKLCH or ms and cite their viewport and evidence
+  location: screenshot filename/region, token key, stamped ID or targeted CSS rule. Qualitative
+  impressions may remain qualitative; never invent a measurement to satisfy a template.
+- CSS color counts are declaration occurrences, not painted-area percentages, semantic importance
+  or proof of a 60–30–10 distribution. Keep CSS occurrence share distinct from visual estimates.
+- Token font sizes, spacing bases and scale ratios are heuristics over captured CSS. Their 16px
+  rem/em conversion is not an actual root or inherited font metric. Variables, inactive conditions,
+  unused rules, inline styling and current edits can make statistics differ from rendered values.
+  Prefer computed measurements for the actual component and keep unresolved values unknown.
+- Record font readiness and failed families from `page.fonts`, together with REPORT warnings.
+  A ready font set or computed family stack does not prove which face painted every glyph.
+  Timeout, failed or unavailable font evidence must remain visible as a fallback/metric limitation.
+- The clone is inert (ADR-001). Captured transitions, keyframes and hover rules establish declared
+  CSS, not original JS triggers, scroll behavior, menus or interactive states. Unobserved behavior
+  remains unknown; rationale may be inferred and the new product's intended behavior proposed.
+- Source-specific logos, mascots, proprietary imagery, copy and brand assets remain excluded
+  from new work. Do not present an unmeasured contrast ratio, inaccessible choice or unresolved
+  font license as verified merely because it appears in a reference.
 
 ## Interfaces & contracts
 
-### `templates/DESIGN.template.md` (exact content)
+### DESIGN template and output
+
+Before the numbered sections, include `## Evidence and capture context` with Source, Captured at,
+Capture viewport, Analysis viewports, Capture/clone differences, Font status and Missing evidence.
+Explain the five evidence labels here. Keep capture-time differences, unverified responsiveness
+and font fallback visible in this preface. Field wording may vary while these facts remain explicit.
+
+The following 12 numbered prefixes are exact anchors in the template and completed DESIGN.md.
+Guidance after each prefix may change; no large template body is an exact-text contract.
 
 ```markdown
-# Design Analysis: {site} ({url}, captured {date})
-
-## 1. First Impression — 5-second read: mood words, perceived audience, what your eye hits 1st/2nd/3rd
-## 2. Design Intent — who it's for, what feeling it sells, the one problem the design solves
-## 3. Layout & Grid — container width, column system, breakpoints, section rhythm, density, whitespace strategy
-## 4. Visual Hierarchy — the eye path and HOW it's engineered (size/contrast/position/isolation), focal points per viewport
-## 5. Typography — families + pairing rationale, scale (sizes + ratio), weights, line-height, casing, where the personality lives
-## 6. Color System — palette table (OKLCH+hex, role, usage %), 60-30-10 or not, contrast strategy, semantic colors
-## 7. Imagery & Iconography — photo/illustration style, treatment (duotone? grain?), icon system, image-to-text ratio
-## 8. Motion & Interaction — durations, easings, what animates and WHY, scroll behavior, hover language
-## 9. Component Patterns — recipes for nav, hero, cards, CTAs, footer (structure + spacing + states), reusable as specs
-## 10. Signature Moves — the 2-3 identifiable techniques that make this design THIS design
-## 11. What NOT to Copy — brand-identity elements (logo, mascots, proprietary type, photography, copy voice), dated/inaccessible choices
-## 12. Reusable Principles — 5-10 transferable rules, phrased so they can be applied to a different product
+## 1. First Impression
+## 2. Design Intent
+## 3. Layout & Grid
+## 4. Visual Hierarchy
+## 5. Typography
+## 6. Color System
+## 7. Imagery & Iconography
+## 8. Motion & Interaction
+## 9. Component Patterns
+## 10. Signature Moves
+## 11. What NOT to Copy
+## 12. Reusable Principles
 ```
 
-The agent writes each section's content on the lines below its heading; heading lines are copied
-verbatim (the guidance after the em dash MAY be trimmed in DESIGN.md, the `## N. Name` prefix
-MUST be kept exactly).
+Each section contains its evidence and interpretation below the heading. When evidence is absent,
+retain the heading and say `unavailable` with a reason. Reusable Principles contains 5–10 rules
+that can transfer to another product and are traceable to earlier observations.
 
-### `templates/VARIATIONS.template.md` (exact structure)
+### VARIATIONS template and output
 
-```markdown
-# Design Variations: {site}
+Include `## Target brief`, `## Selected direction`, `## Structural changes` and
+`## Verification criteria`. Record the product/audience/content/stack known from context, selected
+or recommended direction and reason, target-specific structural choices, measurable checks and
+unresolved essentials. Preserve an explicit user choice; otherwise recommend the direction best
+supported by the brief and record the assumptions. If the target is not yet known, mark it as
+unavailable rather than inventing product facts. These fields are the implementation handoff and
+verification notes in the existing artifact; no additional persistent state file is needed.
 
-## How to use this file
-Each variation keeps the reference's layout skeleton and swaps tokens/mood. Pick one (or mix
-rows), then apply the Change table via customize-clone (edits the clone) or build-from-design
-(new work). Every row is a concrete old → new value — directly actionable, nothing vague.
+Repeat `## Variation {letter}: {name}` three times by default, or 3–5 when appropriate. The literal
+`## Variation` is a gate anchor. Every direction provides a concept, transferable principles to
+keep, best-fit product situations and two distinct tables:
 
-## Variation A: {name}
-**Concept** — one sentence: the mood shift and who it serves.
-**Keep** — layout skeleton, hierarchy, component recipes retained from the reference.
-**Change**
+- `Clone-compatible token changes`: concrete reference-value → proposed-value pairs with cited
+  reference evidence and a reason for the proposal. If the old value is unavailable, state that
+  and identify the new value as proposed instead of fabricating the old half of the comparison.
+- `New-build structural adaptations`: what changes, which target need it serves, and the intended
+  outcome. New work need not retain the reference's section order, layout skeleton, component set
+  or hierarchy. This table does not authorize structural edits to the inert clone's edit contract.
 
-| Token | Reference value | New value |
-|---|---|---|
-| color.primary | {old} | {new} |
-| font.heading | {old} | {new} |
+Verification criteria describe the selected product's responsive hierarchy, layout, typography,
+component behavior and relevant accessibility checks. Evaluate new work against these principles
+and requirements, not identical reference pixels or copied content. Analysis-only use does not
+itself authorize implementation; when a build was requested, these notes support immediate handoff.
 
-**Best for** — the product/brand situations this direction fits.
-```
+### LENSES.md (required per-section methodology)
 
-The filled VARIATIONS.md repeats the `## Variation {letter}: {name}` block 3–5 times (A, B, C…).
+Open with the persona contract: observed decision plus inferred reason; quantify what can be
+measured; cite and label evidence. Include one `## N. <section name>` per DESIGN section, each
+with a `Look at:` evidence line and an `Answer:` line addressing the following questions:
 
-### `LENSES.md` (required content — per-section methodology)
+1. **First Impression** — Original screenshots before data: mood, perceived audience, first/second/third focal points and their apparent mechanisms. Identify impressions as interpretations.
+2. **Design Intent** — Viewport and targeted hero copy: apparent audience, feeling and business problem, with reasons labeled as inference rather than knowledge of the designer's intent.
+3. **Layout & Grid** — Desktop/mobile details, parent IDs, body/root metadata, targeted conditional CSS and matched screenshots: actual containers, grid/flex, gaps, section rhythm and responsive changes; distinguish tested widths from inferred rules.
+4. **Visual Hierarchy** — Screenshots and computed font/rect data: eye path, size/contrast/position/isolation mechanisms and focal points at each observed viewport.
+5. **Typography** — CSS token estimates, actual per-viewport typography, root font size and font status: measured values, observed roles, inferred pairing rationale and any fallback limitations.
+6. **Color System** — CSS color statistics, computed component colors and screenshots: declaration counts separately from visual role, measured contrast where claimed, and unknown semantic roles.
+7. **Imagery & Iconography** — Manifest, asset listings and screenshots: image treatment, icon style and image/text balance, while distinguishing transferable techniques from source-specific assets.
+8. **Motion & Interaction** — CSS motion evidence and available state observations: declared timings, observed states, inferred rationale and proposed behavior. JS triggers and unobserved states remain unknown.
+9. **Component Patterns** — Roles, direct IDs, parent/child details, responsive images and small markup windows: reusable recipes with structure, measured spacing, responsive behavior, proposed states and unresolved implementation needs.
+10. **Signature Moves** — Earlier evidence: two or three distinctive techniques, quantified where measurable, cited and explained.
+11. **What NOT to Copy** — Brand/asset provenance and observed usability limits: identity, imagery, proprietary type and copy to exclude; inaccessible choices only claimed with supporting evidence.
+12. **Reusable Principles** — Sections 1–11: 5–10 transferable rules for a different product, each traceable to an observation and explicit about assumptions.
 
-LENSES.md MUST open with the persona contract (3 rules: decision + hypothesized reason;
-quantify with px/ratios/OKLCH/ms; cite evidence), then one `## N. <section name>` per DESIGN
-section, each with a `Look at:` line (evidence sources) and an `Answer:` line (questions):
+### Launcher commands
 
-1. **First Impression** — Look at: original-full.png for 5 seconds, before any data. Answer: 3 mood adjectives; perceived audience; what the eye hits 1st/2nd/3rd and which mechanism (size? contrast? position?) causes each hop.
-2. **Design Intent** — Look at: viewport screenshot + hero copy (grep `<h1`/`<h2`). Answer: who it's for; the feeling being sold (trust/energy/luxury/calm); the one business problem this design solves.
-3. **Layout & Grid** — Look at: inspect rects (sections, container), `@media` greps, full-page screenshot. Answer: container max-width px; column system + gutters; breakpoints; vertical rhythm between sections in px; density — where whitespace is spent and why.
-4. **Visual Hierarchy** — Look at: viewport screenshot + inspect font-size/rect data. Answer: the ordered eye path; the engineering of each focal point (size/contrast/position/isolation); focal points per viewport-height of scroll.
-5. **Typography** — Look at: tokens.json `typography` (families, sizesPx, scaleRatioGuess, weights, lineHeights) + screenshots for pairing feel. Answer: families and pairing rationale; scale + ratio; weight jobs; body vs heading line-height; casing habits; where the personality lives.
-6. **Color System** — Look at: tokens.json `colors`/`palette` (OKLCH, counts, roles). Answer: palette table with role and usage share; 60-30-10 or another distribution; contrast strategy; semantic colors if present.
-7. **Imagery & Iconography** — Look at: manifest.json image entries + `clone/assets/` listing + screenshots. Answer: photo vs illustration; treatment (duotone, grain, gradient overlays, masks); icon style (stroke/filled, weight); image-to-text ratio.
-8. **Motion & Interaction** — Look at: tokens.json `motion` + greps for `transition`/`animation`/`@keyframes`/`:hover`. Answer: duration ladder in ms; easing family; what animates and WHY (attention, affordance, delight); scroll and hover language. Label CSS-unbacked claims as inference.
-9. **Component Patterns** — Look at: inspect roles (logo/nav-link/hero-*/cta/footer/section) + grep windows around their dl-ids. Answer: a rebuild-ready recipe per component: structure, spacing values, states — phrased as specs.
-10. **Signature Moves** — Look at: everything above. Answer: the 2-3 techniques that make this design THIS design, each named, quantified, and cited.
-11. **What NOT to Copy** — Look at: logo/brand assets in manifest + copy voice. Answer: brand-identity elements (logo, mascots, proprietary type, photography, voice) that must never be reused; plus dated or inaccessible choices (contrast failures, tiny targets).
-12. **Reusable Principles** — Look at: sections 1–11. Answer: 5–10 transferable rules phrased for a different product, each traceable to an observation above.
+- `~/.design-lens/bin/design-lens tokens .design-lens/<slug>` writes `tokens.json`.
+- `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --details --viewport <width>x<height> --pretty` prints ephemeral measurements.
+- `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --id dl-N --viewport <width>x<height> --pretty` measures a light-DOM target.
+- `~/.design-lens/bin/design-lens screenshot --url <URL> --width <width> --height <height> --dsf 1 --out <unused-file>` captures a fresh reference image.
+- `~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --out <unused-file>` captures the current clone.
 
-### Command lines used by this skill
-- `~/.design-lens/bin/design-lens tokens .design-lens/<slug>` → writes `tokens.json`
-- `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty` → JSON on stdout (ephemeral)
-- `~/.design-lens/bin/design-lens screenshot --url <URL> --width 390 --height 844 --out <file>`
+Use `--full-page` on both sides for full-page comparisons. Desktop dimensions come from the
+capture; mobile evidence uses 390×844. If either side is unavailable, mark the comparison unknown.
 
 ## Out of scope
 
-- The CLI never writes DESIGN.md or VARIATIONS.md — they are agent-written artifacts.
-- No multi-page analysis (one clone = one page), no automated design scoring, no persistent
-  analysis state beyond the two output files, no live-web browsing during analysis (evidence
-  comes from the clone directory; the optional mobile screenshot is the single live exception).
-- Applying variations (editing the clone, building new pages) belongs to the customize-clone
-  and build-from-design skills, not this one.
+- The CLI does not author DESIGN.md or VARIATIONS.md; the agent does.
+- No multi-page analysis, automated design score, persistent inventory JSON or extra analysis-state
+  files beyond the two artifacts and existing clone evidence/screenshot directories.
+- Fresh source screenshots are allowed for viewport comparisons; this is not an interactive
+  live-site crawler, and clone inspection cannot recover the source's original application behavior.
+- Applying directions belongs to customize-clone or build-from-design. An authorized end-to-end
+  request continues into those flows; an analysis-only request stops after delivering the artifacts.
 
-## Verified facts
+## Verified constraints
 
-- Codex skills have NO runtime placeholder expansion (importer skips bodies with `$ARGUMENTS`,
-  `$1-$9`, `{{}}`, backtick-command, `@file`) and do NOT substitute `${CLAUDE_PLUGIN_ROOT}`
-  (hooks only) — hence argument-free shared bodies whose only runnable path is
-  `~/.design-lens/bin/design-lens` (research/codex-plugin.md; ADR-004, ADR-007).
-- Skill frontmatter common denominator across both tools is `name` + `description`
-  (research/codex-plugin.md, research/claude-plugin.md; ADR-004).
-- `@projectwallace/css-analyzer` 9.x extracts 150+ metrics incl. per-property color context,
-  font families/sizes, shadows, animation durations; `culori` 4.x does OKLCH conversion +
-  deltaE clustering — tokens.json is trustworthy quantitative evidence (research/clone-tech.md).
-- The clone is deliberately inert — "a photograph, not a program" — so JS-driven motion cannot
-  be observed, only inferred from captured CSS (ADR-001).
-- `inspect` output is ephemeral stdout JSON, never written into the clone; re-run it rather
-  than caching (ADR-002).
-- The sealed gate greps DESIGN.template.md for the 12 numbered heading strings and
-  VARIATIONS.template.md for `## Variation`; missing strings fail `--strict` (ACCEPTANCE.md
-  AC-13; enforcement sealed in `.harness/`).
-- Invocation names: Claude `/design-lens:reverse-design`, Codex `$reverse-design`; the target
-  URL/slug arrives in the user's message text, not as an argument (ADR-004).
+- Argument-free shared skill bodies and the canonical launcher are the portable Claude/Codex
+  contract (ADR-004, ADR-007, spec 07). Frontmatter uses only name and description.
+- CSS analyzer metrics and culori clustering describe captured declarations; they do not establish
+  painted-area distribution or guaranteed applied values (spec 05).
+- The clone is deliberately inert (ADR-001); inspect measurements are ephemeral stdout (ADR-002).
+- The sealed gate checks the 12 DESIGN section names and the `## Variation` marker (AC-13);
+  the exact numbered prefixes remain this spec's product contract. Guidance and semantic fields
+  may evolve while these requirements remain intact.
+- Invocation names are Claude `/design-lens:reverse-design` and Codex `$reverse-design`; the
+  reference arrives in message text rather than runtime argument expansion.

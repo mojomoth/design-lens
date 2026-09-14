@@ -54,6 +54,11 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
   Exit 0 on success (warnings allowed); exit 1 if `clone/index.html` or `clone/manifest.json` is missing.
 - Gate anchor: run against a clone of the `basic` fixture (`plugin/cli/test/fixtures/sites/basic`),
   `tokens.json` MUST contain the `#3347ff` cluster and the fixture's font family.
+- Interpretation: these are static CSS statistics. `count` measures declaration occurrences,
+  not rendered area or element usage. Inactive/unused rules may contribute; relative lengths use
+  the documented 16px estimate and color hexes strip alpha. Palette/scale guesses are hypotheses.
+  Design analysis MUST corroborate them with screenshots and viewport-specific computed evidence,
+  never infer painted proportions, actual applied dimensions or contrast from these stats alone.
 
 ### inspect
 - `inspect <projectDir>` MUST serve `<projectDir>/clone/` via `lib/static-server` on an EPHEMERAL

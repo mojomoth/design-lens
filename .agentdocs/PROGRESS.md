@@ -425,3 +425,12 @@ is unchanged. Fonts are bounded and fallback diagnostics survive in metadata and
 Detailed geometry/styles share one measured frame, including active CSS animation. T32 typecheck,
 ESLint, 20 detailed e2e cases, one clone-font propagation e2e and 18 report unit cases passed.
 Full regression plus sealed --all follows against this committed bundle.
+
+## T33 — evidence-led reverse design (2026-09-14)
+
+T32 full gate and sealed A1–A18 --all completed ALL GREEN. Reverse-design now distinguishes
+reference observation, clone measurement, inference, proposals and unavailable evidence; CSS
+counts never imply painted shares. Templates retain 12 section prefixes and three default
+directions, with target-specific structural adaptations and checks in VARIATIONS.md. Both
+independent skill/spec reviews passed, alongside portability/frontmatter/heading checks and
+plan lint. Behavioral quality is evaluated with fresh agents in T35.

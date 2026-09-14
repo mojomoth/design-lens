@@ -108,18 +108,19 @@ whole-site crawls or pages behind logins." Body (after the availability check):
 Closing rule (literal): "Never open the cloned index.html's full contents into context — it is
 large; use grep and targeted reads."
 
-### reverse-design — frontmatter `name: reverse-design`, `description:` "Reverse-engineer a
-reference site's design like a senior designer — WHY it was designed this way — producing
-DESIGN.md and VARIATIONS.md. Use when the user asks to analyze a design, extract a style guide
-or design system from a site, or asks why a site looks good." Body outline: (1) if no clone
-exists, run the clone-reference flow first; (2) gather evidence in order — screenshots first
-(vision before code), then the `tokens` command, then `inspect … --pretty`, then grep the clone
-HTML for landmarks, optionally a mobile view via
-`~/.design-lens/bin/design-lens screenshot --url <URL> --width 390 --height 844`; (3) adopt the
-senior designer persona per `LENSES.md` in this skill's folder, fill
-`templates/DESIGN.template.md` → `.design-lens/<slug>/DESIGN.md`; (4) fill
-`templates/VARIATIONS.template.md` → `VARIATIONS.md`; (5) present a 10-line executive summary
-in chat, don't dump the files. Full methodology and template contracts: spec 04.
+### reverse-design — frontmatter `name: reverse-design`, `description:` "Reverse-engineer a reference site's design into evidence, reusable principles, and design directions in DESIGN.md and VARIATIONS.md. Use when the user asks to analyze a design, extract a style guide or design system from a site, asks why a site looks good, or needs design reasoning before building their own page. An analysis-only request ends with the analysis." Body outline: (1) if no clone
+exists, run the clone-reference flow first; (2) look at original screenshots before reading
+code, then read REPORT.md and manifest.json for capture geometry and limitations, gather tokens
+and `inspect … --details --viewport WxH --pretty` evidence, using `--id` for parent containers;
+(3) compare reference/clone evidence at the capture viewport and 390×844, using matching
+dimensions/DSF and new filenames that preserve original captures; unavailable or later live
+mobile evidence is labeled honestly, and inert clones do not prove JS-driven behavior;
+(4) fill DESIGN.md's twelve sections using the observed/inferred/proposed/unavailable evidence
+contract from LENSES.md; (5) fill VARIATIONS.md with three directions by default, separating
+clone-compatible changes from new-product adaptations and identifying a recommendation.
+An analysis-only request ends with a compact summary and artifact links. A prerequisite call
+returns to the already-requested build flow without asking whether to continue. Full methodology
+and template contracts: spec 04.
 
 ### inspect-elements — frontmatter `name: inspect-elements`, `description:` "List the
 customizable elements of a design-lens clone (logo, nav, hero, CTAs, colors, fonts) with their
