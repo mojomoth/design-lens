@@ -408,3 +408,11 @@ the pinned section below (that section may be edited in place).
   NOTE: spec 02 never fixes the base of "MB"; chose MiB (1024²), pinned as `BYTES_PER_MB` + asserted.
   Not drift (unspecified, not contradicted) → no ADR. `basic` already emits a `fetch-failed` favicon,
   so `--max-asset-mb 0.001` yields two reasons at once — asserted, guarding a one-reason-fits-all bug.
+
+## T31 — responsive inspection (2026-09-14)
+
+Added shared positive-integer viewport parsing and `inspect --viewport`, preserving the default
+JSON contract. Role candidates now use Chromium painted visibility, including ancestor opacity
+and restored child visibility. New targeted tests: 21 parser cases + 6 browser cases passed;
+existing 432 unit tests and typecheck passed before the added tests. The full gate is running
+against the unchanged T31 bundle while the next source-only iteration begins.

@@ -319,3 +319,15 @@ Format for new entries (append at the bottom, never edit existing ones):
   `manifests.test.ts` now encodes the asymmetric contract: Codex manifest points at
   `./hooks/hooks.json`, Claude manifest must NOT carry a `hooks` key. Old 0.1.0 provenance stamps
   remain valid to `verify` (PROVENANCE_LINE is deliberately loose-versioned).
+
+## ADR-018: Responsive inspection preserves the legacy wire format
+- Date: 2026-09-14 · Status: accepted (user-approved improvement plan)
+- Context: fixed inspection geometry and hidden role candidates undermine responsive design
+  reconstruction. Capture already accepts a viewport, but its parser accepts zero dimensions.
+- Decision: share positive-safe-integer viewport validation between capture and inspection;
+  add optional `inspect --viewport WxH`, preserving the default 1440×900/DSF 1 and JSON shape.
+  Every role filters out unpainted candidates, including ancestor opacity, without restricting
+  offscreen footers or incorrectly rejecting a child that restores visibility.
+- Consequences: `02-clone-engine.md` and `05-element-inventory.md` change in this same commit.
+  No inventory persistence, new dependency, capture format change, or harness modification.
+  The approved follow-up tasks are recorded as T31–T35 in IMPLEMENTATION_PLAN.md.

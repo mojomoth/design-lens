@@ -37,7 +37,7 @@ export function isRole(value: string): value is Role {
   return (ROLES as readonly string[]).includes(value);
 }
 
-/** Capture-parity viewport: `inspect` measures at the same 1440×900, dsf 1 the clone was captured at. */
+/** Legacy default geometry; skills pass the manifest viewport explicitly for capture parity. */
 export const VIEWPORT_WIDTH = 1440;
 export const VIEWPORT_HEIGHT = 900;
 export const DEVICE_SCALE_FACTOR = 1;

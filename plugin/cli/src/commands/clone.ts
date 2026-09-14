@@ -52,6 +52,7 @@ import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capt
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
 import { sanitizeHtml } from '../localize/html-rewrite.js';
+import { parseViewport } from '../lib/viewport.js';
 import {
   collectCssUrls,
   collectSrcsetUrls,
@@ -481,15 +482,6 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
 /** Accumulate a repeatable commander option into an array (used by `--remove-selector`). */
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
-}
-
-/** Parse a `WxH` viewport string; throws on a malformed value so the command exits 1 with a hint. */
-function parseViewport(raw: string): { width: number; height: number } {
-  const match = /^(\d+)x(\d+)$/i.exec(raw.trim());
-  if (match === null) {
-    throw new Error(`invalid --viewport "${raw}"; expected WxH like 1440x900`);
-  }
-  return { width: Number(match[1]), height: Number(match[2]) };
 }
 
 /** Parse a positive number flag, throwing with the flag name on a non-positive/NaN value. */

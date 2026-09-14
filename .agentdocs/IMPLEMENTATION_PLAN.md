@@ -65,6 +65,14 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T29 (P3) Rebuild and commit the reproducible `dist/design-lens.cjs` bundle and `package-lock.json` so the strict gate sees no drift | AC: `cd plugin/cli && npm run build && git diff --quiet -- dist` exits 0 | Spec: 01-packaging.md
 - [x] T30 (P3) Implement the unowned `clone` flags `--max-asset-mb <n>` (default 25) and `--include-media`, leaving oversize/bulk-media bodies remote | AC: the own e2e asserts `clone basic --max-asset-mb 0.001` leaves an image in `manifest.remote[]` with reason `oversize`, and a clone without `--include-media` leaves an `.mp4` reference remote with reason `media-skipped` | Spec: 02-clone-engine.md
 
+## Milestone 6 — Evidence-led design adaptation (approved 2026-09-14)
+
+- [x] T31 (P1) Make inspection viewport-aware with visible role candidates and shared validated capture geometry | AC: `cd plugin/cli && npm run test && npm run build && npm run e2e -- test/e2e/inspect-responsive.test.ts` passes and `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 05-element-inventory.md
+- [ ] T32 (P1) Add opt-in detailed measurements and direct element lookup with bounded font readiness | AC: `cd plugin/cli && npm run verify` passes the detailed inspection cases including computed layout, id failures and no project writes | Spec: 05-element-inventory.md
+- [ ] T33 (P1) Ground reverse-design analysis and variations in traceable responsive evidence with explicit uncertainty | AC: review confirms all 12 headings, observed/inferred/proposed/unavailable distinctions, token semantics and three adaptable directions; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 07-skills.md
+- [ ] T34 (P1) Connect explicit new-page requests to automatic analysis, adaptation, implementation and viewport verification | AC: five skills retain portable bodies and explicit clone-only/analysis-only boundaries; `bash .harness/verify.sh` exits 0 | Spec: 06-customization.md, 07-skills.md
+- [ ] T35 (P2) Evaluate two distinct product adaptations and prepare the documented 0.2.0 bundle | AC: both local product briefs pass the recorded design/behavior evaluation; `bash .harness/verify.sh --strict` exits 0 | Spec: 00-product.md, 01-packaging.md, 08-testing.md
+
 ## Deferred / Optional (does NOT block completion)
 
 - (none) — every task above is load-bearing for `verify.sh --strict`; speculative flags

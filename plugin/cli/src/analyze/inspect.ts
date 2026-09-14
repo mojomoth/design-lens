@@ -169,9 +169,7 @@ export function probeElements(selectors: readonly string[]): PageProbe {
       visible:
         rect.width > 0 &&
         rect.height > 0 &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        Number.parseFloat(style.opacity) > 0,
+        element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
       hasBackgroundImage,
       directChildOfBodyOrMain: parentTag === 'body' || parentTag === 'main',
       docIndex,
@@ -286,6 +284,7 @@ function candidatesForPattern(
 
 /** Role-wide filters that apply to every pattern of that role (spec 05's per-row qualifiers). */
 function passesRoleFilter(role: Role, probe: ElementProbe, context: ClassifyContext): boolean {
+  if (!probe.visible) return false;
   if (role === 'nav-link') return isWithinNavBand(probe.rect, context.viewportHeight);
   return true;
 }

@@ -45,11 +45,14 @@ import {
 import type { PlaywrightModule } from '../capture/browser.js';
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { startStaticServer } from '../lib/static-server.js';
+import { parseViewport } from '../lib/viewport.js';
 
 /** A clone is a handful of local files on loopback; anything slower than this is a real failure. */
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
 export interface InspectOptions {
+  /** CSS-pixel viewport; omitted preserves the legacy desktop geometry. */
+  viewport?: string;
   /** Restrict output to one role. Validated before anything is launched. */
   kind?: string;
   /** 2-space indented JSON instead of the default compact single line. */
@@ -89,6 +92,7 @@ export async function runInspect(
 
   // Validate before touching a port or a browser: a typo in `--kind` should cost nothing.
   const kind = parseKind(options.kind);
+  const viewport = parseViewport(options.viewport ?? `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`);
 
   if (!fs.existsSync(indexPath)) {
     throw new Error(`not a design-lens clone project: missing ${indexPath}`);
@@ -102,12 +106,11 @@ export async function runInspect(
     const { chromium } = loadRuntimeDep<PlaywrightModule>('playwright');
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+      viewport,
       deviceScaleFactor: DEVICE_SCALE_FACTOR,
     });
     const tab = await context.newPage();
-    // The clone is inert, but a CSS reveal animation still has a start state; freeze it so a
-    // `hero-heading` measured mid-fade is not reported as invisible.
+    // Match capture's reduced-motion preference; CSS that ignores it can still animate.
     await tab.emulateMedia({ reducedMotion: 'reduce' });
     await tab.goto(server.url('/index.html'), {
       waitUntil: 'load',
@@ -117,7 +120,7 @@ export async function runInspect(
 
     const { document, warnings } = classify(probe, {
       origin: server.origin,
-      viewportHeight: VIEWPORT_HEIGHT,
+      viewportHeight: viewport.height,
     });
     const projected = kind === null ? document : filterByRole(document, kind);
 
@@ -145,6 +148,7 @@ export function registerInspectCommand(program: Command): void {
     .argument('<projectDir>', 'a clone project directory, e.g. .design-lens/example-com')
     .description("Print the clone's live element inventory (logo, nav, hero, CTA, …) as JSON.")
     .option('--kind <role>', `restrict output to one role: ${ROLES.join('|')}`)
+    .option('--viewport <WxH>', 'measurement viewport in CSS pixels (default: 1440x900)')
     .option('--pretty', 'pretty-print the inventory JSON (default: compact single line)')
     .action(async (projectDir: string, options: InspectOptions): Promise<void> => {
       try {

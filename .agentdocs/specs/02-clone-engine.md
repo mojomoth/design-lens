@@ -34,7 +34,7 @@ M1 spine, M2 fidelity, M3 polish — the spine must stay green while fidelity la
 ### M1 spine (gate: `bash .harness/e2e-assert.sh --m1`)
 Stages run in this order; each stage is one module with unit tests.
 1. **Launch** (`capture/browser.ts`) — Chromium headless via `loadRuntimeDep('playwright')`;
-   context with `--viewport` (default 1440×900), `--dsf` (default 1), real default Chromium UA
+   context with `--viewport` (default 1440×900; both dimensions MUST be positive safe integers), `--dsf` (default 1), real default Chromium UA
    unless `--user-agent`; `page.emulateMedia({ reducedMotion: 'reduce' })` MUST be set BEFORE
    navigation (freezes reveal animations at final state). Chromium launches with
    `--disable-web-security` (+ `--disable-features=IsolateOrigins,site-per-process`) and the

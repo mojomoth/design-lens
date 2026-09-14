@@ -58,7 +58,7 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
 ### inspect
 - `inspect <projectDir>` MUST serve `<projectDir>/clone/` via `lib/static-server` on an EPHEMERAL
   port (bind 127.0.0.1, port 0), open it in headless Chromium (resolved via `lib/runtime-deps`) at
-  viewport 1440×900, dsf 1, and measure LIVE in the page. Because it re-renders the on-disk clone
+  viewport 1440×900 by default (override with `--viewport WxH`), dsf 1, and measure LIVE in the page. Because it re-renders the on-disk clone
   (including `dl-overrides.css` and any HTML edits), results always reflect current edits. It MUST
   NOT read or write any cached/stored inventory or metadata file — there is none (ADR-002).
 - The inventory JSON MUST go to stdout ONLY and MUST NEVER be written into the clone directory or
@@ -69,6 +69,11 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
 - `logo`, `hero-heading`, `hero-image` yield at most ONE element each (best pattern, then document
   order); `nav-link`, `cta`, `footer`, `section` yield all matches (`cta` max 8, `section` max 12).
 - Candidates lacking a `data-dl-id` attribute MUST be skipped with a stderr warning.
+- All role candidates MUST be visible: a nonzero rendered box, painted visibility and nonzero
+  opacity including ancestors. A descendant with restored `visibility: visible` remains eligible;
+  offscreen elements such as footers remain eligible under their existing role rules.
+- `--viewport WxH` MUST accept only positive safe integer CSS-pixel dimensions, validated before
+  opening a browser/server. Skills pass the capture viewport explicitly, then a mobile viewport.
 - `--kind <role>` filters output to that role only (valid values = the seven role names; invalid
   value → exit 1 with usage error). `--pretty` switches from compact single-line JSON to 2-space
   indented. An empty result for a role is NOT an error — exit 0 with whatever was found.
@@ -84,7 +89,7 @@ Command lines (skills invoke via the launcher `~/.design-lens/bin/design-lens`):
 
 ```
 design-lens tokens <projectDir> [--stdout]
-design-lens inspect <projectDir> [--kind logo|nav-link|hero-heading|hero-image|cta|footer|section] [--pretty]
+design-lens inspect <projectDir> [--kind logo|nav-link|hero-heading|hero-image|cta|footer|section] [--viewport WxH] [--pretty]
 ```
 
 `tokens.json` schema (exact shape; all arrays may be empty, never absent):
@@ -144,7 +149,7 @@ heuristics selectors/thresholds unit-testable without a browser); `src/lib/stati
   layer in v1. No Set-of-Marks screenshot overlays.
 - Image-derived palettes (node-vibrant), CDP DOMSnapshot computed-style analysis, CSS coverage.
 - Any persistent inventory/manifest of editable elements, and any write-back tooling (rejected — ADR-002).
-- Multi-viewport/responsive inspection; tokens export formats (Figma/Scss/CSS custom properties).
+- Automatic multi-viewport aggregation; tokens export formats (Figma/Scss/CSS custom properties).
 - Analyzing pages other than the local clone; both commands are offline-only.
 
 ## Verified facts
