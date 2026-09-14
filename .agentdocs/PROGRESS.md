@@ -475,3 +475,18 @@ strict Claude plugin validation, portable skills/templates, and fresh staged bun
 at 0.2.0. All 35 plan tasks are complete; the sealed harness is unchanged. Final package dry-run
 contains five expected files. Work ends at local implementation, evaluation and commits; nothing
 was published or pushed.
+
+## T36 — publication artifacts and usage guidance (2026-09-14)
+
+The user subsequently authorized publication. Added a Korean installation/update and usage guide
+with product introduction, management, existing-project, analysis-only and direct-CLI examples;
+updated the agent installation guide and prepared 0.2.0 release notes. Guide options were checked
+against CLI help, local links and code fences checked, and all eight documentation unit tests passed.
+Runtime code, dependencies and the strict-verified 0.2.0 bundle are unchanged from T35.
+
+Packed the five-file npm artifact, extracted it outside the repository, ran real runtime setup and
+repeated setup (0.715s), checked byte equality to the committed bundle, and measured the local
+study clone at 390x844: 11 elements, ready fonts, zero warnings. SHA-256 of design-lens-0.2.0.tgz:
+49d9b14c7b562854c0dd81f4eda1407d1d97cf0f8aa537585e77eb203fa4b28b.
+Publication results are recorded separately after remote verification. The first npm attempt was
+rejected because the authenticated maintainer account has no 2FA; the user was asked to enable it.

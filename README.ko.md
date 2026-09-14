@@ -26,16 +26,20 @@ Design Lens는 **Claude Code**, **OpenAI Codex CLI**, **Cursor**, **OpenCode**�
 
 ## 사용 예시
 
+처음 사용한다면 [설치·업데이트부터 실전 프롬프트와 CLI 예제까지의 한국어 가이드](./docs/USAGE.ko.md)를 참고하세요.
+
 Claude Code:
 
 ```text
-/design-lens:build-from-design https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
+/design-lens:build-from-design
+https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
 ```
 
 Codex:
 
 ```text
-$build-from-design https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
+$build-from-design
+https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
 ```
 
 개발을 요청하면 필요한 캡처·분석부터 방향 추천, 구현, 검증까지 이어갑니다. 대화와 저장소에서

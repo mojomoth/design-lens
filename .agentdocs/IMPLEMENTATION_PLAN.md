@@ -73,6 +73,10 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T34 (P1) Connect explicit new-page requests to automatic analysis, adaptation, implementation and viewport verification | AC: five skills retain portable bodies and explicit clone-only/analysis-only boundaries; `bash .harness/verify.sh` exits 0 | Spec: 06-customization.md, 07-skills.md
 - [x] T35 (P2) Evaluate two distinct product adaptations and prepare the documented 0.2.0 bundle | AC: both local product briefs pass the recorded design/behavior evaluation; `bash .harness/verify.sh --strict` exits 0 | Spec: 00-product.md, 01-packaging.md, 08-testing.md
 
+## Milestone 7 — Publication and usage guidance (requested 2026-09-14)
+
+- [x] T36 (P2) Prepare the 0.2.0 publication artifacts and practical Korean usage guide | AC: packed CLI setup and responsive inspection succeed; guide commands match CLI help; release notes and package checksums are ready for GitHub/npm publication | Spec: 01-packaging.md, 07-skills.md
+
 ## Deferred / Optional (does NOT block completion)
 
 - (none) — every task above is load-bearing for `verify.sh --strict`; speculative flags

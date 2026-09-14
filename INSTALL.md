@@ -1,8 +1,8 @@
 # Installing design-lens (guide for LLM agents)
 
-You are an LLM coding agent asked to install **design-lens** — a plugin that clones reference
-websites into editable local mirrors, reverse-engineers their design thinking, and customizes
-them conversationally. Read this file end to end, then follow the section that matches the
+You are an LLM coding agent asked to install **design-lens** — a plugin that captures reference
+pages, measures design evidence, and applies reusable principles to the user's frontend through
+implementation and verification. Read this file end to end, then follow the section that matches the
 environment you are running in. Do not summarize this file to the user; act on it.
 
 ## 1. Detect your environment
@@ -64,15 +64,19 @@ npx -y design-lens setup
 ## 3. Verify the install
 
 ```bash
-~/.design-lens/bin/design-lens --version   # must print a version, e.g. 0.1.0
+~/.design-lens/bin/design-lens --version   # this release: 0.2.0
 ```
 
 If that file is missing, run `npx -y design-lens setup` and check again. Then confirm to the
-user which skills are available and offer to clone their first reference page.
+user which skills are available. Continue an already requested build or analysis; if no task was
+given, explain the entry points in the [Korean usage guide](docs/USAGE.ko.md) or
+[plugin guide](plugin/README.md).
 
 ## 4. Constraints to relay to the user
 
 - Clones are for **private design study**: never deploy or redistribute a clone. Each skill
   carries a pre-ship brand checklist (replace logos, rewrite copy, license photography/fonts).
-- Single pages only; no login-protected pages; the capture never touches the live site beyond
-  the one page load.
+- Capture handles one page per command. Authenticated-session import is not supported. Rendering
+  and asset collection make network requests; source screenshots requested by the skills can load
+  the page again. Captured scripts are removed, so application behavior must be implemented and
+  verified separately.
