@@ -11,9 +11,12 @@ authority; this suite is the fast local proxy that must make it pass.
 ### Determinism & isolation
 - Tests MUST NOT reference any external URL; the only permitted network target is `127.0.0.1`
   (own fixture servers). The live web is never a test target.
-- Fixtures MUST be served by the CLI's own static-server module
+- Static fixtures MUST be served by the CLI's own static-server module
   (`plugin/cli/src/lib/static-server.ts`) on EPHEMERAL ports (listen on port `0`, read the
   assigned port). Tests MUST NOT bind or reference ports 4630/4631 (sealed harness fixture).
+  Network-failure fixtures MAY use a minimal custom loopback HTTP server for behavior a static
+  server cannot express: open response bodies, delayed resources and redirect/CORS boundaries.
+  They still use ephemeral ports and close sockets/timers in teardown.
 - `plugin/cli` tests MUST NOT read, execute, or depend on any path outside `plugin/cli/` —
   nothing under `.harness/`; the plugin dir is copied verbatim on install, so it must be
   self-contained.
@@ -72,6 +75,16 @@ authority; this suite is the fast local proxy that must make it pass.
 - `lib/static-server` — content types, 404, path-traversal rejection.
 
 ### E2e surface (test/e2e/, tagged by milestone; later-milestone tests land with their milestone)
+- Responsive inspection MUST preserve the legacy JSON/default geometry, exclude hidden role
+  candidates, and switch roles at mobile size. Detailed inspection MUST cover direct hidden or
+  unclassified containers, missing/duplicate/invalid IDs and options, computed custom properties,
+  relative units, grid/flex, selected responsive image, parent/child relationships, font readiness
+  and project-file immutability. Geometry and computed details must describe one measured frame.
+- Font diagnostics MUST cover actual stalled font responses as well as failed faces and delayed
+  FontFaceSet readiness. Successful non-font asset readiness must remain intact. Clone re-render
+  diagnostics must survive in its report and manifest warning count.
+  A real font started after load and still pending after the readiness limit MUST not block
+  screenshot output; verify viewport/full-page framing and DSF 1/2 on that fallback path.
 - M1 `clone basic` — clone/index.html written; unique `data-dl-id` ≥ 30; zero `127.0.0.1`
   refs inside `clone/` except `manifest.json`; @import chain + bg.png + woff2 + favicon +
   inline-style url localized; `<pre>` inner text byte-identical to source; manifest.json maps
@@ -88,6 +101,22 @@ authority; this suite is the fast local proxy that must make it pass.
 - M2 SHOULD: a cross-origin webfont case mirroring the sealed alt-port CDN — globalSetup copies
   `basic/` to a temp dir, substitutes the literal token `__DL_CDN__` in its CSS with a second
   ephemeral-port origin serving the font, and clones the temp copy.
+
+### Recorded skill-quality evaluation (separate from deterministic tests)
+- Use the authored local `test/fixtures/sites/design-study/` reference for two independent fresh
+  agent runs with complete product briefs: a marketing page and a dense management interface.
+  Both use actual portable skills and the built CLI, with separate temporary workspaces. No
+  generated design answers are supplied. All network traffic stays on 127.0.0.1; this banner-free
+  fixture uses `--no-block-cookies` to avoid downloading the external filter list.
+- Preserve commands, capture hashes, DESIGN.md, VARIATIONS.md, implementation and viewed
+  1440×900, 768×1024 and 390×844 images. Independently check traceability, honest uncertainty,
+  task-specific structural differences, mobile/long-content quality, real interactions and
+  keyboard focus. CSS occurrence counts and unbound keyframes must not become claims about
+  painted area or observed motion. Preserve source capture evidence and use original content.
+- Commit reproducible briefs, protocol and actual results under `test/evaluations/`; keep generated
+  artifacts outside the repo. Record limits, including launcher mapping for a repository-level
+  run instead of testing installed plugin discovery. If a skill/CLI cause fails a scenario, retain
+  the failed run, fix the cause and rerun fresh; manually repaired output is not a skill pass.
 
 ### Relationship to the sealed gate
 - `.harness/**` is SEALED (sha256 manifest, checked every iteration). Build agents MUST NOT
@@ -123,7 +152,8 @@ authority; this suite is the fast local proxy that must make it pass.
 - The sealed gate's internals (`.harness/verify.sh`, `.harness/e2e-assert.sh`,
   `.harness/fixture/`) — read-only; their assertions are mirrored in ACCEPTANCE.md.
 - Live-web or real-site testing (manual, post-loop, per ACCEPTANCE.md "Manual").
-- Visual/pixel regression testing and LLM-as-judge review of DESIGN.md quality (manual).
+- Automated pixel regression thresholds and numerical LLM quality scores. The recorded skill
+  evaluation above is a separate image/evidence/behavior review, not a deterministic unit gate.
 - Testing the Codex install leg (ACCEPTANCE.md AC-18 handles it; demotable to a warning).
 
 ## Verified facts

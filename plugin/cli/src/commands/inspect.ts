@@ -47,7 +47,7 @@ import {
   type PageProbe,
 } from '../analyze/inspect.js';
 import { probeDetails, type DetailsProbe, type ElementDetails } from '../analyze/inspect-details.js';
-import { fontWarnings, waitForFonts, type FontReadiness, type PlaywrightModule } from '../capture/browser.js';
+import { fontWarnings, guardFontRequests, waitForFonts, type FontReadiness, type PlaywrightModule } from '../capture/browser.js';
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { startStaticServer } from '../lib/static-server.js';
 import { parseViewport } from '../lib/viewport.js';
@@ -133,20 +133,21 @@ export async function runInspect(
       deviceScaleFactor: DEVICE_SCALE_FACTOR,
     });
     const tab = await context.newPage();
+    const fontRequests = await guardFontRequests(tab);
     // Match capture's reduced-motion preference; CSS that ignores it can still animate.
     await tab.emulateMedia({ reducedMotion: 'reduce' });
     await tab.goto(server.url('/index.html'), {
       waitUntil: 'load',
       timeout: NAVIGATION_TIMEOUT_MS,
     });
-    const fonts = await waitForFonts(tab);
+    const fonts = await waitForFonts(tab, fontRequests);
     const probe: PageProbe = await tab.evaluate(probeElements, [...SELECTORS]);
 
     const { document, warnings } = classify(probe, {
       origin: server.origin,
       viewportHeight: viewport.height,
     });
-    warnings.push(...fontWarnings(fonts));
+    warnings.push(...fontWarnings(fonts, fontRequests));
     let projected: InspectDocument | DetailedInspectDocument = kind === null ? document : filterByRole(document, kind);
     if (options.details === true || options.id !== undefined) {
       let selected: (InspectElement | UnclassifiedInspectElement)[] = projected.elements;

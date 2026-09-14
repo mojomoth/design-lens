@@ -91,9 +91,19 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
   Missing/duplicate IDs, invalid positive-integer IDs and `--id` with `--kind` MUST exit 1 with
   empty stdout and a useful stderr error. Shadow descendants are unsupported; errors/help MUST
   state the light-DOM boundary. `--kind` with no match remains exit 0.
+- Inspection and bare screenshot rendering MUST also bound initial font requests to 5000ms before
+  the load event, aborting stalled font requests so fallback can render. Preserve normal load
+  readiness for CSS/images/frames and browser redirect/CORS behavior. A font-request timeout
+  also sets detailed font status to `timeout`; it does not fail the whole measurement. These
+  font-specific bounds do not promise a five-second total command. Browser-followed redirect
+  hops retain native navigation/CORS behavior and the after-load readiness check; if navigation
+  itself fails, exit 1 without claiming completed measurements.
 - Before probing, wait up to 5000ms for `document.fonts.ready` after navigation. A timeout,
   unavailable readiness or failed font families MUST produce a stderr warning; measurement
   continues with the available metrics. Detailed output records readiness and failed families.
+  Standalone and clone-render screenshots MUST likewise preserve that bounded result: when
+  readiness times out or is unavailable, capture current pixels with warnings, without another
+  implicit wait for the same pending fonts.
 - Elements array ordering: table role order, then ascending numeric `data-dl-id` within a role.
 - The browser and server MUST be closed before exit. Exit 1 only for: missing
   `<projectDir>/clone/index.html`, invalid options/ID selection, server bind failure, or browser

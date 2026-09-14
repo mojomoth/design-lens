@@ -443,3 +443,35 @@ viewports plus available behavior checks. Clone editing preserves provenance and
 before/after evidence instead of merely offering it. Canonical paragraphs, brand checklists,
 frontmatter and portability checks passed. No runtime code changed in T33/T34; the full gate is
 running against the already-tested T32 bundle, with its completion recorded in the next entry.
+
+## T35 — two product evaluations and local 0.2.0 release (2026-09-14)
+
+T33/T34's full gate completed ALL GREEN: 454 unit cases, 109 e2e cases and sealed spine. Two
+fresh agents applied the same authored local reference to Relay Desk marketing and Relay
+Operations management, completing their own repairs and 45/120 browser checks. Independent
+review passed at all three viewports, actual behavior and six unchanged capture hashes; protocol,
+briefs and qualified results are in plugin/cli/test/evaluations/. No installed-plugin or live-web
+quality claim is made. English/Korean examples, help, specs, manifests, package/lock and version
+source are aligned to 0.2.0; npm pack --dry-run reports the expected five package files.
+
+Independent source review found a real font transfer could block load before the readiness timer.
+Bare inspect/screenshot now guard initial font requests, preserving normal assets and native
+redirect/CORS behavior; redirected fonts still use browser loading plus bounded after-load
+readiness. Real network regressions cover stalls, normal slow assets, failed/valid/redirected
+fonts, alongside the existing delayed FontFaceSet tests. Source review found no additional
+viewport/details/id/visibility/compatibility issues. Final strict verification follows with the
+reproducible bundle staged; its actual outcome is appended after completion.
+
+The first strict attempt was stopped after its typecheck, lint and unit stages passed: independent
+review reproduced a font started after load that made Playwright's implicit screenshot font wait
+outlive the explicit readiness timer. The corrected failure path captures current Chromium pixels
+without a second font wait, retaining full-page/viewport framing, scroll rewind and requested
+density. All eight real-network regressions passed, including pending-font screenshots at both
+1x and 2x; the retained images were also viewed. The interrupted run is not counted as a pass.
+
+The restarted final `bash .harness/verify.sh --strict` completed ALL GREEN: typecheck, ESLint,
+454 unit cases (31 files), 117 e2e cases (10 files), sealed spine and full-fidelity assertions,
+strict Claude plugin validation, portable skills/templates, and fresh staged bundle/version lock
+at 0.2.0. All 35 plan tasks are complete; the sealed harness is unchanged. Final package dry-run
+contains five expected files. Work ends at local implementation, evaluation and commits; nothing
+was published or pushed.

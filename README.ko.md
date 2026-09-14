@@ -2,19 +2,49 @@
 
 [English](./README.md) · [简体中文](./README.zh-CN.md) · [正體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Français](./README.fr.md) · [Português](./README.pt.md) · [Español](./README.es.md) · [Română](./README.ro.md) · [Русский](./README.ru.md) · [Türkçe](./README.tr.md) · [Italiano](./README.it.md) · [Tiếng Việt](./README.vi.md) · [Українська](./README.uk.md) · [Indonesian](./README.id.md) · [हिन्दी](./README.hi.md) · [فارسی](./README.fa.md) · [Беларуская](./README.be.md) · [বাংলা](./README.bn.md)
 
-**빈 AI 캔버스가 아니라, 훌륭한 레퍼런스 디자인에서 시작하세요.**
+**좋은 레퍼런스에서 내 제품에 맞는 프론트엔드로.**
 
-Design Lens는 **Claude Code**, **OpenAI Codex CLI**, **Cursor**, **OpenCode**용 플러그인으로,
-레퍼런스 디자인(awwwards급 사이트)에서 출발해 미적으로 뛰어난 프론트엔드를
-만들 수 있게 도와줍니다:
+Design Lens는 **Claude Code**, **OpenAI Codex CLI**, **Cursor**, **OpenCode**에서 레퍼런스
+페이지를 분석하고 그 디자인 원칙을 새로운 제품에 적용하도록 돕습니다. **0.2.0**에서는
+실제 화면 측정부터 디자인 변형, 구현, 검증까지 연결합니다.
 
-1. **Clone** — 레퍼런스 페이지를 자체 완결적이고 보기 좋게 정리된 로컬 미러로 캡처합니다:
-   JS 렌더링이 끝난 최종 DOM, CSS-in-JS/shadow-DOM 스타일 보존, 모든 에셋 로컬화, 모든
-   요소에 안정적인 `data-dl-id` 부여.
-2. **Reverse-design** — 시니어 디자이너처럼 클론을 읽어내어 `DESIGN.md`
-   (모든 결정이 왜 내려졌는지) + `VARIATIONS.md`(원칙을 유지하는 새로운 방향들)를 만들어냅니다.
-3. **Customize** — 대화만으로 로고 교체, 내비게이션 문구 수정, 히어로 이미지 교체,
-   색상과 크기 변경 — 에이전트가 `data-dl-id`를 기준점 삼아 클론을 직접 수정합니다.
+1. **클론** — 렌더링된 페이지를 편집 가능한 로컬 스냅샷으로 캡처합니다. 확보한 스타일과
+   에셋을 로컬에 저장하고, 가져오지 못한 리소스와 콘텐츠는 보고서에 남깁니다.
+2. **근거 수집** — 원본·클론 이미지, 실제 레이아웃·타이포그래피, 데스크톱·모바일 화면을
+   확인합니다. 관찰한 사실, 추론, 제안, 확인하지 못한 내용을 구분합니다.
+3. **역설계** — 확인된 패턴, 가능한 설계 의도, 컴포넌트 구성법과 재사용 원칙을
+   `DESIGN.md`로 정리합니다.
+4. **제품에 맞게 변형** — 기본 세 가지 방향을 `VARIATIONS.md`에 제안하고, 목표 제품,
+   선택한 방향, 구조 변경, 검증 기준을 기록합니다.
+5. **구현** — 기존 프로젝트의 기술과 컴포넌트, 사용자의 콘텐츠와 에셋으로 개발합니다.
+   같은 레퍼런스라도 랜딩 페이지와 관리 화면은 다른 내비게이션·정보 밀도·구조를 가질 수 있습니다.
+6. **검증** — 데스크톱·태블릿·모바일 화면을 직접 확인하고, 사용 가능한 브라우저 도구로
+   필요한 조작을 시험해 문제를 수정합니다. 실행하지 못한 검사는 명확히 표시합니다.
+
+학습용 클론의 문구·이미지·색상·크기를 수정하는 기능도 유지합니다. 새로운 제품에 필요한
+구조 변경은 원본 클론을 보존하면서 별도 구현에 적용합니다.
+
+## 사용 예시
+
+Claude Code:
+
+```text
+/design-lens:build-from-design https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
+```
+
+Codex:
+
+```text
+$build-from-design https://example.com을 참고해서 우리 제품의 분석 대시보드를 만들어줘. 현재 저장소의 기술을 사용하고 구현 후 검증까지 해줘.
+```
+
+개발을 요청하면 필요한 캡처·분석부터 방향 추천, 구현, 검증까지 이어갑니다. 대화와 저장소에서
+확인할 수 있는 내용을 먼저 활용하고, 꼭 필요한 정보나 결과를 크게 바꾸는 선택이 남을 때만
+질문합니다. 단계가 바뀔 때마다 같은 승인을 다시 요구하지 않습니다.
+
+분석만 원하면 `reverse-design`에 “분석만 해줘”, 캡처만 원하면 `clone-reference`에
+“클론만 해줘”라고 요청하세요. 요청한 범위에서 마치며, 배포는 명시적으로 요청해야 합니다.
+[다섯 가지 스킬과 CLI 옵션](./plugin/README.md)도 확인할 수 있습니다.
 
 ## 설치
 
@@ -80,6 +110,11 @@ npx design-lens clone https://example.com    # 또는 플러그인 없이 CLI를
 > [Fair use & respect for designers](./plugin/README.md#fair-use--respect-for-designers)를 참고하세요.
 
 ## 저장소 구조
+
+개발 검증에는 CLI 회귀 테스트와 별도의
+[두 제품 시나리오 평가](./plugin/cli/test/evaluations/README.md)가 포함됩니다. 같은 로컬
+레퍼런스로 제품 소개 페이지와 관리 화면을 제작하고, 실제 화면·동작·근거와 한계를
+기록합니다. 구조 검사인 `verify`를 디자인 품질 점수로 사용하지 않습니다.
 
 ```
 plugin/        the plugin itself (built autonomously — see below)

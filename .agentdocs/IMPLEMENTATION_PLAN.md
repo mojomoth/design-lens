@@ -71,7 +71,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T32 (P1) Add opt-in detailed measurements and direct element lookup with bounded font readiness | AC: `cd plugin/cli && npm run verify` passes the detailed inspection cases including computed layout, id failures and no project writes | Spec: 05-element-inventory.md
 - [x] T33 (P1) Ground reverse-design analysis and variations in traceable responsive evidence with explicit uncertainty | AC: review confirms all 12 headings, observed/inferred/proposed/unavailable distinctions, token semantics and three adaptable directions; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 07-skills.md
 - [x] T34 (P1) Connect explicit new-page requests to automatic analysis, adaptation, implementation and viewport verification | AC: five skills retain portable bodies and explicit clone-only/analysis-only boundaries; `bash .harness/verify.sh` exits 0 | Spec: 06-customization.md, 07-skills.md
-- [ ] T35 (P2) Evaluate two distinct product adaptations and prepare the documented 0.2.0 bundle | AC: both local product briefs pass the recorded design/behavior evaluation; `bash .harness/verify.sh --strict` exits 0 | Spec: 00-product.md, 01-packaging.md, 08-testing.md
+- [x] T35 (P2) Evaluate two distinct product adaptations and prepare the documented 0.2.0 bundle | AC: both local product briefs pass the recorded design/behavior evaluation; `bash .harness/verify.sh --strict` exits 0 | Spec: 00-product.md, 01-packaging.md, 08-testing.md
 
 ## Deferred / Optional (does NOT block completion)
 

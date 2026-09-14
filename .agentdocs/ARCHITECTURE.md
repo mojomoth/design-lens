@@ -24,8 +24,8 @@ user (Claude Code | Codex)
 
 ```
 plugin/
-├── .claude-plugin/plugin.json     # name design-lens, version 0.1.0, skills ./skills/, hooks
-├── .codex-plugin/plugin.json      # same name/version/skills/hooks (Codex requires its own)
+├── .claude-plugin/plugin.json     # name design-lens, version 0.2.0, skills ./skills/, hooks auto-loaded
+├── .codex-plugin/plugin.json      # same name/version/skills, explicit hooks pointer (ADR-017)
 ├── hooks/hooks.json               # SessionStart → bash ${CLAUDE_PLUGIN_ROOT}/scripts/bootstrap.sh
 ├── scripts/bootstrap.sh           # idempotent runtime provisioning (hooks DO get CLAUDE_PLUGIN_ROOT in both tools)
 ├── skills/{clone-reference,reverse-design,inspect-elements,customize-clone,build-from-design}/
@@ -34,14 +34,14 @@ plugin/
 │   ├── package.json  package-lock.json  tsconfig.json  tsup.config.ts  vitest.config.ts  eslint.config.mjs
 │   ├── src/
 │   │   ├── index.ts               # commander wiring only
-│   │   ├── commands/{clone,tokens,inspect,screenshot,serve,verify}.ts
+│   │   ├── commands/{clone,tokens,inspect,screenshot,serve,verify,setup}.ts
 │   │   ├── capture/{browser,consent,settle,stamp,serialize}.ts
 │   │   ├── localize/{resource-store,urlmap,html-rewrite,css-rewrite,srcset,fetch-missing}.ts
 │   │   ├── output/{writer,manifest,report,beautify}.ts
-│   │   ├── analyze/{tokens,inspect,heuristics}.ts
-│   │   └── lib/{runtime-deps,slug,log,static-server}.ts
+│   │   ├── analyze/{tokens,inspect,inspect-details,heuristics}.ts
+│   │   └── lib/{runtime-deps,slug,log,static-server,viewport}.ts
 │   ├── dist/design-lens.cjs       # committed tsup bundle
-│   └── test/{unit,e2e,fixtures}/
+│   └── test/{unit,e2e,fixtures,evaluations}/
 ├── NOTICE.md                      # licenses of bundled libraries
 └── README.md                      # plugin usage docs
 ```
@@ -49,12 +49,18 @@ plugin/
 ## Data flow
 
 ```
-URL ──clone──▶ .design-lens/<slug>/{clone/, screenshots/, REPORT.md}
+URL ──clone──▶ .design-lens/<slug>/{clone/, manifest.json, screenshots/, REPORT.md}
 clone dir ──tokens──▶ tokens.json          clone dir ──inspect──▶ element JSON (stdout, ephemeral)
 clone dir + agent ──reverse-design skill──▶ DESIGN.md + VARIATIONS.md
 clone dir + agent ──customize-clone skill──▶ edited index.html + assets/dl-overrides.css
-DESIGN.md + user content ──build-from-design skill──▶ new page in the user's stack
+DESIGN.md + VARIATIONS.md + product context ──build-from-design──▶ new page + reviewed evidence
 ```
+
+Inspection preserves its legacy JSON by default. Opt-in details batch computed styles, direct
+light-DOM relationships, selected images and page/font metadata at explicit viewports. Static
+tokens remain CSS summaries. The skills distinguish observations, inferences and proposals; new
+products adapt structure to their tasks, using existing components/content and three-viewport
+visual review plus available behavior checks. Clone-only and analysis-only requests remain bounded.
 
 ## Error-handling strategy
 Per-stage degradation inside `clone`: consent blocking optional → scroll sweep optional →

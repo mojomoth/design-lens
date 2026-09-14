@@ -1,8 +1,8 @@
 {
   "name": "design-lens",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Design Lens CLI engine — clone a reference site into an editable local mirror.",
+  "description": "Design Lens CLI engine — capture references and measure evidence for frontend design.",
   "license": "MIT",
   "author": { "name": "mojomoth" },
   "homepage": "https://github.com/mojomoth/design-lens#readme",

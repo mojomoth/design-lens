@@ -12,7 +12,7 @@ M1 spine, M2 fidelity, M3 polish — the spine must stay green while fidelity la
 - The CLI MUST be a self-contained npm package at `plugin/cli/` (no npm workspaces), bundled by
   tsup to the committed `plugin/cli/dist/design-lens.cjs`. npm scripts MUST be exactly
   `typecheck`, `test`, `e2e`, `build`, `verify` (sealed gate calls these names). `--version` MUST
-  print `0.1.1`, identical to both plugin manifests (AC-10).
+  print `0.2.0`, identical to both plugin manifests (AC-10).
 - I/O discipline: human-readable progress → stderr; machine output (JSON) → stdout — nothing
   else ever goes to stdout; exit 0 on success (warnings allowed), exit 1 on fatal errors.
 - `playwright` and `@ghostery/adblocker-playwright` MUST be resolved via
@@ -134,6 +134,9 @@ Stages run in this order; each stage is one module with unit tests.
   `original-full.png`; after writing, serve `clone/` on an EPHEMERAL port
   (`lib/static-server.ts`), re-render, write `screenshots/clone-full.png`.
   Re-render and standalone screenshots share bounded font readiness with inspection (spec 05).
+  After a readiness timeout or unavailable result, capture the current Chromium paint without
+  starting Playwright's second implicit font wait. Preserve top-of-page framing, viewport/full-page
+  geometry and device scale; keep the normal screenshot path when readiness completes.
   Font timeout/unavailability/failed-family warnings MUST go to stderr; clone re-render warnings
   MUST also join the capture warning count and REPORT.md fidelity notes.
 - **Verify routine** — `verify <projectDir>` integrity check (also run at the end of `clone` as

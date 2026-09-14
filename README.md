@@ -2,19 +2,49 @@
 
 [한국어](./README.ko.md) · [简体中文](./README.zh-CN.md) · [正體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Français](./README.fr.md) · [Português](./README.pt.md) · [Español](./README.es.md) · [Română](./README.ro.md) · [Русский](./README.ru.md) · [Türkçe](./README.tr.md) · [Italiano](./README.it.md) · [Tiếng Việt](./README.vi.md) · [Українська](./README.uk.md) · [Indonesian](./README.id.md) · [हिन्दी](./README.hi.md) · [فارسی](./README.fa.md) · [Беларуская](./README.be.md) · [বাংলা](./README.bn.md)
 
-**Start from great reference designs, not from a blank AI canvas.**
+**Turn reference designs into frontends for your product.**
 
-Design Lens is a plugin for **Claude Code**, **OpenAI Codex CLI**, **Cursor**, and **OpenCode**
-that helps you build aesthetically excellent frontends by starting from reference designs
-(awwwards-class sites):
+Design Lens helps **Claude Code**, **OpenAI Codex CLI**, **Cursor**, and **OpenCode** study a
+reference page and build a new interface from the principles it demonstrates. Version **0.2.0**
+connects measured design evidence, adaptable directions, implementation, and verification:
 
-1. **Clone** — capture a reference page into a self-contained, pretty-printed local mirror:
-   JS-rendered final DOM, CSS-in-JS/shadow-DOM styles preserved, every asset localized, every
-   element stamped with a stable `data-dl-id`.
-2. **Reverse-design** — read the clone like a senior designer and produce `DESIGN.md`
-   (why every decision was made) + `VARIATIONS.md` (new directions that keep the principles).
-3. **Customize** — conversationally swap the logo, rewrite nav text, replace the hero image,
-   change colors and sizes — the agent edits the clone directly, anchored by `data-dl-id`.
+1. **Clone** a rendered reference page into an editable local snapshot. Available styles and
+   assets are localized; the report identifies resources and content that could not be captured.
+2. **Gather evidence** from source/clone screenshots, computed layout and typography, and desktop
+   and mobile views. Keep observations, inferences, proposals, and missing evidence distinct.
+3. **Reverse-engineer** the design into `DESIGN.md`: supported patterns, possible reasons,
+   component recipes, and transferable principles.
+4. **Adapt** those principles in `VARIATIONS.md`: three directions by default, with a target brief,
+   selected direction, structural changes, and verification criteria.
+5. **Build** in your existing stack using your content and assets. The same reference can inspire
+   a landing page or a management interface with different navigation, density, and components.
+6. **Verify** the rendered result at desktop, tablet, and mobile sizes, exercise relevant controls
+   with available browser tools, and fix failures. Checks that could not run stay explicit.
+
+Clone customization remains available for local study: change copy, imagery, colors, and sizes
+while preserving the captured source. New product structures belong in a new implementation.
+
+## Try it
+
+Claude Code:
+
+```text
+/design-lens:build-from-design Use https://example.com as a reference for our analytics dashboard. Build in this repo and verify the result.
+```
+
+Codex:
+
+```text
+$build-from-design Use https://example.com as a reference for our analytics dashboard. Build in this repo and verify the result.
+```
+
+A build request includes any missing capture and analysis, a recommended direction, implementation,
+and checks. The agent uses the conversation and repository first, asking only for missing essentials
+or consequential unresolved choices. It does not require approval again at every transition.
+
+For study alone, use `reverse-design` and say “analyze only”; for just a capture, use
+`clone-reference` and say “clone only.” Those requests finish at their stated scope. Publishing
+requires a separate explicit request. See the [five skills and CLI options](./plugin/README.md).
 
 ## Install
 
@@ -79,6 +109,11 @@ Skills (Claude: `/design-lens:<name>`, Codex: `$<name>`): `clone-reference`, `re
 > redistributed — see [Fair use & respect for designers](./plugin/README.md#fair-use--respect-for-designers).
 
 ## Repository layout
+
+Development checks include CLI regression tests and a separate
+[two-brief skill evaluation](./plugin/cli/test/evaluations/README.md) using the same local
+reference for a product introduction page and a management interface. Its recorded results
+describe inspected evidence and limitations; structural `verify` is not a design-quality score.
 
 ```
 plugin/        the plugin itself (built autonomously — see below)

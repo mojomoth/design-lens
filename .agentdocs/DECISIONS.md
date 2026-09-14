@@ -380,3 +380,29 @@ Format for new entries (append at the bottom, never edit existing ones):
   and clone-only requests still finish at their requested artifacts; local work does not publish.
 - Consequences: `06-customization.md` and `07-skills.md` change in this same commit as the four
   remaining skill procedures. The CLI interface and output format are unchanged in this step.
+
+## ADR-022: Evaluate product adaptation and synchronize the local 0.2.0 release
+- Date: 2026-09-14 · Status: accepted (user-approved improvement plan)
+- Context: CLI assertions cannot establish that agent-written design work transfers principles
+  to different product tasks. The release also needs version/help/docs/bundle coherence. An
+  independent implementation review found that an actual stalled font held navigation's load
+  event open before the new FontFaceSet timer could start; synthetic readiness tests missed it.
+- Decision: add an authored loopback-only reference and two complete product briefs, execute
+  fresh independent skill runs and separately review their actual evidence and behavior. Keep
+  the protocol and results in the CLI test tree, generated artifacts in isolated temp directories,
+  and treat visual review as recorded judgment, not a numerical unit-test claim. Bound font-only
+  initial requests before load in bare inspect/screenshot pages while preserving non-font load readiness,
+  HTTP/redirect/CORS semantics and the existing after-load readiness timer. Browser-followed
+  redirect hops retain native loading/CORS behavior plus after-load readiness; navigation failures
+  still exit 1. This guard does not promise a five-second total request chain or command. Propagate
+  fallback diagnostics and add real local network regressions. A second review reproduced
+  Playwright screenshotting implicitly waiting for the same pending font after our timer expired.
+  On timeout/unavailable readiness only, use Chromium's current-paint screenshot with matching
+  viewport/full-page/DSF geometry; normal ready screenshots and original capture navigation
+  stay unchanged. Add real after-load font tests to prevent that hidden wait from returning.
+- Consequences: `00-product.md`, `01-packaging.md`, `02-clone-engine.md`, `03-clone-format.md`,
+  `05-element-inventory.md`, `08-testing.md`, `10-ethics.md` and `ARCHITECTURE.md` change in this
+  commit for current product behavior, evaluation, font bounds and version literals. Both plugin
+  manifests, package/lock, CLI version/help/tests and reproducible distribution move to 0.2.0;
+  English/Korean examples and CLI documentation describe the same workflow. No dependency,
+  harness change, external publication or installed-plugin evaluation is introduced.

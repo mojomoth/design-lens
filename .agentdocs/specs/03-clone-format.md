@@ -77,9 +77,9 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 ## Interfaces & contracts
 ### Provenance comment (line 1 of `clone/index.html`, exact template)
 ```html
-<!-- Cloned by design-lens v0.1.1 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->
+<!-- Cloned by design-lens v0.2.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->
 ```
-`0.1.1` is the locked plugin/CLI version (AC-10); `<capturedAt>` matches
+`0.2.0` is the locked plugin/CLI version (AC-10); `<capturedAt>` matches
 `manifest.source.capturedAt`. The raw source URL is intentionally NOT embedded here — the sealed
 A4 assertion forbids the capture host (e.g. `127.0.0.1`) anywhere inside `clone/`, so the source
 URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`), ADR-011.
@@ -88,7 +88,7 @@ URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`),
 ```json
 {
   "version": 1,
-  "tool": { "name": "design-lens", "version": "0.1.1", "playwright": "<exact pinned version>" },
+  "tool": { "name": "design-lens", "version": "0.2.0", "playwright": "<exact pinned version>" },
   "source": { "url": "…", "finalUrl": "…", "title": "…", "capturedAt": "ISO8601",
               "viewport": { "width": 1440, "height": 900 }, "userAgent": "…", "robotsDisallowed": false },
   "resources": [ { "localPath": "clone/assets/…", "originalUrl": "…", "contentType": "…", "bytes": 0, "sha256": "…", "via": "network|css-fetch|refetch" } ],
@@ -137,7 +137,7 @@ content, not literal text.
   `127.0.0.1` refs inside `clone/` except `manifest.json`; `manifest.json` parseable and
   mapping every localized asset; `REPORT.md` contains "License & usage notice" — ACCEPTANCE.md
   AC-07 (mirror of sealed `.harness/e2e-assert.sh`).
-- Both plugin manifests and the CLI `--version` are locked to `0.1.1` — ACCEPTANCE.md AC-10;
+- Both plugin manifests and the CLI `--version` are locked to `0.2.0` — ACCEPTANCE.md AC-10;
   the provenance comment and `manifest.tool.version` carry the same string.
 - Pretty-printed output is what makes agent line-based edits (grep for `data-dl-id` → stable
   line windows) reliable; js-beautify chosen over prettier for tolerance of serializer-emitted

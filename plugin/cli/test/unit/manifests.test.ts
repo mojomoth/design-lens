@@ -40,18 +40,22 @@ describe('plugin manifests & marketplace files', () => {
   // catches a half-finished release bump (manifest edited, src/version.ts forgotten, or vice versa)
   // the moment it happens. Claude only ships updates to users on a version bump, so a desynced pair
   // silently strands users on the old plugin. If removed, S4 becomes the only guard and fails late.
-  it('locks version 0.1.1 across both plugin.json manifests and the CLI VERSION constant', () => {
+  it('locks version 0.2.0 across both plugin.json manifests and the CLI VERSION constant', () => {
     const claude = readJson(CLAUDE_PLUGIN);
     const codex = readJson(CODEX_PLUGIN);
 
-    expect(claude['version']).toBe('0.1.1');
-    expect(codex['version']).toBe('0.1.1');
-    expect(VERSION).toBe('0.1.1');
+    expect(claude['version']).toBe('0.2.0');
+    expect(codex['version']).toBe('0.2.0');
+    expect(VERSION).toBe('0.2.0');
 
     // The lock is an equality relation, not three independent literals: assert it as such so a
-    // future coordinated bump to e.g. 0.2.0 only needs the literals above changed in one place.
+    // future coordinated bump to e.g. 0.3.0 only needs the literals above changed in one place.
     expect(claude['version']).toBe(VERSION);
     expect(codex['version']).toBe(VERSION);
+    expect(readJson(path.join(PLUGIN, 'cli/package.json'))['version']).toBe(VERSION);
+    const lock = readJson(path.join(PLUGIN, 'cli/package-lock.json'));
+    expect(lock['version']).toBe(VERSION);
+    expect((lock['packages'] as Record<string, Record<string, unknown>>)['']!['version']).toBe(VERSION);
   });
 
   // why: spec 01 requires both plugin.json files to name the same plugin and point at the same skills

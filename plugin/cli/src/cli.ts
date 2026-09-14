@@ -21,7 +21,7 @@ export function buildProgram(): Command {
   const program = new Command();
   program
     .name('design-lens')
-    .description('Clone a reference site into an editable local mirror.')
+    .description('Capture reference pages and measure design evidence for frontend development.')
     // Long flag only (spec 00-product lists `--version`); prints VERSION then exits 0.
     .version(VERSION, '--version', 'print the design-lens version and exit');
   registerCloneCommand(program);

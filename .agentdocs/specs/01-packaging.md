@@ -34,8 +34,8 @@ SessionStart runtime-provisioning pipeline that turns a copied plugin cache into
 ### Manifests & version lock
 - All four JSON files in "Interfaces & contracts" MUST exist with the normative content shown
   there and MUST parse (AC-09).
-- Both `plugin.json` files MUST declare `"version": "0.1.1"`, and
-  `node plugin/cli/dist/design-lens.cjs --version` MUST print exactly `0.1.1` (AC-10). The CLI
+- Both `plugin.json` files MUST declare `"version": "0.2.0"`, and
+  `node plugin/cli/dist/design-lens.cjs --version` MUST print exactly `0.2.0` (AC-10). The CLI
   version string MUST be defined in exactly one place in `plugin/cli/src/`; a unit test SHOULD
   assert the three-way lock by reading both manifests.
 - `claude plugin validate ./plugin --strict` MUST exit 0 (AC-09).
@@ -123,8 +123,8 @@ design-lens/                              # repo root = the marketplace
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "design-lens",
   "displayName": "Design Lens",
-  "version": "0.1.1",
-  "description": "Start from great reference designs: clone a site into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
+  "version": "0.2.0",
+  "description": "Capture reference pages, measure their design, and turn evidence-backed principles into frontends adapted to your product, with responsive and behavioral verification.",
   "author": { "name": "mojomoth" },
   "license": "MIT",
   "keywords": ["design", "frontend", "clone", "playwright", "reference"],
@@ -141,8 +141,8 @@ manifest carries the explicit pointer.
 ```json
 {
   "name": "design-lens",
-  "version": "0.1.1",
-  "description": "Start from great reference designs: clone a site into an editable local mirror, reverse-engineer the design thinking into DESIGN.md, and customize elements conversationally.",
+  "version": "0.2.0",
+  "description": "Capture reference pages, measure their design, and turn evidence-backed principles into frontends adapted to your product, with responsive and behavioral verification.",
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json"
 }

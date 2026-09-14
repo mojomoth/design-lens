@@ -6,16 +6,16 @@ Design Lens is a plugin for BOTH Claude Code and OpenAI Codex CLI that helps dev
 especially vibe-coders who can prompt an app into existence but get generic "AI-slop" UI — build
 aesthetically excellent frontends by starting from reference designs instead of generating UI
 from scratch. It turns any admired page into (1) a faithful, inert, agent-editable local clone,
-(2) an articulated design analysis explaining WHY the design works, and (3) a conversational
+(2) an evidence-backed analysis of design patterns and possible reasons, and (3) a conversational
 surface for customizing that clone or building a brand-new page with the same design DNA.
 
 ## Requirements
 
 ### Product identity
-- The product MUST ship as one plugin named `design-lens`, version `0.1.1`, installable in both
+- The product MUST ship as one plugin named `design-lens`, version `0.2.0`, installable in both
   Claude Code and Codex CLI from this single repo (plugin root `plugin/`, marketplace at repo root).
 - Both plugin manifests (`plugin/.claude-plugin/plugin.json`, `plugin/.codex-plugin/plugin.json`)
-  MUST carry version `0.1.1`, identical to `design-lens --version` output.
+  MUST carry version `0.2.0`, identical to `design-lens --version` output.
 - All deterministic logic MUST live in the CLI (`plugin/cli/`, bundled to
   `plugin/cli/dist/design-lens.cjs`); skills MUST be thin prose procedures with no embedded logic.
 
@@ -33,8 +33,9 @@ surface for customizing that clone or building a brand-new page with the same de
 
 ### Feature 2 — Designer reverse-engineering
 - The `reverse-design` skill MUST produce `.design-lens/<slug>/DESIGN.md` (12-section designer
-  analysis: decisions + hypothesized reasons, quantified in px/ratios/OKLCH/ms) and
-  `VARIATIONS.md` (3–5 named directions with concrete token swaps), written by the agent — not
+  analysis with capture conditions, observed/inferred/proposed/unavailable labels and supported
+  measurements) and `VARIATIONS.md` (three named directions by default, 3–5 when useful, with
+  concrete clone-compatible token changes and separate new-product structural adaptations), written by the agent — not
   the CLI — using CLI evidence (`tokens`, `inspect`, screenshots).
 
 ### Feature 3 — Conversational customization
@@ -43,7 +44,12 @@ surface for customizing that clone or building a brand-new page with the same de
   clone HTML directly anchored by `data-dl-id`; style edits append to
   `clone/assets/dl-overrides.css`; asset swaps go to `clone/assets/custom/`.
 - Building a NEW page from the extracted design system (`build-from-design`) MUST copy zero
-  assets, text, or logos from the clone — design principles and tokens only.
+  assets, text, or logos from the clone — design principles and measured relationships guide
+  original work. Read context and reuse the existing stack/design system before asking for
+  missing essentials. Record selection and structural changes in VARIATIONS.md, build and view
+  1440×900, 768×1024 and 390×844, exercise available controls/project checks, repair failures and
+  report evidence and unverified behavior. Explicit new-page requests authorize this flow without
+  repeated approval; clone-only and analysis-only requests finish at their requested artifacts.
 
 ### Skills (exactly five, shared bodies for both tools)
 - `clone-reference` — clone a URL from the user's request into `.design-lens/<slug>/` and summarize the capture report.
@@ -64,7 +70,7 @@ surface for customizing that clone or building a brand-new page with the same de
 - CLI commands: `clone <url>`, `tokens <projectDir>`, `inspect <projectDir>`,
   `screenshot <projectDir|--url U>`, `serve <projectDir>`, `verify <projectDir>`, `--version`.
   Human progress → stderr; machine JSON → stdout; exit 0 success (warnings allowed) / 1 fatal.
-- Output root: `.design-lens/<slug>/` containing `clone/` (index.html, assets/, manifest.json),
+- Output root: `.design-lens/<slug>/` containing `clone/` (index.html, assets/), `manifest.json`,
   `screenshots/`, `tokens.json`, `REPORT.md`, and agent-written `DESIGN.md` + `VARIATIONS.md`.
 - Install strings (verbatim in root README.md): Claude — `claude plugin marketplace add <repo>`
   then `claude plugin install design-lens@design-lens`; Codex — `codex plugin marketplace add

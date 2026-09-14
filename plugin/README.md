@@ -1,55 +1,114 @@
 # Design Lens
 
-**Start from great reference designs, not from a blank AI canvas.**
+**Turn reference designs into frontends for your product.**
 
-Design Lens is a plugin for **Claude Code** and **OpenAI Codex CLI**. It captures a reference page
-into a self-contained local mirror, reads that mirror like a senior designer, and helps you build
-new work from what it teaches — without dragging the original's brand along with it.
+Design Lens **0.2.0** connects reference capture, design evidence, reverse engineering, adaptation,
+implementation, and visual/behavioral verification. It works with Claude Code and OpenAI Codex CLI;
+Cursor and OpenCode can install the skills through the channels in the [repository README](../README.md).
 
 ## Skills
 
-Invoke with `/design-lens:<name>` in Claude Code, or `$<name>` in Codex.
+Invoke with `/design-lens:<name>` in Claude Code or `$<name>` in Codex, followed by your request.
 
 | Skill | What it does |
 | --- | --- |
-| `clone-reference` | Capture a reference URL into `.design-lens/<slug>/` — a pretty-printed, inert local mirror. |
-| `reverse-design` | Read the clone and write `DESIGN.md` (why every decision was made) + `VARIATIONS.md`. |
-| `inspect-elements` | List the clone's elements and their roles (logo, nav, hero, CTA) with `data-dl-id` anchors. |
-| `customize-clone` | Conversationally swap the logo, copy, imagery, colors and sizes inside the clone. |
-| `build-from-design` | Build **new** work from the extracted principles — zero assets copied. The clean path. |
+| `clone-reference` | Capture one reference page; inspect its images and report missing or remote resources. |
+| `reverse-design` | Produce `DESIGN.md` with cited observations and inferences, and `VARIATIONS.md` with adaptable directions. |
+| `inspect-elements` | Measure visible roles, exact elements, layout parents, typography, and responsive reflow using stable IDs. |
+| `customize-clone` | Edit study-copy text, imagery and styles, then check matching before/after views and affected controls. |
+| `build-from-design` | Adapt supported principles to the user's product and stack, build with original content/assets, and verify the result. |
+
+For example, in Claude Code:
+
+```text
+/design-lens:build-from-design Use https://example.com for typography and spacing inspiration. Build a project-management screen in this repo and check it on desktop and mobile.
+```
+
+Or in Codex:
+
+```text
+$build-from-design https://example.com의 타이포그래피와 여백을 참고해 이 저장소에 프로젝트 관리 화면을 만들고 검증까지 해줘.
+```
+
+When you request a build, the agent completes missing analysis, chooses a direction from known
+context, implements, and checks the result without asking for the same approval at each step.
+It asks when an essential fact or consequential choice cannot be resolved. Clone-only and
+analysis-only requests stay within that scope; local implementation does not imply publication.
+
+`DESIGN.md` records capture conditions, font and evidence limits, twelve analysis sections, and
+transferable principles. `VARIATIONS.md` offers three directions by default (3–5 when useful),
+separates clone-compatible token changes from new-product structural adaptations, and records
+the selected brief and verification results. A reference marketing page may inspire a compact
+management interface; its section order and component structure do not have to be copied.
+
+Build verification includes viewed desktop, tablet and mobile screenshots, relevant project
+checks, and navigation/keyboard/control checks through available browser tools. Unavailable
+checks and service integrations are reported explicitly. `verify` alone checks clone format,
+not visual quality or application behavior.
 
 ## CLI
 
-The skills drive `~/.design-lens/bin/design-lens`, which you can also run directly. Human progress
-goes to **stderr**; machine-readable JSON goes to **stdout**.
+The skills use `~/.design-lens/bin/design-lens`, also available for direct use. Progress goes to
+stderr; command results use stdout. `clone` returns the actual `projectDir`, including any suffix
+or custom output location. Use that path for later commands.
 
-```
-design-lens clone <url>            # capture → .design-lens/<slug>/{clone,manifest.json,REPORT.md,screenshots}
-design-lens tokens <projectDir>    # distill the captured CSS → tokens.json (colors, typography)
-design-lens inspect <projectDir>   # element inventory + roles, as JSON on stdout
-design-lens screenshot <projectDir> | --url <url>   # PNG of a clone or a live URL
-design-lens serve <projectDir>     # serve clone/ on 127.0.0.1
-design-lens verify <projectDir>    # check the clone-format invariants; exit 1 on violation
+```text
+design-lens clone <url>            # local capture, manifest, report and images
+design-lens tokens <projectDir>    # captured CSS statistics → tokens.json
+design-lens inspect <projectDir>   # current visible role inventory as JSON
+design-lens screenshot <projectDir> | --url <url>   # PNG of a clone or live URL
+design-lens serve <projectDir>     # local preview
+design-lens verify <projectDir>    # clone-format integrity; exit 1 on violation
 ```
 
-Useful `clone` flags: `--viewport 1440x900`, `--timeout <seconds>`, `--settle <ms>`,
-`--remove-selector <css>` (repeatable), `--filter-list <file>`, `--no-scroll`, `--no-block-cookies`.
+Useful clone flags include `--viewport 1440x900`, `--timeout <seconds>`, `--settle <ms>`,
+`--remove-selector <css>` (repeatable), `--filter-list <file>`, `--no-scroll`, and `--no-block-cookies`.
+
+### Inspect actual layout
+
+```bash
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --details --pretty
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --id dl-17 --pretty
+```
+
+Replace the example project and ID with those from your capture. Bare `inspect` retains its
+1440×900, DSF-1 default and original `{elements, colors}` JSON shape. `--viewport WxH` changes
+measurement size; `--details` adds computed typography, box/grid/flex values, direct parent/child
+IDs, the selected image source, and page/root/body/font metadata. `--kind <role>` narrows roles.
+
+Role results exclude hidden candidates. `--id` implies details and can inspect a hidden or
+unclassified container; it cannot be combined with `--kind`. Lookup covers light DOM, not shadow
+root descendants. Follow `parentDlId` to inspect an actual layout parent; use page body metadata
+when the parent has no stamped ID. Measurements reflect current edits and are not saved as an inventory.
+
+An initial font request that stalls before the load event is aborted after five seconds so fallback can
+render; normal stylesheet/image loading still waits for completion. Redirected font hops retain normal
+browser navigation/CORS behavior and the after-load readiness check; if navigation itself fails,
+the command exits 1 without returning measurements. If font readiness itself times out or is
+unavailable, screenshots capture the current painted fallback with a warning, without waiting
+for the same fonts again. Inspection waits up to five seconds for font readiness after navigation and warns about timeouts
+or failed families. A ready font set does not prove which face painted every glyph. Token counts
+are CSS occurrences, not painted-area shares; static rem/em conversions assume 16px. Use computed
+measurements to check the actual component at each viewport. See the [CLI reference](./cli/README.md).
 
 ### What a clone contains
 
-```
+```text
 .design-lens/<slug>/
 ├── clone/
-│   ├── index.html              # final JS-rendered DOM, every element stamped data-dl-id
-│   ├── assets/<host>/<path>    # every localized asset, host-namespaced
-│   └── assets/dl-overrides.css # yours to edit; linked last so it always wins
-├── manifest.json               # every asset's originalUrl + sha256; remote[] for anything left off-box
-├── REPORT.md                   # capture results, font hosts, and the license & usage notice
-└── screenshots/                # desktop / tablet / mobile PNGs
+│   ├── index.html              # captured rendered DOM with stable element IDs
+│   ├── assets/<host>/<path>    # captured assets that could be localized
+│   └── assets/dl-overrides.css # appended study edits; CSS specificity still applies
+├── manifest.json              # capture context, resource provenance and remote references
+├── REPORT.md                  # capture/fidelity warnings, font hosts and usage notice
+└── screenshots/               # original viewport/full page and clone full-page capture
 ```
 
-The clone is **inert by design** — no `<script>`, no `on*` handlers. It is a photograph of a page,
-not a running program.
+Analysis adds `tokens.json`, `DESIGN.md`, `VARIATIONS.md`, and separately named comparison images
+as needed. Capture images remain intact. Failed captures or render stages are reported; assets
+may remain remote, and closed shadow roots or live application behavior may be missing.
+The local clone strips scripts and inline event handlers, so it is study material rather than a
+restored application. A later source screenshot can differ from the original capture's state.
 
 ## Installation and first run
 
@@ -84,7 +143,7 @@ Painters copy in galleries. Design Lens is that sketchbook, made legible to an A
 different activities, and this plugin refuses to blur them:
 
 - **Studying** — `clone-reference` and `reverse-design`. Capture the page, take it apart,
-  understand *why* it works. The clone exists to be read.
+  explain supported patterns and possible reasons. The clone exists to be studied.
 - **Shipping** — `build-from-design` and the `## Before you ship — brand checklist`. Build new
   work from the extracted principles: no logos, no copy, no photography, no assets carried over.
   `build-from-design` is the promoted clean path, and it requires zero assets copied from the
