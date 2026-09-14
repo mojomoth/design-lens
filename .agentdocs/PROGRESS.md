@@ -490,3 +490,12 @@ study clone at 390x844: 11 elements, ready fonts, zero warnings. SHA-256 of desi
 49d9b14c7b562854c0dd81f4eda1407d1d97cf0f8aa537585e77eb203fa4b28b.
 Publication results are recorded separately after remote verification. The first npm attempt was
 rejected because the authenticated maintainer account has no 2FA; the user was asked to enable it.
+
+GitHub publication completed at 2026-09-14 08:02 UTC: main and annotated v0.2.0 were pushed
+atomically, with the tag resolving to 164d6efe0b54e5ab6ef6e957a5089c3d6d540286. The public,
+non-prerelease GitHub release includes the npm tarball and SHA256SUMS; the uploaded asset digest
+matches the packed artifact. A fresh Claude configuration installed 0.2.0 from the remote GitHub
+marketplace and reported all five skills plus one SessionStart hook. A fresh npm cache fetched
+the public release tarball and executed its CLI, returning 0.2.0. These checks did not replace the
+user's installed plugins or shared runtime. npm registry publication remains pending required
+account 2FA; the release page states this and provides the verified GitHub-package install path.
