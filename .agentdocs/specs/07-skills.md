@@ -4,7 +4,7 @@
 
 Skills are the agent-facing surface of Design Lens: thin prose procedures that both Claude Code
 and Codex load verbatim from `plugin/skills/`. All deterministic logic lives in the CLI; a skill
-only says which launcher commands to run and how to present results. This spec fixes the
+orchestrates evidence gathering, product adaptation, implementation and verification. This spec fixes the
 portability rules, the exact frontmatter, and the body procedure of each of the five skills.
 
 ## Requirements
@@ -92,21 +92,14 @@ Run through every line before the user deploys anything derived from a reference
 Report anything that still contains original brand material.
 ```
 
-### clone-reference — frontmatter `name: clone-reference`, `description:` "Clone a reference
-website into a self-contained local folder for design study. Use when the user gives a URL to
-clone, capture, mirror, save, or use as a design reference. Single pages only; not for
-whole-site crawls or pages behind logins." Body (after the availability check):
-1. The target URL is in the user's request; if none was given, ask for one.
-2. From the project root run `~/.design-lens/bin/design-lens clone <URL>` (add `--project <name>`
-   if the user named the project; add `--remove-selector <css>` for elements to exclude).
-3. Read `.design-lens/<slug>/REPORT.md`. Summarize: what was localized, what stayed remote and
-   why, any fidelity warnings. Show `clone-full.png` vs `original-full.png` if asked.
-4. Remind the user in one sentence: the clone is for design study; brand assets must be replaced
-   before shipping anything derived.
-5. Offer next steps: reverse-design (design analysis → DESIGN.md), inspect-elements,
-   customize-clone.
-Closing rule (literal): "Never open the cloned index.html's full contents into context — it is
-large; use grep and targeted reads."
+### clone-reference — frontmatter `name: clone-reference`, `description:` "Clone a reference website into a self-contained local folder for design study. Use when the user gives a URL to clone, capture, mirror, save, or use as a design reference. Single pages only; not for whole-site crawls or pages behind logins."
+Body (after the availability check): resolve URL and scope from context; capture one page with
+appropriate requested options; use the CLI's returned `projectDir` rather than guessing a slug;
+read manifest/REPORT and open all three source/clone images. Summarize localization, remaining
+remote resources and fidelity limits. Preserve capture evidence. A clone-only request ends here;
+requested analysis or new-product work continues through the corresponding skills without
+repeated authorization. Closing rule (literal): "Never open the cloned index.html's full contents
+into context — it is large; use grep and targeted reads."
 
 ### reverse-design — frontmatter `name: reverse-design`, `description:` "Reverse-engineer a reference site's design into evidence, reusable principles, and design directions in DESIGN.md and VARIATIONS.md. Use when the user asks to analyze a design, extract a style guide or design system from a site, asks why a site looks good, or needs design reasoning before building their own page. An analysis-only request ends with the analysis." Body outline: (1) if no clone
 exists, run the clone-reference flow first; (2) look at original screenshots before reading
@@ -122,40 +115,46 @@ An analysis-only request ends with a compact summary and artifact links. A prere
 returns to the already-requested build flow without asking whether to continue. Full methodology
 and template contracts: spec 04.
 
-### inspect-elements — frontmatter `name: inspect-elements`, `description:` "List the
-customizable elements of a design-lens clone (logo, nav, hero, CTAs, colors, fonts) with their
-stable ids. Use when the user asks what can be changed or customized in a clone, or before
-making edits." Body: run `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty`;
-present a compact grouped list (role → short description → dl-id); point at `tokens.json` for
-colors/fonts (run the `tokens` command if missing); state that this is a live inventory, not a
-saved manifest — re-run it after edits; invite the user to pick elements and hand off to
-customize-clone.
+### inspect-elements — frontmatter `name: inspect-elements`, `description:` "Inspect a design-lens clone's live layout, typography, responsive reflow and customizable elements using stable IDs. Use when the user asks what can be changed, wants computed measurements or container relationships, or needs inspection before editing a clone. Measures the local clone, not original JavaScript behavior."
+Body:
+Resolve the project using conversation, returned paths and manifests; ask only when an
+ambiguity remains. Read capture dimensions/limits, then use detailed inspection at that viewport
+and 390×844 when responsive behavior matters. Use `--kind` for roles and `--id` for direct
+light-DOM containers, including hidden elements; never combine those options. Present a compact
+grouped inventory with relevant values and limitations, not raw JSON. Static token frequencies
+are CSS occurrences; relative-unit estimates are not applied component measurements. This is a
+LIVE inventory, not a saved manifest; re-run after edits. Continue an already-requested edit
+without asking the user to select the same target again.
 
-### customize-clone — frontmatter `name: customize-clone`, `description:` "Edit a design-lens
-clone conversationally — swap the logo, change nav text, replace the hero image, adjust colors
-or sizes. Use when the user asks to change, replace, or customize any element of a cloned page."
-Body: locate the element via inspect (ask if ambiguous, quoting candidates); find it with
-`grep -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html` and read only a window around
-the match; apply the spec-06 edit rules (styles append `[data-dl-id="…"]` rules to
-`clone/assets/dl-overrides.css` with a dated comment — never edit captured CSS; text edits go
-directly in the HTML; asset swaps go to `clone/assets/custom/`; never remove or change a
-`data-dl-id`); after every batch run `~/.design-lens/bin/design-lens verify .design-lens/<slug>`
-and offer a before/after via the `screenshot` command; on "ship it"/"deploy", walk the canonical
-brand-checklist section, which ends the file.
+### customize-clone — frontmatter `name: customize-clone`, `description:` "Edit a design-lens clone conversationally — swap the logo, change nav text, replace the hero image, adjust colors or sizes. Use when the user asks to change, replace, or customize any element of a cloned page."
+Body:
+Follow spec 06: resolve context, inspect current detailed measurements at the relevant
+viewport, locate IDs with targeted HTML reads, and capture/view the current clone before editing.
+Preserve captured CSS, IDs, assets, manifest and REPORT; style changes append dated overrides,
+text changes affect text nodes, and asset replacements live under `assets/custom/`. Preserve
+original and earlier images, adding new unused names. Apply clone-compatible variation changes;
+new-product structural adaptations belong to build-from-design. Each batch must pass structural
+`verify`, fresh measurements and viewed matching before/after images at capture size plus mobile
+when responsive appearance is affected. Exercise affected controls with available tools and
+report unverified checks. Shipping intent triggers the canonical brand checklist.
 
-### build-from-design — frontmatter `name: build-from-design`, `description:` "Build a NEW page
-or site applying the design system extracted in DESIGN.md — the user's own content with the
-reference's design DNA. Use when the user wants a site like the reference for their own product,
-or to apply DESIGN.md or VARIATIONS.md to their project." Body: (1) requires
-`.design-lens/<slug>/DESIGN.md` — run the reverse-design flow first if missing; (2) ask for the
-user's brand basics: name, one-liner, actual content, preferred variation from VARIATIONS.md;
-(3) build in the USER'S stack (detect it; default plain HTML/CSS), applying DESIGN.md's
-Reusable Principles and tokens with the chosen variation's swaps; (4) copy ZERO assets, text, or
-logo files from the clone — clone markup may be consulted for structural ideas only — and honor
-DESIGN.md's "What NOT to Copy" section; (5) verify by screenshotting the result
-(`~/.design-lens/bin/design-lens screenshot --url http://localhost:<port> --out <file>`) and
-checking it against DESIGN.md's hierarchy, spacing, and color rules; iterate. Ends with the
-canonical brand-checklist section.
+### build-from-design — frontmatter `name: build-from-design`, `description:` "Build and verify a NEW page or interface from a reference's design principles, adapted to the user's product, content, and stack. Use when the user wants a site like a reference for their own product, or wants to apply DESIGN.md or VARIATIONS.md to a project. Continue through missing analysis, a recommended direction, implementation, and responsive verification; analysis-only requests belong to reverse-design."
+Body:
+Read conversation and project structure, framework, components, tokens, content and intended
+tasks before asking for missing essentials. A new-page request authorizes necessary capture,
+analysis, recommendation, implementation and verification. Require DESIGN.md and VARIATIONS.md,
+creating or refreshing needed evidence via the other skills while preserving existing user
+decisions. Use the user's chosen direction or the best-fit recommendation. Before coding, record
+target brief, selected reusable principles, deliberate structural changes and planned acceptance
+checks in VARIATIONS.md. Build in the USER'S existing stack/design system; default HTML/CSS in
+an empty project with only necessary JavaScript. Adapt hierarchy and composition to the product's
+content and tasks. Copy zero reference assets/text/logos and invent no customers/prices/results.
+Implement semantic controls, meaningful destinations, relevant states and keyboard access.
+Serve the result and capture AND VIEW 1440×900, 768×1024 and 390×844 at DSF 1 with new filenames.
+Repair hierarchy, wrapping, density, overflow and interaction problems using available browser
+tools and relevant project checks. Report unavailable checks honestly. Record actual checks and
+evidence in VARIATIONS.md and return applied principles, changes, paths and limits. Keep the
+result local unless publishing was explicitly requested. End with the canonical brand checklist.
 
 ## Out of scope
 

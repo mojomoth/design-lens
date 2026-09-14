@@ -11,39 +11,44 @@ If that file is missing, the plugin bootstrap has not run: ask the user to resta
 plugin system (for example via `npx skills add` on Cursor or OpenCode), provision the runtime
 with `npx -y design-lens setup` instead, then retry.
 
-1. The target URL is in the user's request. If none was given, ask for one before running anything.
-   One page per clone — if the user names a whole site, clone the single page they care about most
-   and say so.
+1. Resolve the target URL and scope from the user's message and current context. Ask for a URL
+   only when none can be established. Capture one page per clone. Respect a request to clone only;
+   when the user already asked to build a new product from the reference, carry that intent forward.
 
-2. From the project root, run:
+2. From the user's project root, run:
 
    ```
    ~/.design-lens/bin/design-lens clone <URL>
    ```
 
-   Add `--project <name>` if the user named the project (otherwise the directory is derived from
-   the URL host). Add `--remove-selector <css>` for elements the user wants excluded from the
-   capture; the flag repeats. Consent and cookie banners are already blocked by default.
+   Add `--project <name>` when the user named the study, `--out <directory>` for a requested
+   output location, and repeated `--remove-selector <css>` flags for requested exclusions.
+   Consent and cookie banners are blocked by default, with any limitations reported by the CLI.
 
-   The command prints progress to stderr and one JSON result line to stdout, then writes
-   `.design-lens/<slug>/` containing `clone/`, `manifest.json`, `REPORT.md`, and `screenshots/`.
-   A non-zero exit means the page was never captured — report the error rather than guessing.
+   Progress goes to stderr; stdout contains one JSON result. Use its returned `projectDir` as
+   the project path for every later step, rather than guessing a slug: repeated captures can
+   create suffixed directories. The examples `.design-lens/<slug>/` below stand for that actual
+   path. A non-zero exit is a failed operation; report the concrete error and inspect any partial
+   output before retrying, without claiming a completed capture.
 
-3. Read `.design-lens/<slug>/REPORT.md`. Summarize for the user, in a few lines:
-   - what was localized (pages, styles, images, fonts),
-   - what stayed remote and why (the `## Left remote` section gives a reason per URL),
-   - any fidelity warnings (the `## Fidelity notes` section).
+3. Read the returned project's `manifest.json` and `REPORT.md`. Record its source URL, capture
+   time and viewport. Look at `screenshots/original-viewport.png`, `original-full.png`, and
+   `clone-full.png`; image inspection is part of the capture check, not an optional follow-up.
+   The original images show the source at capture time; clone-full is the written clone rendered
+   from disk. Compare the full-page pair under its recorded capture conditions.
 
-   If the user asks how faithful the capture is, show them `screenshots/clone-full.png` next to
-   `screenshots/original-full.png` — the first is the written clone re-rendered from disk, the
-   second is the live page.
+   Summarize localized styles, images and fonts; resources left remote and their reasons; and
+   visible or reported capture limits, including font fallback. If an image is missing or cannot
+   be viewed, name the unavailable evidence. A passing format check and an existing PNG do not
+   establish visual fidelity. Preserve the capture images and provenance documents.
 
-4. Remind the user, in one sentence: the clone is for design study; brand assets must be replaced
-   before shipping anything derived from it.
+4. Explain briefly that the clone is for design study and source brand assets must be replaced
+   in derived work. Write the summary in the user's language and link the actual project path.
 
-5. Offer the natural next steps:
-   - `reverse-design` — analyze the design and write DESIGN.md,
-   - `inspect-elements` — list what can be customized,
-   - `customize-clone` — start editing.
+5. Continue the task the user requested. For clone-only work, finish with the capture result and
+   its limits. For an already-requested analysis, continue into reverse-design. For an
+   already-requested new build, continue through reverse-design and build-from-design, including
+   verification; do not stop at offering those next steps or ask for the same authorization again.
+   An inspection or clone customization request continues into its corresponding flow.
 
 Never open the cloned index.html's full contents into context — it is large; use grep and targeted reads.

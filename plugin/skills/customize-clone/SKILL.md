@@ -13,26 +13,58 @@ with `npx -y design-lens setup` instead, then retry.
 
 ## Locate the element
 
-Run `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty` and match the user's
-request against each element's role and text. If two or more candidates plausibly match, ask the
-user which they mean, quoting each candidate's role, text, and `dl-id`. Never guess.
+Resolve the clone and target from the current request, prior returned project path, and manifest
+source/capture context. Substitute that actual path for `.design-lens/<slug>/` below. Read the
+capture viewport from `manifest.json`, then run fresh detailed inspection:
 
-Then find it in the file:
+```
+~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --details --pretty
+```
+
+Match the request to roles, text and measured context. Use `--id <dl-id>` at the same viewport to
+inspect a precise element or follow its direct parent when a container is relevant; this includes
+hidden light-DOM elements and implies details. Consult body/root measurements and font warnings.
+Ask which candidate the user means only if their request and these facts cannot resolve it; give
+its role, text and ID. An already-specified target does not require another selection pause.
+
+Locate the element with a targeted read:
 
 ```
 grep -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html
 ```
 
-The clone is pretty-printed, so ids land on stable lines. Read only a window around the match.
-Never load the full index.html into context. Inspect output is ephemeral — it lives on stdout, is
-never written into the clone, and goes stale the moment you edit. Re-run it; do not trust a list
-from earlier in the conversation.
+Read only a window around the match. Never load the full index.html into context. Inspect output
+is ephemeral stdout; do not save it or trust stale geometry after edits. When applying a direction
+from VARIATIONS.md, apply only its clone-compatible token changes here. A new product's structural
+adaptations belong to build-from-design; continue that requested flow instead of restructuring the
+reference clone through these edit rules.
+
+## Establish the comparison
+
+Before each edit batch, capture and look at the current clone at the capture viewport. Use an
+unused filename, incrementing the suffix for every batch:
+
+```
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-before-capture-1.png
+```
+
+For style, layout, text or asset changes that can affect responsive appearance, also inspect
+with `--viewport 390x844` and capture the mobile baseline:
+
+```
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width 390 --height 844 --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-before-mobile-1.png
+```
+
+If the capture viewport is already 390x844, one pair covers it. These current-clone baselines
+avoid attributing older customizations to the new batch. Preserve the three capture images and
+all prior analysis/customization images. If comparison evidence cannot be obtained, record the
+specific limit and do not later claim the edit was visually verified.
 
 ## Edit rules
 
 **Style** (color, size, spacing, font, radius, shadow) — never edit captured CSS: not the files
 under `clone/assets/<host>/…`, not `<style>` blocks in `index.html`. Append a rule to
-`clone/assets/dl-overrides.css` targeting the element's id, preceded by a one-line dated comment:
+`clone/assets/dl-overrides.css` targeting the element's ID, preceded by a one-line dated comment:
 
 ```css
 /* 2026-07-08 user request: make the hero heading brand-blue */
@@ -41,54 +73,74 @@ under `clone/assets/<host>/…`, not `<style>` blocks in `index.html`. Append a 
 }
 ```
 
-One blank line between entries. That file is linked last in `<head>`, so its rules win the cascade
-at equal specificity. It is append-only: never reorder or rewrite earlier entries. Undoing an edit
-means deleting exactly that comment-plus-rule block, verbatim. If a captured rule still wins on
-specificity, raise yours by repeating the attribute selector
-(`[data-dl-id="dl-17"][data-dl-id]`); reach for `!important` only as a last resort, and say so in
-the entry's comment.
+Leave one blank line between entries. The file is linked last in `<head>`, so its rules win at
+equal specificity. It is append-only: never reorder or rewrite earlier entries. Undo deletes
+exactly that comment-plus-rule block, verbatim. If a captured rule wins on specificity, repeat
+the attribute selector (`[data-dl-id="dl-17"][data-dl-id]`) to raise yours; use `!important` only
+as a last resort and explain it in the entry's comment.
 
-**Text** (nav labels, headings, copy) — edit the HTML text node directly in `clone/index.html`,
-leaving the surrounding markup and every attribute untouched.
+**Text** (nav labels, headings, copy) — edit only the HTML text node in `clone/index.html`,
+leaving surrounding markup and every attribute untouched.
 
-**Assets** (logo, hero image, icons) — copy the replacement into `clone/assets/custom/` (create it
-on demand) and point the element's `src`, `srcset`, or inline `url()` at the relative path
-`assets/custom/<file>`. If the user supplied no file, either generate a placeholder SVG into
-`assets/custom/` or ask them for one — never hotlink a remote URL. Never delete captured assets:
-they are provenance, and `manifest.json` maps them.
+**Assets** (logo, hero image, icons) — put replacements in `clone/assets/custom/`, creating it
+on demand, and point the element's `src`, `srcset`, or inline `url()` to `assets/custom/<file>`.
+Never hotlink a remote URL or delete captured assets: they remain provenance in the manifest.
+If no replacement was supplied, use a clearly identified neutral SVG for a study-only sample
+when sufficient, or ask for the missing asset when it is essential to the requested change.
 
-**Site-wide color changes** — read `.design-lens/<slug>/tokens.json` (run
-`~/.design-lens/bin/design-lens tokens .design-lens/<slug>` first if it is absent) and use the
-color's cluster so every near-duplicate usage is covered. When the site defines a CSS custom
-property for that color, override the property once on `:root` in `dl-overrides.css` rather than
-emitting a rule per element.
+**Site-wide colors** — read `tokens.json`, generating it if absent with:
 
-**Never** remove, rename, renumber, or duplicate a `data-dl-id` — it is the addressing system.
-Elements you insert get no `data-dl-id` (ids are capture-time only); address them by their own
-class or id. Never edit `manifest.json`, `REPORT.md`, or `screenshots/`.
+```
+~/.design-lens/bin/design-lens tokens .design-lens/<slug>
+```
 
-## Verify, then show
+Use `clusterOf` to find near-duplicate values, then confirm their actual roles with targeted CSS
+and rendered measurements. Counts are CSS occurrences, not visible-area shares. Apply changes
+through `dl-overrides.css`; when the site defines the relevant custom property on `:root`,
+override it there once instead of emitting a rule for each element. Do not change an unrelated
+semantic color just because it is numerically close.
 
-After every batch of edits:
+**Immutable evidence** — never remove, rename, renumber or duplicate a `data-dl-id`. Any inserted
+elements receive no capture ID; address them by their own class or ID. Never edit `manifest.json`
+or `REPORT.md`. Never overwrite `original-viewport.png`, `original-full.png`, `clone-full.png`
+or previous screenshots; new screenshots with unused names are allowed under `screenshots/`.
+
+## Verify and inspect the result
+
+After every batch, run:
 
 ```
 ~/.design-lens/bin/design-lens verify .design-lens/<slug>
 ```
 
-It must exit 0 before you report the edit as done. If it fails, fix or revert the batch — do not
-report success over a failing verify. Then offer a before/after:
+It must exit 0 before reporting the edit as done. On failure, fix or revert the batch. This checks
+clone-format structure, not visual quality. Re-run relevant detailed inspection, then capture
+the after view with exactly the baseline's viewport, DSF 1 and full-page mode:
 
 ```
-~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --out .design-lens/<slug>/screenshots/after-1.png
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-after-capture-1.png
 ```
 
-Increment the number for each subsequent shot, and compare against the original
-`screenshots/clone-full.png`.
+For each responsive baseline, also capture its matched mobile result:
+
+```
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width 390 --height 844 --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-after-mobile-1.png
+```
+
+Look at every before/after pair. Check the requested change, text wrapping, alignment, clipping,
+overflow, replaced-image choice and font fallback at the relevant viewports. Fix regressions and
+repeat the affected checks. Use available browser tools to check affected links and controls,
+including their destinations and keyboard focus. A screenshot does not validate an interaction;
+report any check you cannot perform as unverified. Do not compare a viewport-only after image
+with a full-page baseline, or assume a saved capture PNG's scale matches a new image. Viewing the result is required, not
+an optional offer. Report what changed, the evidence inspected, format-check outcome and any
+unavailable visual check in the user's language; link the new images.
 
 ## Ship intent
 
-When the user signals they are shipping — "ship it", "deploy", "publish", "go live" — stop and walk
-every line of the checklist below, then report which items still contain original brand material.
+When the user requests shipping, deployment or publication, run every line of the checklist
+below before that action and report any remaining source brand material. Completing a local
+customization alone is not a request to publish it.
 
 ## Before you ship — brand checklist
 Run through every line before the user deploys anything derived from a reference:

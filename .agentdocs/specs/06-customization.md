@@ -4,17 +4,18 @@
 Defines how an agent edits a clone when the user asks to change something (logo, nav text, hero
 image, colors, sizes). This layer is deliberately THIN (ADR-002): there are NO op-layer scripts,
 NO apply-edit tooling, and NO persistent edit manifest — the agent edits the clone files directly,
-anchored by `data-dl-id`, with `verify` as the only safety net. The `customize-clone` skill body
+anchored by `data-dl-id`, with structural `verify` plus rendered visual/behavior checks. The `customize-clone` skill body
 MUST encode every MUST in this file; the CLI ships no customization-specific code beyond the
 existing `inspect`, `verify`, and `screenshot` commands.
 
 ## Requirements
 
 ### Locating elements
-- The agent MUST identify the target element from a fresh (or same-conversation) run of
-  `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty`, matching the user's
-  request against role and text. If two or more candidates plausibly match, the agent MUST ask
-  the user, quoting each candidate's role, text, and `dl-id`.
+- The agent MUST identify the target element from fresh detailed inspection at the relevant
+  viewport, matching the user's request and conversation against role and text. Use `--id` for
+  containers absent from the role inventory. Ask with candidate role, text and ID only when
+  ambiguity cannot be resolved from existing context; an already specified edit needs no
+  repeated selection approval. Read `manifest.json` for capture dimensions.
 - The agent MUST locate the element in the file with
   `grep -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html`. The clone is pretty-printed
   (a hard requirement of the clone pipeline), so ids land on stable lines. The agent MUST read
@@ -52,15 +53,25 @@ existing `inspect`, `verify`, and `screenshot` commands.
   `dl-overrides.css`. When the site defines CSS custom properties for that color, the agent
   SHOULD override the custom property on `:root` in `dl-overrides.css` instead of emitting
   per-element rules.
-- `manifest.json`, `REPORT.md`, and `screenshots/` MUST NOT be edited by the customization flow.
+- `manifest.json`, `REPORT.md`, and original capture images MUST NOT be edited by the
+  customization flow. New evidence images MAY be added to `screenshots/` with unused descriptive
+  names and increasing suffixes. Static token counts describe CSS occurrences, not painted area;
+  detailed inspection MUST corroborate applied values at the relevant viewport.
+- Clone customization applies compatible text, asset and style changes. A new product requiring
+  structural adaptation belongs to build-from-design; continue that flow when already requested.
 
 ### Verification loop
 - After every batch of edits the agent MUST run
   `~/.design-lens/bin/design-lens verify .design-lens/<slug>` and it MUST exit 0 before the agent
   reports the edit as done; on failure the agent MUST fix or revert the batch.
-- After a passing verify the agent MUST offer a before/after comparison:
-  `~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --out .design-lens/<slug>/screenshots/after-<n>.png`
-  (monotonically increasing `<n>`), compared against the existing `screenshots/clone-full.png`.
+- The agent MUST capture and open before/after images at matching dimensions, DSF and framing.
+  Verify at capture size and also 390×844 for edits affecting layout, style or responsive text.
+  Use explicit width, height, DSF 1 and `--full-page` for newly captured pairs, and unused names
+  such as `after-mobile-full-<n>.png`. A saved original with different geometry is contextual
+  evidence, not a matched visual comparison. Repair hierarchy, wrapping, spacing and overflow
+  regressions and repeat affected checks. Exercise affected controls with available browser tools;
+  report missing capabilities or unresolved integrations as unverified. A passing `verify` MUST
+  be described as structural validation and MUST NOT be presented as proof of visual quality.
 
 ### Ship intent
 - If the user signals shipping intent ("ship it", "deploy", "publish", "go live"), the agent MUST
@@ -70,10 +81,11 @@ existing `inspect`, `verify`, and `screenshot` commands.
 
 ## Interfaces & contracts
 - Commands used (the launcher is the ONLY executable path, per ADR-004):
-  - `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --pretty`
+  - `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --details --viewport <WxH> --pretty`
+  - `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --id <dl-id> --viewport <WxH> --pretty`
   - `~/.design-lens/bin/design-lens tokens .design-lens/<slug>`
   - `~/.design-lens/bin/design-lens verify .design-lens/<slug>`
-  - `~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --out <file>`
+  - `~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <w> --height <h> --dsf 1 --full-page --out <file>`
   - `grep -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html`
 - `clone/assets/dl-overrides.css` entry template (one blank line between entries):
 

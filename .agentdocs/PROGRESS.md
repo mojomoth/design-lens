@@ -434,3 +434,12 @@ counts never imply painted shares. Templates retain 12 section prefixes and thre
 directions, with target-specific structural adaptations and checks in VARIATIONS.md. Both
 independent skill/spec reviews passed, alongside portability/frontmatter/heading checks and
 plan lint. Behavioral quality is evaluated with fresh agents in T35.
+
+## T34 — context-aware implementation handoff (2026-09-14)
+
+All five skills now carry the requested scope through the appropriate workflow. New builds read
+existing project context, select or honor a direction, adapt structure and verify three rendered
+viewports plus available behavior checks. Clone editing preserves provenance and captures matched
+before/after evidence instead of merely offering it. Canonical paragraphs, brand checklists,
+frontmatter and portability checks passed. No runtime code changed in T33/T34; the full gate is
+running against the already-tested T32 bundle, with its completion recorded in the next entry.

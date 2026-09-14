@@ -364,3 +364,19 @@ Format for new entries (append at the bottom, never edit existing ones):
 - Consequences: `04-design-analysis.md`, `05-element-inventory.md`, and `07-skills.md` change in
   the same commit as the reverse-design skill and templates. No new artifact schema, command,
   dependency, or CLI token algorithm is introduced by this step.
+
+## ADR-021: Requested production work continues through adaptation and verification
+- Date: 2026-09-14 · Status: accepted (user-approved improvement plan)
+- Context: capture and inspection stopped at offers, and new builds required a second choice
+  and copy approval even when the conversation already supplied enough context. Optional image
+  comparisons let structural verification be mistaken for design quality. The customization
+  rule forbidding edits anywhere in screenshots contradicted its own after-image procedure.
+- Decision: preserve five portable skills and their canonical availability/brand sections, while
+  carrying explicit user intent across capture, analysis, selection, implementation and checks.
+  Ask only for essential unresolved information. New products reuse applicable principles with
+  intentional structural adaptations in the existing VARIATIONS.md. Existing stacks and content
+  take priority. Require viewed responsive images and available behavior checks, preserving
+  source captures and distinguishing structural checks from visual validation. Analysis-only
+  and clone-only requests still finish at their requested artifacts; local work does not publish.
+- Consequences: `06-customization.md` and `07-skills.md` change in this same commit as the four
+  remaining skill procedures. The CLI interface and output format are unchanged in this step.
