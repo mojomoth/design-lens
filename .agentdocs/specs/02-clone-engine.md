@@ -251,3 +251,21 @@ Dev: `typescript`, `tsup`, `vitest`, `eslint` + `typescript-eslint`, `@types/nod
   tolerant than prettier of serializer output — research/clone-tech.md §A1/§A3/§A4.
 - Own-engine decision, no-JS output, M1 own serializer → M2 percy staging, and pinned Playwright
   with harness-provisioned Chromium are settled — ADR-001, ADR-005, ADR-008.
+
+### Responsive evidence and fidelity (ADR-023)
+`clone --viewports WxH,...` captures each viewport from a fresh navigation, using the first for
+the canonical clone. Explicit --viewport and --viewports conflict. Skills request
+1440x900,768x1024,390x844. Preserve source images, inert DOM, independent asset bytes, computed
+observations, timestamps, browser/DSF/media/removal policy and hashes outside clone/. IDs are
+capture-scoped. Never merge differing response bodies by URL across viewport captures.
+Resolve document base/redirect aliases and preserve resource fragments. Shared reference discovery
+must cover SVG, CSS custom properties/image-set, preload and recursive embedded documents. Remove
+source SRI/CSP invalidated by transformation. Serialize/measure/photograph one stabilized state;
+apply bounded font/image readiness and deadline checks to scrolling/refetch.
+`fidelity` renders the canonical clone at all recorded viewports with remote requests blocked,
+compares viewport/full-page/important region images and geometry, and writes a hash-bound report.
+Policy: pixelmatch threshold 0.1, includeAA false, image mismatch <=0.005, important region
+mismatch <=0.01, landmark geometry delta <=1 CSS px; unequal image dimensions fail without
+rescaling. Missing evidence/assets/fonts/elements, unsupported states or truncation prevent pass.
+CLI clone may return a saved degraded capture with warnings; only fidelity pass certifies the
+comparison. The fidelity command exits 1 on fail/unverified.

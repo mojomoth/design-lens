@@ -406,3 +406,29 @@ Format for new entries (append at the bottom, never edit existing ones):
   manifests, package/lock, CLI version/help/tests and reproducible distribution move to 0.2.0;
   English/Korean examples and CLI documentation describe the same workflow. No dependency,
   harness change, external publication or installed-plugin evaluation is introduced.
+
+## ADR-023: Measured responsive fidelity and implementation-ready analysis
+- Date: 2026-09-27 · Status: accepted (explicitly user-approved implementation plan)
+- Context: all 454 unit and 117 E2E tests pass, but PNG byte size and structural invariants do
+  not establish visual fidelity. Local probes reproduced URL coverage gaps and misleading token
+  extraction. The user selected static responsive fidelity, automatic evidence-led repair, and
+  an implementation-ready design blueprint across multiple site types.
+- Decision: independently capture source states at requested viewports, preserve immutable source
+  observations/assets, compare the same editable clone offline, and report pass/fail/unverified.
+  Add clone --viewports, fidelity, validate-design, and comprehensive/batch shadow-aware inspect.
+  Source observations are capture provenance, never an edit manifest; inspect remains ephemeral.
+  Capture repair may reconstruct bounded static regions using source evidence, preserving IDs,
+  with at most three skill-driven rounds and all-viewport revalidation. Original captures remain
+  unchanged. Unsupported or truncated evidence cannot certify fidelity.
+- Dependencies: allow pixelmatch 7.2.0 (ISC), pngjs 7.0.0 (MIT), and pngjs typings for PNG
+  comparison in the bundled runtime. Record their licenses in NOTICE and retain the 2 MiB limit.
+- Compatibility: existing single-viewport capture/verify and legacy project reads remain valid.
+  Missing evidence yields unverified. Token schema 2 explicitly represents alpha and unavailable
+  spacing; migrate internal consumers. DESIGN.md keeps twelve headings and gains implementation
+  recipes plus validated observation tables. New validate-design requires agent-authored analysis;
+  structural verify does not. Prepare version 0.3.0 after all implementation and evaluation pass.
+- Consequences: update 00-product.md, 02-clone-engine.md, 03-clone-format.md,
+  04-design-analysis.md, 05-element-inventory.md, 06-customization.md, 07-skills.md,
+  08-testing.md, CONVENTIONS.md and ARCHITECTURE.md in this commit. These additions supersede
+  the earlier ban on automated visual thresholds and persisted capture observations, not ADR-002's
+  prohibition on edit manifests. Runtime capture remains a single public page without source JS.

@@ -152,8 +152,8 @@ authority; this suite is the fast local proxy that must make it pass.
 - The sealed gate's internals (`.harness/verify.sh`, `.harness/e2e-assert.sh`,
   `.harness/fixture/`) — read-only; their assertions are mirrored in ACCEPTANCE.md.
 - Live-web or real-site testing (manual, post-loop, per ACCEPTANCE.md "Manual").
-- Automated pixel regression thresholds and numerical LLM quality scores. The recorded skill
-  evaluation above is a separate image/evidence/behavior review, not a deterministic unit gate.
+- Numerical LLM quality scores. Deterministic source-to-clone pixel/geometry checks are required
+  by ADR-023; independent design interpretation remains a recorded evidence review.
 - Testing the Codex install leg (ACCEPTANCE.md AC-18 handles it; demotable to a warning).
 
 ## Verified facts
@@ -177,3 +177,12 @@ authority; this suite is the fast local proxy that must make it pass.
 - The sealed assertion list (data-dl-id ≥ 30, `.js-injected` rule, zero `127.0.0.1` refs except
   manifest.json, canvas/shadow/input/lazy/srcset/alt-port-font/banner-absent) is fixed in
   ACCEPTANCE.md AC-07/AC-08 and cannot be renegotiated (ADR-006).
+
+### Fidelity and blueprint regression coverage (ADR-023)
+Add local marketing/editorial/dashboard-form/web-component/JS-responsive cases. Compare actual
+rendered source/clone pixels and geometry, including shadow/canvas output. Negative controls
+must reject missing small logos, replacement fonts, layout shifts, mobile-only DOM loss, page
+height changes, stale hashes and incomplete evidence. Cover base/redirect/SVG/CSS variables/
+image-set/SRI/CSP/srcdoc resources, alpha/calc/font shorthand/selector token failures, and false
+measurement citations. Independent agents exercise the actual skills and implement from a
+blueprint; retain reproducible inputs/results with generated artifacts outside the repository.

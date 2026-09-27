@@ -6,7 +6,15 @@
 > Rules: milestones ordered so every task's dependencies precede it; the first milestone must
 > make `bash .harness/verify.sh` meaningful early (package.json, tsconfig, eslint, vitest, first
 > test); every AC must be checkable with a shell command; genuinely optional work goes under
-> `## Deferred / Optional` and does NOT block completion.
+> `## Milestone 8 — Responsive fidelity and implementation blueprints (approved 2026-09-27)
+
+- [x] T37 (P1) Record the approved evidence, fidelity, blueprint and dependency contracts through ADR-023 | AC: `bash .harness/verify.sh --plan` exits 0 | Spec: 00-product.md, 02-clone-engine.md, 03-clone-format.md, 04-design-analysis.md, 05-element-inventory.md, 06-customization.md, 07-skills.md, 08-testing.md
+- [ ] T38 (P1) Implement responsive source capture, closed resource localization and offline measured fidelity | AC: targeted source-to-clone regressions and negative controls pass; `bash .harness/verify.sh` and `bash .harness/e2e-assert.sh --all` exit 0 | Spec: 02-clone-engine.md, 03-clone-format.md, 08-testing.md
+- [ ] T39 (P1) Implement accurate tokens, comprehensive inspection and evidence-backed design validation | AC: token and observation-claim regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 05-element-inventory.md
+- [ ] T40 (P1) Connect portable skills to bounded responsive repair and implementation-ready blueprints with independent local evaluation | AC: independent local skill evaluations preserve evidence and reject false completion; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 06-customization.md, 07-skills.md, 08-testing.md
+- [ ] T41 (P2) Prepare the verified 0.3.0 dual-plugin release bundle and coherent usage documentation | AC: `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` exit 0; versions and bundle are coherent | Spec: 00-product.md, 01-packaging.md, 10-ethics.md
+
+## Deferred / Optional` and does NOT block completion.
 
 **Sequencing invariant (why M1 is unit-first, spine-last).** The gate `verify.sh` runs the sealed
 `e2e-assert.sh --m1` (B10) the moment `plugin/cli/dist/design-lens.cjs` exists, and the own e2e

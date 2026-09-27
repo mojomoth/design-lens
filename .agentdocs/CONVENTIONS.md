@@ -12,7 +12,7 @@
 ## Dependency allowlist (anything else requires an ADR FIRST)
 Runtime/bundled: `playwright` (external), `@ghostery/adblocker-playwright` (external),
 `@percy/dom`, `css-tree`, `cheerio`, `js-beautify`, `@projectwallace/css-analyzer`, `culori`,
-`commander`.
+`commander`, `pixelmatch` (7.2.0), `pngjs` (7.0.0).
 Dev: `typescript`, `tsup`, `vitest`, `eslint`, `typescript-eslint`, `@types/node` (and @types/*
 for allowlisted deps).
 FORBIDDEN regardless of ADRs: any AGPL package (notably `single-file-cli` — never vendor, never

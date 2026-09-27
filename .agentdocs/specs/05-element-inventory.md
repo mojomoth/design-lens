@@ -224,3 +224,14 @@ queries for layout containers not covered by semantic roles.
 - Both `@projectwallace/css-analyzer` and `culori` are on the dependency allowlist; Chromium is
   provisioned by bootstrap, never by these commands — CONVENTIONS.md, ADR-008.
 - Human progress → stderr, machine JSON → stdout, exit 0/1 — canonical contract, README.md.
+
+### Comprehensive observations and corrected tokens (ADR-023)
+`inspect --all --details` measures all stamped elements including open shadow trees; repeated
+--id supports batch lookup. Preserve default role inventory behavior. Measurements include
+root scope, parent/child relationships, semantic text/control/container roles, pseudo-elements,
+backgrounds/gradients, image fit/crop and font readiness. Use a shared browser probe for source
+evidence and current-clone inspection; source and clone observations remain distinguishable.
+Token schema 2 preserves alpha, excludes fully transparent brand candidates, parses font
+shorthand and selector subjects, and never treats calc operands as actual spacing. Empty spacing
+base is null. Unresolved functions and assumed relative-unit conversions carry diagnostics.
+CSS occurrence counts remain declaration statistics, not painted shares or semantic design truth.

@@ -47,8 +47,7 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 - `manifest.json` — provenance record at the **project-dir root** (a sibling of `clone/`, like
   `REPORT.md`/`tokens.json`; NOT inside `clone/`), schema below. This is what sealed gate AC-07
   reads: it exists at `<projectDir>/manifest.json` and each `resources[].localPath` resolves from
-  the project dir (ADR-010). It is the only manifest permitted to record absolute URLs of the
-  capture origin. All resource
+  the project dir (ADR-010). Capture evidence may also record absolute source URLs outside `clone/`. All resource
   references in `clone/index.html` and rewritten CSS (src, srcset, `link href`, `url()`,
   poster, …) MUST be either a relative path under `assets/`, a `data:`/`mailto:`/fragment URL,
   or an absolute remote URL enumerated in `manifest.remote[]`. Exception: `<a href>` page
@@ -65,7 +64,7 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 
 ### Agent-owned files (the CLI MUST keep its hands off)
 - `DESIGN.md` and `VARIATIONS.md` (project-dir root) are written by the **reverse-design skill
-  (the agent)**, never by the CLI. No CLI command may create, modify, delete, or require them;
+  (the agent)**, never by the CLI. No CLI command may create, modify, or delete them; only explicit `validate-design` requires them;
   `verify` MUST pass whether they exist or not.
 - `verify <projectDir>` MUST check this format's invariants: `clone/index.html` exists and is
   parseable; provenance comment present; all `data-dl-id` values unique; `dl-overrides.css`
@@ -144,3 +143,12 @@ content, not literal text.
   markup — plugin-design.md §5.2 step 10.
 - Human progress → stderr, machine JSON (incl. `projectDir`) → stdout, exit 0 success with
   warnings / 1 fatal — .agentdocs/README.md canonical contract.
+
+### Additional evidence artifacts (ADR-023)
+`evidence.json` indexes immutable, capture-scoped source observations and saved source files under
+`evidence/`; it is not an edit manifest. Source bytes are copied independently of mutable clone
+files and checksummed. Legacy projects may lack this artifact and remain structurally valid.
+`fidelity.json` and versioned comparison images record findings, source/clone hashes and measured
+clone observations. Old results cannot be reused after edits. Preserve the primary capture's
+existing image paths and format contracts. Additional viewport assets stay separate from primary
+resources; source origin URLs remain outside clone/. inspect does not write inventory state.

@@ -211,3 +211,13 @@ capture; mobile evidence uses 390×844. If either side is unavailable, mark the 
   may evolve while these requirements remain intact.
 - Invocation names are Claude `/design-lens:reverse-design` and Codex `$reverse-design`; the
   reference arrives in message text rather than runtime argument expansion.
+
+### Implementation blueprint and validation (ADR-023)
+DESIGN.md retains all twelve sections and includes layout/grid, typography, semantic color,
+spacing, imagery, component anatomy, responsive rules and CSS implementation recipes. Prefer
+source measurements over clone measurements; label source/clone/inferred/proposed/unavailable.
+An observation table records viewport, observation ID, field, value, unit and rounding precision.
+`validate-design <dir> --json` reads the two analysis documents without modifying them and checks
+required sections/tables, resolvable references, measured values, units and declared rounding.
+Conversions require supporting root/font evidence. Interpretation remains independently reviewed;
+a valid citation alone does not prove rationale. Missing source evidence is explicit.

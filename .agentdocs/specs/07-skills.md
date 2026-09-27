@@ -184,3 +184,11 @@ result local unless publishing was explicitly requested. End with the canonical 
 - Sealed-gate checks satisfied by this spec: AC-12 (five skills, frontmatter, forbidden-token
   grep), AC-13 (template headings, detailed in spec 04), AC-14 (brand-checklist heading).
   (ACCEPTANCE.md)
+
+### Verified capture and blueprint workflow (ADR-023)
+Clone-reference requests three viewports and invokes fidelity; the agent inspects differences,
+repairs supported HTML/CSS/assets, and reruns every viewport for at most three rounds. Stop on
+no improvement, preserve the best complete result and report remaining failures. Do not change
+thresholds or hide differing regions to obtain pass. Reverse-design consumes capture observations
+and comprehensive inspection, produces implementation tables and runs validate-design. All five
+skills share the new evidence boundaries; original captures stay unchanged.

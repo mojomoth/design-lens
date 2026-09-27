@@ -124,3 +124,10 @@ existing `inspect`, `verify`, and `screenshot` commands.
   text-node edit must leave `verify` exiting 0. (design/plugin-design.md §10 AC5)
 - `customize-clone/SKILL.md` must contain the exact heading
   `## Before you ship — brand checklist`. (ACCEPTANCE.md AC-14)
+
+### Capture repair boundary (ADR-023)
+Source-evidenced capture repair may change bounded static structure to reproduce responsive source
+states, preserving existing IDs and allocating unique IDs to additions. It is distinct from
+ordinary token/text customization. Keep source evidence untouched, use ID-scoped overrides (or
+scoped styles within original shadow roots), and preserve added asset provenance. Never replace
+the whole page with a screenshot or duplicate entire viewport bodies.

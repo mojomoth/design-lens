@@ -112,3 +112,9 @@ surface for customizing that clone or building a brand-new page with the same de
   is shipped.
 - The user explicitly rejected a persistent edit-manifest system; the element inventory is
   ephemeral stdout JSON (ADR-002).
+
+### Approved 0.3 capabilities (ADR-023)
+Static visual fidelity includes independently captured responsive source states, offline visual
+comparison, and bounded agent repair. Add `fidelity` and `validate-design` commands. Existing
+commands remain available; structural verification is distinct from visual/design verification.
+A passing comparison describes only its complete captured viewports/state, never universal equality.

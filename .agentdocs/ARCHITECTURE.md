@@ -75,3 +75,9 @@ REPORT.md and `manifest.remote[]`. Human progress on stderr; machine JSON on std
   consent blocking, srcset, refetch of CSS-discovered resources. Gate: `e2e-assert.sh --all`.
 - **M3 polish**: tokens/inspect/screenshot/serve/verify commands, bootstrap+hooks, skills,
   install gates, docs.
+
+## Evidence-driven capture extension (ADR-023)
+Capture -> shared source observation probe -> immutable evidence -> offline canonical clone
+render -> pixel/region/geometry comparator -> fidelity report -> bounded skill repair.
+The same probe powers comprehensive inspect. Token statistics plus source observations feed
+agent-written design blueprints; a read-only validator checks structured observation claims.
