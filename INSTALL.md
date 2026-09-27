@@ -15,6 +15,24 @@ Prerequisite for every path: Node.js >= 20 (`node --version`).
 
 ## 2. Install
 
+### Local 0.3.0 checkout
+
+Version 0.3.0 is prepared in this repository. Do not claim it is available from npm or a GitHub
+release until publication has been confirmed. When asked to validate this checkout, run from its
+repository root:
+
+```bash
+npm --prefix plugin/cli ci
+npm --prefix plugin/cli run build
+bash plugin/scripts/bootstrap.sh
+~/.design-lens/bin/design-lens --version
+```
+
+The expected local CLI version is `0.3.0`. Load or install this checkout's `plugin/` through the
+agent's local plugin mechanism to use its updated skills. CLI setup alone does not replace skill
+files already installed elsewhere. The public channels below remain available and install the
+version published in that channel; they do not guarantee the local 0.3.0 changes.
+
 ### Claude Code
 
 ```bash
@@ -64,10 +82,12 @@ npx -y design-lens setup
 ## 3. Verify the install
 
 ```bash
-~/.design-lens/bin/design-lens --version   # this release: 0.2.0
+~/.design-lens/bin/design-lens --version
 ```
 
-If that file is missing, run `npx -y design-lens setup` and check again. Then confirm to the
+For the local checkout, expect `0.3.0`; for a public channel, report its actual installed version.
+If that file is missing, repeat the chosen local bootstrap or public setup path and check again.
+Then confirm to the
 user which skills are available. Continue an already requested build or analysis; if no task was
 given, explain the entry points in the [Korean usage guide](docs/USAGE.ko.md) or
 [plugin guide](plugin/README.md).
@@ -80,3 +100,11 @@ given, explain the entry points in the [Korean usage guide](docs/USAGE.ko.md) or
   and asset collection make network requests; source screenshots requested by the skills can load
   the page again. Captured scripts are removed, so application behavior must be implemented and
   verified separately.
+- In 0.3.0, the clone skill captures 1440×900, 768×1024 and 390×844, then compares one editable
+  clone with saved source evidence. The CLI diagnoses differences; the skill can make at most
+  three repair rounds. A bare CLI `clone` retains its single-viewport default.
+- Preserve `evidence.json` and `evidence/`. `fidelity` reports `pass`, `fail` or `unverified` against
+  the current clone hashes; missing evidence never means a pass. Older clones without evidence
+  remain usable, and any needed recapture belongs in a new project.
+- `validate-design` checks required recipes and recorded measurements without editing files;
+  it does not establish design intent or application behavior. See the [CLI reference](plugin/cli/README.md).

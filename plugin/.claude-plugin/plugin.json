@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "design-lens",
   "displayName": "Design Lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Capture reference pages, measure their design, and turn evidence-backed principles into frontends adapted to your product, with responsive and behavioral verification.",
   "author": { "name": "mojomoth" },
   "license": "MIT",

@@ -83,7 +83,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T38 (P1) Implement responsive source capture, closed resource localization and offline measured fidelity | AC: targeted source-to-clone regressions and negative controls pass; `bash .harness/verify.sh` and `bash .harness/e2e-assert.sh --all` exit 0 | Spec: 02-clone-engine.md, 03-clone-format.md, 08-testing.md
 - [x] T39 (P1) Implement accurate tokens, comprehensive inspection and evidence-backed design validation | AC: token and observation-claim regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 05-element-inventory.md
 - [x] T40 (P1) Connect portable skills to bounded responsive repair and implementation-ready blueprints with independent local evaluation | AC: independent local skill evaluations preserve evidence and reject false completion; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 06-customization.md, 07-skills.md, 08-testing.md
-- [ ] T41 (P2) Prepare the verified 0.3.0 dual-plugin release bundle and coherent usage documentation | AC: `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` exit 0; versions and bundle are coherent | Spec: 00-product.md, 01-packaging.md, 10-ethics.md
+- [x] T41 (P2) Prepare the verified 0.3.0 dual-plugin release bundle and coherent usage documentation | AC: `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` exit 0; versions and bundle are coherent | Spec: 00-product.md, 01-packaging.md, 10-ethics.md
 
 ## Deferred / Optional (does NOT block completion)
 

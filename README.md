@@ -5,11 +5,12 @@
 **Turn reference designs into frontends for your product.**
 
 Design Lens helps **Claude Code**, **OpenAI Codex CLI**, **Cursor**, and **OpenCode** study a
-reference page and build a new interface from the principles it demonstrates. Version **0.2.0**
+reference page and build a new interface from the principles it demonstrates. Version **0.3.0**
 connects measured design evidence, adaptable directions, implementation, and verification:
 
-1. **Clone** a rendered reference page into an editable local snapshot. Available styles and
-   assets are localized; the report identifies resources and content that could not be captured.
+1. **Clone and compare** a rendered page at 1440×900, 768×1024 and 390×844. Preserve independent
+   source evidence and compare one editable clone offline at each size. The agent can repair
+   measured differences in up to three rounds; unresolved evidence stays explicit.
 2. **Gather evidence** from source/clone screenshots, computed layout and typography, and desktop
    and mobile views. Keep observations, inferences, proposals, and missing evidence distinct.
 3. **Reverse-engineer** the design into `DESIGN.md`: supported patterns, possible reasons,
@@ -46,7 +47,50 @@ For study alone, use `reverse-design` and say “analyze only”; for just a cap
 `clone-reference` and say “clone only.” Those requests finish at their stated scope. Publishing
 requires a separate explicit request. See the [five skills and CLI options](./plugin/README.md).
 
+## Measured capture and reverse engineering
+
+```bash
+~/.design-lens/bin/design-lens clone https://example.com --viewports 1440x900,768x1024,390x844
+~/.design-lens/bin/design-lens fidelity .design-lens/example-com --json
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --all --details
+~/.design-lens/bin/design-lens validate-design .design-lens/example-com --json
+```
+
+Use the actual `projectDir` returned by `clone`. The clone skill requests the three sizes by
+default; bare CLI `clone` retains its single 1440×900 capture. `--viewports` and explicit
+`--viewport` are mutually exclusive. The first size supplies the editable clone.
+
+`fidelity` checks source/clone pixels, regions, geometry and required assets with external clone
+requests blocked. Its result is **pass**, **fail**, or **unverified**; only pass exits 0.
+`evidence.json` and its source files remain immutable. Each current `fidelity.json` binds the
+source evidence hash to the current clone hash. Legacy clones without this evidence remain
+unverified; any required recapture uses a new project. The CLI measures differences; the agent
+performs the bounded repair loop. Intentional customization remains an expected source difference.
+
+Reverse engineering produces implementation recipes and a measured-observation table, alongside
+the existing twelve sections and three design directions. `validate-design` checks references,
+values, units and rounding without editing the documents. It does not judge design intent or
+prove that an implementation looks good. CSS token schema 2 preserves alpha, reports unsupported
+values and unit assumptions, and uses a null spacing base when no grid is supported.
+
+See [0.3.0 release preparation](./docs/releases/0.3.0.md) and the [CLI reference](./plugin/cli/README.md).
+
 ## Install
+
+**0.3.0 is prepared in this checkout; these documents do not claim a GitHub or npm publication.**
+The remote channels below install their published contents. To validate this checkout locally,
+run from the repository root:
+
+```bash
+npm --prefix plugin/cli ci
+npm --prefix plugin/cli run build
+bash plugin/scripts/bootstrap.sh
+~/.design-lens/bin/design-lens --version
+```
+
+The local version should be `0.3.0`. Provisioning the CLI does not replace previously installed
+skill text; use this checkout's plugin or local marketplace when validating its skills.
+
 
 | Agent | Recommended channel | Runtime provisioning |
 | --- | --- | --- |
@@ -114,6 +158,9 @@ Development checks include CLI regression tests and a separate
 [two-brief skill evaluation](./plugin/cli/test/evaluations/README.md) using the same local
 reference for a product introduction page and a management interface. Its recorded results
 describe inspected evidence and limitations; structural `verify` is not a design-quality score.
+The [0.3.0 independent evaluation](./plugin/cli/test/evaluations/0.3.0/RESULTS.md) additionally
+records successful responsive clone repair and a separate developer reproducing measured layout
+from DESIGN/VARIATIONS alone, with original evidence preserved.
 
 ```
 plugin/        the plugin itself (built autonomously — see below)

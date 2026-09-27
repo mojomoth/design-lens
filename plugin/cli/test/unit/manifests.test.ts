@@ -40,13 +40,13 @@ describe('plugin manifests & marketplace files', () => {
   // catches a half-finished release bump (manifest edited, src/version.ts forgotten, or vice versa)
   // the moment it happens. Claude only ships updates to users on a version bump, so a desynced pair
   // silently strands users on the old plugin. If removed, S4 becomes the only guard and fails late.
-  it('locks version 0.2.0 across both plugin.json manifests and the CLI VERSION constant', () => {
+  it('locks version 0.3.0 across both plugin.json manifests and the CLI VERSION constant', () => {
     const claude = readJson(CLAUDE_PLUGIN);
     const codex = readJson(CODEX_PLUGIN);
 
-    expect(claude['version']).toBe('0.2.0');
-    expect(codex['version']).toBe('0.2.0');
-    expect(VERSION).toBe('0.2.0');
+    expect(claude['version']).toBe('0.3.0');
+    expect(codex['version']).toBe('0.3.0');
+    expect(VERSION).toBe('0.3.0');
 
     // The lock is an equality relation, not three independent literals: assert it as such so a
     // future coordinated bump to e.g. 0.3.0 only needs the literals above changed in one place.

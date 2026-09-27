@@ -2,7 +2,7 @@
 
 **Turn reference designs into frontends for your product.**
 
-Design Lens **0.2.0** connects reference capture, design evidence, reverse engineering, adaptation,
+Design Lens **0.3.0** connects reference capture, design evidence, reverse engineering, adaptation,
 implementation, and visual/behavioral verification. It works with Claude Code and OpenAI Codex CLI;
 Cursor and OpenCode can install the skills through the channels in the [repository README](../README.md).
 
@@ -12,7 +12,7 @@ Invoke with `/design-lens:<name>` in Claude Code or `$<name>` in Codex, followed
 
 | Skill | What it does |
 | --- | --- |
-| `clone-reference` | Capture one reference page; inspect its images and report missing or remote resources. |
+| `clone-reference` | Capture a reference at three viewport sizes, compare one editable clone against the evidence, and repair supported differences for at most three rounds. |
 | `reverse-design` | Produce `DESIGN.md` with cited observations and inferences, and `VARIATIONS.md` with adaptable directions. |
 | `inspect-elements` | Measure visible roles, exact elements, layout parents, typography, and responsive reflow using stable IDs. |
 | `customize-clone` | Edit study-copy text, imagery and styles, then check matching before/after views and affected controls. |
@@ -36,7 +36,8 @@ It asks when an essential fact or consequential choice cannot be resolved. Clone
 analysis-only requests stay within that scope; local implementation does not imply publication.
 
 `DESIGN.md` records capture conditions, font and evidence limits, twelve analysis sections, and
-transferable principles. `VARIATIONS.md` offers three directions by default (3–5 when useful),
+transferable principles. Its layout, typography, color, spacing, component and responsive recipes
+include CSS examples and measured observations linked to a capture and element. `VARIATIONS.md` offers three directions by default (3–5 when useful),
 separates clone-compatible token changes from new-product structural adaptations, and records
 the selected brief and verification results. A reference marketing page may inspire a compact
 management interface; its section order and component structure do not have to be copied.
@@ -54,21 +55,40 @@ or custom output location. Use that path for later commands.
 
 ```text
 design-lens clone <url>            # local capture, manifest, report and images
+design-lens fidelity <projectDir> --json # compare the current clone to saved source evidence
 design-lens tokens <projectDir>    # captured CSS statistics → tokens.json
 design-lens inspect <projectDir>   # current visible role inventory as JSON
+design-lens validate-design <projectDir> --json # read-only design recipe and measurement checks
 design-lens screenshot <projectDir> | --url <url>   # PNG of a clone or live URL
 design-lens serve <projectDir>     # local preview
 design-lens verify <projectDir>    # clone-format integrity; exit 1 on violation
 ```
 
-Useful clone flags include `--viewport 1440x900`, `--timeout <seconds>`, `--settle <ms>`,
+The clone skill requests `--viewports 1440x900,768x1024,390x844` by default. Direct CLI calls
+retain the single `--viewport 1440x900` default; explicit `--viewport` and `--viewports` cannot
+be combined. Each requested size reloads the original; the first size supplies the editable clone.
+Useful clone flags also include `--timeout <seconds>`, `--settle <ms>`,
 `--remove-selector <css>` (repeatable), `--filter-list <file>`, `--no-scroll`, and `--no-block-cookies`.
+
+`fidelity` renders that one clone at every saved source size with external requests blocked. It
+compares viewport, full-page and major-region images plus element geometry. `pass` exits 0;
+`fail` and `unverified` exit 1. Missing evidence, fonts, images, required elements or incomplete
+captures prevent a full pass. A pass covers the recorded static states, not application behavior.
+The CLI measures and diagnoses; the agent repairs assets, HTML or CSS using the source evidence,
+rechecks all sizes after every round, and stops after three rounds or no improvement. It restores
+the best candidate and reports any remaining differences. Authorized customization may create
+expected differences from the original and is not undone solely to make fidelity pass.
+
+`evidence.json` and `evidence/` are immutable source records. `fidelity.json` is tied to the source
+evidence and current clone file hashes; regenerate it after edits. Never change original evidence
+to improve a result. Older clones remain usable, but without source evidence their fidelity is
+`unverified`; recapture into a new project when source measurements are needed.
 
 ### Inspect actual layout
 
 ```bash
-~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --details --pretty
-~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --id dl-17 --pretty
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --all --details --pretty
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --id dl-17 --id dl-18 --pretty
 ```
 
 Replace the example project and ID with those from your capture. Bare `inspect` retains its
@@ -76,9 +96,11 @@ Replace the example project and ID with those from your capture. Bare `inspect` 
 measurement size; `--details` adds computed typography, box/grid/flex values, direct parent/child
 IDs, the selected image source, and page/root/body/font metadata. `--kind <role>` narrows roles.
 
-Role results exclude hidden candidates. `--id` implies details and can inspect a hidden or
-unclassified container; it cannot be combined with `--kind`. Lookup covers light DOM, not shadow
-root descendants. Follow `parentDlId` to inspect an actual layout parent; use page body metadata
+Role results exclude hidden candidates. `--all` covers all stamped elements, including hidden
+containers, body content, cards, forms, tables and open Shadow DOM. Repeated `--id` selects several
+elements and implies details. `--all`, `--id` and `--kind` are mutually exclusive. Closed shadow
+roots remain unavailable. Details include pseudo-elements, backgrounds, gradients, image cropping
+and parent/child relationships. Follow `parentDlId` to inspect an actual layout parent; use page body metadata
 when the parent has no stamped ID. Measurements reflect current edits and are not saved as an inventory.
 
 An initial font request that stalls before the load event is aborted after five seconds so fallback can
@@ -91,6 +113,16 @@ or failed families. A ready font set does not prove which face painted every gly
 are CSS occurrences, not painted-area shares; static rem/em conversions assume 16px. Use computed
 measurements to check the actual component at each viewport. See the [CLI reference](./cli/README.md).
 
+`tokens.json` uses schema version 2: colors retain alpha, transparent entries cannot become the
+representative palette, and unsupported spacing bases are `null`. Provenance lists local CSS
+sources (including inline declarations), unresolved values and assumptions. Declaration statistics
+are distinct from source measurements; `calc()` operands are not independent spacing tokens.
+
+`validate-design` checks required recipes, capture/observation references, numeric units and
+rounding, including color alpha. It reads evidence without changing it. Observed clone claims
+require a current hash-bound fidelity report. It cannot establish whether design intent is correct
+or whether a new implementation reproduces the design; those require independent review and rendering.
+
 ### What a clone contains
 
 ```text
@@ -100,6 +132,9 @@ measurements to check the actual component at each viewport. See the [CLI refere
 │   ├── assets/<host>/<path>    # captured assets that could be localized
 │   └── assets/dl-overrides.css # appended study edits; CSS specificity still applies
 ├── manifest.json              # capture context, resource provenance and remote references
+├── evidence.json              # source observations, capture conditions and file hashes
+├── evidence/                  # separate DOM, assets and screenshots for each source size
+├── fidelity.json              # current clone comparison bound to evidence and clone hashes
 ├── REPORT.md                  # capture/fidelity warnings, font hosts and usage notice
 └── screenshots/               # original viewport/full page and clone full-page capture
 ```
@@ -112,7 +147,21 @@ restored application. A later source screenshot can differ from the original cap
 
 ## Installation and first run
 
-Install via the marketplace (see the repository root `README.md` for both install blocks). A
+Version 0.3.0 is prepared in this checkout; this guide does not claim it has been published to
+GitHub releases or npm. To validate this checkout locally, run from the repository root:
+
+```bash
+npm --prefix plugin/cli ci
+npm --prefix plugin/cli run build
+bash plugin/scripts/bootstrap.sh
+~/.design-lens/bin/design-lens --version
+```
+
+That provisions the local 0.3.0 CLI. Install or load this checkout's `plugin/` separately to use its
+updated skills; runtime setup does not replace previously installed skill text.
+
+Published installation channels remain available via the marketplace (see the repository root
+`README.md` for both install blocks), and install the version currently published there. A
 `SessionStart` hook then runs `scripts/bootstrap.sh`, which provisions `~/.design-lens/`: the CLI
 bundle, the pinned Playwright runtime, and Chromium. It is idempotent, and it never blocks session
 start — on failure it prints one actionable line to stderr and exits 0.

@@ -110,7 +110,7 @@ describe('clone basic (M1 spine)', () => {
 
   it('writes clone/index.html with the provenance comment on line 1', () => {
     expect(fs.existsSync(path.join(projectDir, 'clone', 'index.html'))).toBe(true);
-    expect(indexHtml.split('\n')[0]).toContain('Cloned by design-lens v0.2.0');
+    expect(indexHtml.split('\n')[0]).toContain('Cloned by design-lens v0.3.0');
   });
 
   it('stamps unique data-dl-id attributes on body elements', () => {

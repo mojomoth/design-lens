@@ -24,7 +24,7 @@ user (Claude Code | Codex)
 
 ```
 plugin/
-├── .claude-plugin/plugin.json     # name design-lens, version 0.2.0, skills ./skills/, hooks auto-loaded
+├── .claude-plugin/plugin.json     # name design-lens, version 0.3.0, skills ./skills/, hooks auto-loaded
 ├── .codex-plugin/plugin.json      # same name/version/skills, explicit hooks pointer (ADR-017)
 ├── hooks/hooks.json               # SessionStart → bash ${CLAUDE_PLUGIN_ROOT}/scripts/bootstrap.sh
 ├── scripts/bootstrap.sh           # idempotent runtime provisioning (hooks DO get CLAUDE_PLUGIN_ROOT in both tools)

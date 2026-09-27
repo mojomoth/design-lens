@@ -5,11 +5,12 @@
 **좋은 레퍼런스에서 내 제품에 맞는 프론트엔드로.**
 
 Design Lens는 **Claude Code**, **OpenAI Codex CLI**, **Cursor**, **OpenCode**에서 레퍼런스
-페이지를 분석하고 그 디자인 원칙을 새로운 제품에 적용하도록 돕습니다. **0.2.0**에서는
+페이지를 분석하고 그 디자인 원칙을 새로운 제품에 적용하도록 돕습니다. **0.3.0**에서는
 실제 화면 측정부터 디자인 변형, 구현, 검증까지 연결합니다.
 
-1. **클론** — 렌더링된 페이지를 편집 가능한 로컬 스냅샷으로 캡처합니다. 확보한 스타일과
-   에셋을 로컬에 저장하고, 가져오지 못한 리소스와 콘텐츠는 보고서에 남깁니다.
+1. **클론·비교** — 1440×900, 768×1024, 390×844 원본을 독립적으로 캡처하고, 하나의
+   편집 가능한 클론을 각 크기에서 오프라인 비교합니다. 에이전트가 최대 세 차례 차이를
+   보정하며, 원본 자료 부족이나 남은 차이는 미확인·실패로 표시합니다.
 2. **근거 수집** — 원본·클론 이미지, 실제 레이아웃·타이포그래피, 데스크톱·모바일 화면을
    확인합니다. 관찰한 사실, 추론, 제안, 확인하지 못한 내용을 구분합니다.
 3. **역설계** — 확인된 패턴, 가능한 설계 의도, 컴포넌트 구성법과 재사용 원칙을
@@ -50,7 +51,48 @@ https://example.com을 참고해서 우리 제품의 분석 대시보드를 만�
 “클론만 해줘”라고 요청하세요. 요청한 범위에서 마치며, 배포는 명시적으로 요청해야 합니다.
 [다섯 가지 스킬과 CLI 옵션](./plugin/README.md)도 확인할 수 있습니다.
 
+## 원본 일치와 역설계 근거 확인
+
+```bash
+~/.design-lens/bin/design-lens clone https://example.com --viewports 1440x900,768x1024,390x844
+~/.design-lens/bin/design-lens fidelity .design-lens/example-com --json
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --all --details
+~/.design-lens/bin/design-lens validate-design .design-lens/example-com --json
+```
+
+경로에는 `clone`이 반환한 실제 `projectDir`을 사용하세요. 클론 스킬의 기본값은 세 크기이며,
+옵션 없는 CLI `clone`은 기존처럼 1440×900 한 크기만 캡처합니다. `--viewports`와 명시적인
+`--viewport`는 함께 쓰지 않습니다. 첫 크기의 결과가 편집용 클론이 됩니다.
+
+`fidelity`는 외부 요청을 차단한 클론의 픽셀·영역·위치·크기·필수 에셋을 원본과 비교합니다.
+결과는 `pass`, `fail`, `unverified`이며 통과할 때만 종료 코드가 0입니다. `evidence.json`과
+그 안에 등록된 원본 자료는 수정하지 않습니다. `fidelity.json`은 원본 근거와 현재 클론의
+해시에 연결됩니다. 원본 근거가 없는 이전 클론은 미확인으로 남기고, 필요한 재캡처는 새
+프로젝트에 저장합니다. CLI는 측정하고, 최대 세 차례의 실제 보정은 에이전트가 수행합니다.
+사용자가 요청한 클론 수정은 원본과의 의도된 차이로 보고하며 자동으로 되돌리지 않습니다.
+
+역설계에는 기존 12개 섹션과 세 가지 방향 외에 구현용 구성법과 실측 표가 포함됩니다.
+`validate-design`은 참조·수치·단위·반올림을 읽기 전용으로 검증합니다. 디자인 의도의 타당성이나
+구현 결과의 품질을 자동으로 보증하지는 않습니다. 토큰 스키마 2는 알파값과 해석 한계를
+보존하며, 간격 체계의 근거가 없으면 `spacing.base`를 `null`로 반환합니다.
+
+자세한 내용은 [0.3.0 준비 내역](./docs/releases/0.3.0.md)과 [CLI 문서](./plugin/cli/README.md)를 참고하세요.
+
 ## 설치
+
+**0.3.0은 이 체크아웃에 준비된 버전이며 GitHub·npm에 공개됐다고 가정하지 않습니다.**
+아래 원격 채널은 이미 공개된 내용을 설치합니다. 현재 체크아웃을 검증하려면 저장소 루트에서 실행하세요.
+
+```bash
+npm --prefix plugin/cli ci
+npm --prefix plugin/cli run build
+bash plugin/scripts/bootstrap.sh
+~/.design-lens/bin/design-lens --version
+```
+
+로컬 버전은 `0.3.0`이어야 합니다. 공용 CLI 갱신만으로 이전에 설치된 스킬 본문이 바뀌지는
+않습니다. 스킬도 검증하려면 이 체크아웃의 플러그인이나 로컬 마켓플레이스를 사용하세요.
+
 
 | 에이전트 | 권장 채널 | 런타임 프로비저닝 |
 | --- | --- | --- |
@@ -119,6 +161,9 @@ npx design-lens clone https://example.com    # 또는 플러그인 없이 CLI를
 [두 제품 시나리오 평가](./plugin/cli/test/evaluations/README.md)가 포함됩니다. 같은 로컬
 레퍼런스로 제품 소개 페이지와 관리 화면을 제작하고, 실제 화면·동작·근거와 한계를
 기록합니다. 구조 검사인 `verify`를 디자인 품질 점수로 사용하지 않습니다.
+[0.3.0 독립 평가](./plugin/cli/test/evaluations/0.3.0/RESULTS.md)에서는 반응형 Clone 보정과
+설계도만 전달받은 별도 개발자의 구현을 검증했습니다. 원본 근거 보존과 실제 측정 비교
+결과, 평가 범위의 한계를 함께 기록했습니다.
 
 ```
 plugin/        the plugin itself (built autonomously — see below)

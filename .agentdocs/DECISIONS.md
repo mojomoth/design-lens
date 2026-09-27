@@ -483,3 +483,23 @@ The workflows are evaluated with independent local tasks: real responsive clone 
 analysis with validated recipes, and a separate developer reproducing the design from only the
 blueprint. Outcomes and limits are recorded in test/evaluations rather than inferred from CLI
 format checks or fluent analysis prose.
+
+## ADR-027 — Prepare the coherent 0.3.0 release (2026-09-27)
+
+The approved T41 release replaces the previous 0.2.0 lock with 0.3.0 in both plugin manifests,
+CLI package and lock metadata, VERSION, release assertions and the rebuilt CJS bundle. This
+updates the current contract and examples in specs/00-product.md, specs/01-packaging.md,
+specs/02-clone-engine.md, specs/03-clone-format.md, specs/10-ethics.md and ARCHITECTURE.md.
+Historical releases, ADRs, evaluation outcomes and completed task descriptions retain their
+original versions. No assertion is removed or relaxed to accommodate the version change.
+
+English/Korean entry points, installation guidance and the CLI reference describe the actual
+three-view skill versus legacy single-view CLI default, fixed fidelity policy, immutable evidence,
+capture-local IDs, bounded agent repair, schema-2 token compatibility and read-only blueprint
+validation. Accessible frame snapshots remain unverified for incomplete child measurements.
+A locally prepared package is not a claim of npm/GitHub publication or installed cache updates.
+
+The bundle must reproduce from committed sources; package contents, matching notices and both
+plugin versions are checked locally, followed by the complete strict sealed gate. Runtime setup,
+remote publication and changing the user's installed plugin are separate actions from preparing
+this release.

@@ -1,8 +1,8 @@
 {
   "name": "design-lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
-  "description": "Design Lens CLI engine — capture references and measure evidence for frontend design.",
+  "description": "Design Lens CLI engine \u2014 capture references and measure evidence for frontend design.",
   "license": "MIT",
   "author": {
     "name": "mojomoth"

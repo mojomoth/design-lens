@@ -570,3 +570,25 @@ The initial integration gate passed all 527 unit and 163 E2E tests; the final ha
 typecheck, lint, 30 focused unit tests and 13 bundled fidelity E2Es. The final default gate passed all 530 unit and 165 E2E tests plus the sealed spine.
 The independent comparison script also passed lint and its real browser run. No harness changes,
 live web traffic, plugin installation or publication.
+
+## T41 — Prepared 0.3.0 package and usage guidance (2026-09-27)
+
+Both plugin manifests, CLI package/lock, VERSION, exact version assertions, current specs and
+architecture examples now agree on 0.3.0 (ADR-027). Historical records retain their original
+versions. English/Korean entry points, CLI reference, installation guide and release notes
+describe the implemented fidelity/repair/blueprint contracts and the accessible-frame limitation.
+
+Built and packed the five-file npm artifact outside the repository. The extracted CLI returns
+0.3.0, its bundle equals the working release bundle byte-for-byte, and both NOTICE copies agree.
+The 1,332,864-byte bundle is below 2 MiB. Actual build metadata plus vendored Percy identify
+25 bundled packages; NOTICE covers every one. Packed CLI fidelity passed all three repaired
+viewports; detailed mobile inspection returned 28 elements without warnings; blueprint validation
+passed against the independently authored 188 source rows. Dependencies were reused through an
+isolated runtime home; the user's installed runtime and skill cache were not changed.
+
+Package SHA-256: fbc923e81f19b9795ee9d6309f1b9190bdad08f4e1a5ad6a37aa521c32354b79.
+Artifact/check logs: /var/folders/lx/2l4_myln77j11v_rskxlc7kr0000gn/T/dl-release-030-ryghgmzy.
+Final strict gate passed: 530 unit tests, 165 E2E tests, all 18 sealed assertions, plugin
+validation, five-skill portability, exact 0.3.0 version lock and reproducible bundle. All 41
+plan tasks are complete; .harness remains sealed. The rebuilt final bundle still matches the
+packed artifact byte-for-byte. No remote publication or installed plugin update was performed.
