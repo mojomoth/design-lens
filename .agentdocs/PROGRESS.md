@@ -542,3 +542,31 @@ Combined validation: typecheck, lint, 527 unit tests and 163 E2E tests; default 
 all 18 sealed assertions passed. Existing assertions were retained or strengthened for approved
 new contracts. A legitimate CSS keyword tripped the sealed keyword scanner; equivalent regex
 quantifier syntax preserves support without changing the scanner. Rebuilt bundle is 1.27 MiB.
+
+## T40 — Bounded repair skills and independently usable blueprints (2026-09-27)
+
+Connected all five portable skills to three-view source capture, immutable evidence, fixed-policy
+fidelity, at most three improving repair rounds, and validated measured design recipes. Clone
+and analysis-only boundaries remain explicit; intentional customization differences are reported.
+Open-shadow customization uses a scoped new style when global overrides cannot cross the root
+(ADR-026); captured styles and source evidence remain unchanged.
+
+Fresh local agent evaluation repaired a JS-responsive mobile structure in one round, then passed
+all three viewports with zero pixel/geometry differences. Independent hashing preserved all 32
+source/control files. Analysis produced 188 source rows and passed all 220 validation checks after
+the validator caught two incorrectly labeled units; the initial failure is retained. All 37
+analysis source/evidence files remained unchanged. A third agent used only the two documents to
+produce a static dashboard; independent review passed 988 comparisons at each viewport, and all
+source/reproduction images were directly viewed. Protocol, briefs, comparison script and qualified
+results are recorded under plugin/cli/test/evaluations/0.3.0/.
+
+Final review also found and corrected two false-pass boundaries: a tiny painted pseudo-element
+needs its own region/content check, and the clone directory itself must not be a symlink. URL
+localization remains valid for generated images. New regressions verify a passing baseline and
+then detect background/content removal even when page/header pixel scores pass; root symlinks
+are rejected while ordinary symlink ancestors remain supported.
+
+The initial integration gate passed all 527 unit and 163 E2E tests; the final hardening passed
+typecheck, lint, 30 focused unit tests and 13 bundled fidelity E2Es. The final default gate passed all 530 unit and 165 E2E tests plus the sealed spine.
+The independent comparison script also passed lint and its real browser run. No harness changes,
+live web traffic, plugin installation or publication.

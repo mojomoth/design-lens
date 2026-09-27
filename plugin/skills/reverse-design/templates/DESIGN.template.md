@@ -2,98 +2,125 @@
 
 ## Evidence and capture context
 
-- **Source:** {requested URL and final URL from manifest}
-- **Captured at:** {source.capturedAt}
-- **Capture viewport:** {source.viewport in CSS pixels; image scale where established}
-- **Analysis viewports:** {capture dimensions and 390x844; new screenshots use DSF 1}
-- **Later source observations:** {mobile screenshot names, observation times, or unavailable}
-- **Capture/clone differences:** {visible differences and relevant REPORT fidelity notes}
-- **Font status:** {page.fonts status and failedFamilies at each inspected viewport}
-- **Missing evidence:** {missing assets, unmatched image scale, inaccessible source, or interaction limits}
+- **Source and time:** {requested/final URL, capture times, source hash}
+- **Capture conditions:** {each viewport, browser, DSF, media/removal policy}
+- **Source coverage:** {capture completeness, missing assets, frame/shadow limits}
+- **Comparison:** {fidelity status and current clone hash; unresolved differences}
+- **Fonts:** {readiness, failed families and loaded faces for each capture}
+- **Target:** {supplied product and constraints, or not supplied}
 
-Use **Observed-reference**, **Observed-clone**, **Inferred**, **Proposed**, and **Unavailable** labels
-where a claim's basis matters. Cite screenshot region and viewport, measured ID/field, token key,
-or captured CSS rule. Write explanations in the user's language; preserve the numbered English
-heading prefixes. CSS occurrence counts and static token guesses are not rendered area or measured
-intent. Measurements below describe the clone unless corroborated by reference evidence.
+Use Observed-reference, Observed-clone, Inferred, Proposed, and Unavailable throughout. Write
+explanations in the user's language and retain the required English headings. Source observations
+come from evidence.json; current clone observations come from its hash-matching fidelity report.
+IDs are local to one capture. Token declarations and designer-intent hypotheses are separate.
 
-## 1. First Impression — perceived mood, audience, and first three points of attention
+## Measured observations
 
-Record the initial screenshot reading as an interpretation, with the visible mechanism behind each
-point of attention. Do not present it as measured visitor behavior.
+| Label | Capture | Viewport | Observation | Field | Value | Unit | Precision |
+|---|---|---|---|---|---|---|---|
+| {observed-reference or observed-clone} | {exact capture ID} | {WxH} | {dl-N or page} | {rect.width or styles.fontSize or body.styles.color} | {measured value} | {px/rem/unitless/css/color} | {0–6 for numbers, otherwise -} |
 
-## 2. Design Intent — likely task, feeling, supporting evidence, and target fit
+Replace the guide row with actual measurements. Include every complete source viewport, layout,
+typography, colors, and the values supporting the recipes below. Cite a row by its capture,
+observation, and field. Numeric Value contains no unit; use the separate Unit column. CSS strings
+are exact; colors retain alpha. A rem conversion uses that capture's measured rootFontSize.
+An unavailable row uses Label unavailable and explains the missing fact in Value; it does not
+certify a measurement. Keep inferences and proposals in prose or recipe columns, not this table.
 
-Separate explicit source copy from hypotheses about intent. Explain where the reference's task
-matches or differs from the target product; leave target fit conditional when no brief exists.
+## 1. First Impression — perceived mood, audience, and attention
 
-## 3. Layout & Grid — measured containers, active layout, responsive changes, and density
+{Inferred screenshot reading with a named region/viewport and the visible mechanism; no invented visitor behavior.}
 
-| Container and evidence | Capture viewport | 390x844 | Possible reason and transfer limit |
-|---|---|---|---|
-| {ID and box/layout field or screenshot region} | {measured geometry} | {measured geometry or unavailable} | {hypothesis and conditions} |
+## 2. Design Intent — supported purpose and conditional transfer
 
-Distinguish a declared CSS breakpoint from behavior checked at a particular viewport.
+{Separate explicit source copy from inferred intent. Describe fit to the supplied target, or keep it conditional.}
 
-## 4. Visual Hierarchy — focal point, supporting information, and next action
+## 3. Layout & Grid — containers, density, and responsive constraints
 
-Explain the visible hierarchy with supported size, spacing, alignment, and contrast evidence.
-Identify any hierarchy change the target task needs as a proposal.
+### Layout recipe
 
-## 5. Typography — rendered roles, scale, weights, line-height, and font limits
-
-| Type role | Measured values and viewport | Evidence | Pairing rationale or limitation |
-|---|---|---|---|
-| {heading, body, or label} | {size, weight, line-height, tracking} | {ID and computed field} | {hypothesis, fallback, or unavailable evidence} |
-
-Compare static token guesses with root/body and rendered measurements; do not assume a 16px root
-or a successfully rendered font merely from its CSS family name.
-
-## 6. Color System — palette roles, declaration statistics, and observed contrast evidence
-
-| Value | Role | Evidence | CSS occurrence count, if useful | Visual use or limitation |
+| Container / markup | Constraint and active layout | Viewport | Measured evidence | Implementation check |
 |---|---|---|---|---|
-| {hex or OKLCH candidate} | {text, surface, action, or other role} | {token key and corroborating render} | {count; not painted share} | {screenshot observation or uncertainty} |
+| {container and direct children} | {width/max-width, gutters, box sizing, columns, gap, alignment} | {WxH} | {capture/ID/field rows} | {expected rendered geometry} |
 
-State contrast ratios only for established foreground/background pairs; otherwise record the
-missing evidence and a proposed check. Token counts cannot establish a 60-30-10 distribution.
+### Spacing recipe
 
-## 7. Imagery & Iconography — role, crop, treatment, selected resource, and original alternatives
-
-Explain what the imagery contributes, cite its visible use and selected resource when relevant,
-and separate transferable composition from source assets that new work must replace.
-
-## 8. Motion & Interaction — CSS evidence, inferred triggers, unavailable logic, and proposed states
-
-| Pattern | Evidence and status | Possible purpose | Proposed implementation or check |
-|---|---|---|---|
-| {motion or state} | {bound CSS rule, inference, or unavailable behavior} | {hypothesis} | {target behavior and observable check} |
-
-The inert clone cannot establish JavaScript interaction or the source's complete mobile behavior.
-
-## 9. Component Patterns — purpose, structure, responsive recipes, and states
-
-For each useful component, record its role in the task and the following recipe.
-
-| Structure and evidence | Measured values | Responsive behavior | Observed versus proposed states | Build check |
+| Relationship | Observed gap / padding / margin | Viewport | Evidence | Reusable rule and limitation |
 |---|---|---|---|---|
-| {IDs, parent/children, or targeted markup} | {type, spacing, box, and layout} | {capture/mobile evidence or unavailable} | {explicit evidence labels} | {visible or functional acceptance} |
+| {section or component relationship} | {actual value and unit} | {WxH} | {measurement rows} | {supported rhythm, or unknown base} |
 
-## 10. Signature Moves — two or three distinctive, supported techniques
+### Responsive rules
 
-Name each technique, cite its evidence, explain why it might work, and identify when the target
-should adapt it. Distinctive brand assets are not reusable design principles.
-
-## 11. What NOT to Copy — source identity, assets, copy, mistakes, and unsuitable structures
-
-Identify original assets and text to replace. Separate observed problems from checks still needed,
-and reject reference structures that do not serve the target's task.
-
-## 12. Reusable Principles — five to ten rules with conditions, implementation, and checks
-
-| Evidence | Possible why | Conditions for reuse | Implementation for the target | Check |
+| Component | Declared CSS condition | Observed layouts | Evidence | Reproduction check |
 |---|---|---|---|---|
-| {cited observation from sections 1–11} | {hypothesized reason} | {where it helps and when to adapt} | {concrete proposed decision} | {observable result at relevant widths/states} |
+| {component} | {exact captured query or unknown} | {desktop/tablet/mobile structure and dimensions} | {rows plus source images and targeted CSS} | {wrapping/order/visibility/overflow at tested sizes} |
 
-Use these principles to select a direction in VARIATIONS.md. When no target exists, make the
-implementation conditional rather than inventing a product.
+Do not infer an exact breakpoint from two sampled widths. Cite declaration and rendered evidence
+separately. When a viewport differs through JavaScript, describe its observed static structure;
+menu behavior remains unavailable unless separately established.
+
+## 4. Visual Hierarchy — focal point, supporting information, and action
+
+{Explain hierarchy using measured scale, alignment, contrast, and whitespace. Mark a proposed target hierarchy as Proposed.}
+
+## 5. Typography — rendered roles and font limits
+
+### Typography recipe
+
+| Role / element | Family and font status | Size / weight / line height / tracking | Viewport | Evidence |
+|---|---|---|---|---|
+| {heading/body/label} | {computed stack; loaded-face evidence or limitation} | {values with units} | {WxH} | {capture/ID/field rows} |
+
+{Explain pairing and scale as inference. Distinguish static 16px token assumptions from observed root and element sizes.}
+
+## 6. Color System — foregrounds, surfaces, actions, and alpha
+
+### Color roles
+
+| Role | Observed CSS color | Underlying surface / use | Evidence | Transfer rule |
+|---|---|---|---|---|
+| {foreground/surface/action/border} | {RGBA or equivalent including alpha} | {measured parent background or unavailable} | {capture/ID/field rows} | {conditional semantic role} |
+
+{CSS occurrence counts do not measure painted area. A contrast ratio needs an established composited foreground/background pair.}
+
+## 7. Imagery & Iconography — selected asset, crop, and treatment
+
+{Cite image observations: rect, natural dimensions, currentSrc, objectFit/objectPosition, or background sizing/position. Explain transferable composition separately from source identity.}
+
+## 8. Motion & Interaction — frozen state, CSS evidence, and proposals
+
+{Describe the captured static state and bound CSS rules. Label original JavaScript logic, unobserved triggers, and proposed focus/loading/error states distinctly.}
+
+## 9. Component Patterns — implementable structure and state
+
+### Component recipes
+
+| Component purpose | Markup order and relationships | Measured type / spacing / visual values | Responsive and state rules | Evidence and build check |
+|---|---|---|---|---|
+| {actual component} | {parent, children, semantic tags, shadow boundary if any} | {row-backed dimensions and styles} | {observed static states; proposed behaviors labeled} | {capture rows and observable acceptance} |
+
+{Cover body content, cards, forms, tables, containers, and open web components when present. Explain absence or unavailable evidence.}
+
+## 10. Signature Moves — distinctive supported techniques
+
+{Two or three techniques with evidence, inferred rationale, transfer conditions, and implementation consequences.}
+
+## 11. What NOT to Copy — identity, assets, text, and unsuitable decisions
+
+{List source identity/assets/copy to replace in new work and evidence-backed problems or checks. Do not invent a target product.}
+
+## 12. Reusable Principles — conditional rules and implementation
+
+| Evidence | Possible why | Conditions for reuse | Concrete implementation | Check |
+|---|---|---|---|---|
+| {cited observation} | {Inferred rationale} | {when to retain/adapt} | {rule or Proposed target decision} | {rendered acceptance} |
+
+### CSS recipe
+
+```css
+/* Replace this guidance with usable container, typography, spacing, component, and responsive CSS.
+   Cite measured rows in nearby prose; mark new values and behavior as Proposed. */
+```
+
+{Explain how each CSS rule maps to the measurements and which assumptions remain. The example
+must contain actual CSS declarations and media rules where observed; a comment alone is not an implementation recipe.}

@@ -24,8 +24,38 @@ with `npx -y design-lens setup` instead, then retry.
    reverse-design; if the analysis is missing, run reverse-design and return here. If older
    documents lack evidence, responsive recipes, or handoff fields needed for this build, refresh
    those parts using reverse-design's measurements and templates. Preserve the user's decisions
-   and valid analysis. Keep observed-reference, observed-clone, inferred, proposed, and unavailable
-   claims distinct. Do not turn stylesheet frequencies or token guesses into measured design facts.
+   and valid analysis. Read `evidence.json` for original observations, with capture ID and viewport,
+   and `fidelity.json` for the latest comparison. A matching `dl-N` across captures does not prove
+   element identity. Current clone measurements are useful for repairs but remain observed-clone
+   evidence, including when the clone differs from the reference.
+
+   For missing measurements, use `inspect --all --details` at the relevant viewport and then batch
+   parent/target IDs through repeated `--id`. Resolve open shadow descendants using `rootPath`;
+   inspect their pseudo content, background, image fit, typography and direct relationships. Use
+   only the fixed launcher, for example:
+
+   ```
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --all --details --viewport 1440x900 --pretty
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --id <parent-id> --id <target-id> --viewport 390x844 --pretty
+   ~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
+   ~/.design-lens/bin/design-lens validate-design .design-lens/<slug> --json
+   ```
+
+   Read validation diagnostics and correct broken references, numeric claims, units, rounding and
+   missing implementation tables through reverse-design. A source-based claim can remain valid
+   when clone fidelity fails; a claim that the clone matches must be supported by a fresh passing
+   comparison for the cited viewport. Fix or qualify a failed claim instead of asserting that a
+   successful command means the analysis passed. Validation checks evidence consistency, not the
+   designer's actual intent or the quality of a proposed adaptation.
+
+   A legacy clone without original evidence remains available for inspection. Mark its source
+   claims unavailable. When source measurements are needed for the authorized build and the URL
+   is known, capture into a new project through clone-reference, preserve the old project and
+   update document references. If a source is inaccessible, use the supported observations and
+   explicit proposals; do not invent measurements or report source verification as complete.
+   Keep observed-reference, observed-clone, inferred, proposed, and unavailable claims distinct.
+   Token counts are CSS declarations; alpha, relative-unit assumptions and null spacing bases
+   must be interpreted as reported, rather than promoted into measured design rules.
 
 3. **Choose and record the adaptation before coding.** Use a direction the user already chose;
    otherwise select the best fit from VARIATIONS.md and briefly explain the recommendation.
@@ -37,7 +67,11 @@ with `npx -y design-lens setup` instead, then retry.
    testimonials, or results. Ask when an essential fact cannot be supplied honestly from context.
 
 4. **Adapt structure to the user's task.** Use each selected principle's evidence, possible
-   reason, reuse conditions, implementation, and check. A marketing page can foreground an offer;
+   reason, reuse conditions, implementation, and check. Translate the measured container/grid,
+   typography, spacing, color roles, image treatment and component anatomy into explicit recipes.
+   Carry observed responsive values at each tested width, separating inferred breakpoints and
+   newly proposed states from measured behavior. Use the documented CSS examples as construction
+   guidance and adapt them to the target stack. A marketing page can foreground an offer;
    a management interface should foreground its data and controls. Change hierarchy, density,
    navigation, and component composition where the target needs it, recording the reason in
    VARIATIONS.md. Its clone-compatible token table is only one part of a new build; new work may
@@ -56,7 +90,9 @@ with `npx -y design-lens setup` instead, then retry.
    Copy ZERO assets, text, or logo files from the clone: no images, icons, fonts, or sentences.
    Use the user's own material and original or appropriately licensed alternatives available to
    the project. Honor DESIGN.md's `## 11. What NOT to Copy`, including structures that do not fit
-   this product. Keep the source clone, `manifest.json`, `REPORT.md`, and capture images intact.
+   this product. Keep the source clone, `manifest.json`, `REPORT.md`, `evidence.json`, every
+   independent capture directory and original image intact. Build in the target project, and
+   never rewrite original observations to justify a new implementation.
 
 6. **Verify by viewing the rendered page.** Serve the actual target route using the project's
    normal development workflow. Capture desktop, tablet, and mobile at explicit DSF 1:
@@ -72,19 +108,26 @@ with `npx -y design-lens setup` instead, then retry.
    overflow; intentional scrolling belongs inside a usable component. For first-screen or focus
    detail, take another shot without `--full-page` and give it a descriptive viewport/state name.
    Increment each filename's suffix for subsequent runs; never overwrite source capture images.
-   Compare against the selected principles and adaptations, including intentional differences
-   from the reference. A screenshot being created is not a visual review.
+   Compare each viewport against the selected recipes, principles and adaptations, including
+   intentional differences from the reference. New product acceptance is based on these recorded
+   requirements, rather than an identical reference image. Inspect font loading and image readiness
+   as well as the visible result; fallback metrics can hide an unavailable face. A screenshot being
+   created is not a visual review.
 
 7. **Exercise behavior and repair failures.** Run the existing project's relevant checks. Use
    available browser tools to exercise actual navigation and CTA outcomes, keyboard focus, and
    relevant long/empty/error content states. Use temporary stress data and restore the intended
    content afterward. Fix failed visual or functional checks and repeat the affected checks and
-   screenshots until they pass. If browser interaction tools are unavailable, still perform the
+   screenshots until they pass. After a shared layout, type or component change, recheck all three
+   viewport sizes so a desktop repair cannot silently break tablet or mobile. If browser interaction
+   tools are unavailable, still perform the
    image review and existing checks, and mark interaction checks unverified. Likewise report a
    blocked service or missing verification capability specifically; do not imply it passed.
 
 8. **Record and show the result.** Add actual results and evidence paths to VARIATIONS.md's
-   `Verification criteria`, alongside any remaining limits. Report the applied principles,
+   `Verification criteria`, alongside any remaining limits. Rerun validate-design after updating
+   the handoff documents and resolve or explicitly qualify remaining diagnostics. Keep document
+   validation, source fidelity, and target behavior results distinct. Report the applied principles,
    deliberate structural changes, implementation paths, checks performed, and unverified behavior
    concisely. Keep the application and analysis reviewable locally. Deploy or publish only when
    the user explicitly requests it. In the checklist below, brand names refer to the source

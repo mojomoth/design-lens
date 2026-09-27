@@ -22,11 +22,14 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 header{height:80px;display:flex;align-items:center;padding:24px;gap:24px}img{width:12px;height:12px}
 h1{margin:30px 24px;font-size:32px;line-height:40px}p{margin:24px;line-height:24px}
 .desktop{display:block}.mobile{display:none}article{height:1100px;margin:24px;background:#eee}
+.pseudo-brand{display:flex;width:12px;height:12px}.pseudo-brand::before{content:'';display:block;width:12px;height:12px;background:#d90000}
+.url-brand{display:flex;width:12px;height:12px}.url-brand::before{content:url('./pseudo.svg');display:block;width:12px;height:12px}
 @media(max-width:600px){.desktop{display:none}.mobile{display:block}h1{font-size:24px;line-height:32px}}
 </style></head><body>
-<header data-dl-id="dl-1"><img data-dl-id="dl-2" alt="Mark" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath fill='red' d='M0 0h12v12H0z'/%3E%3C/svg%3E"><nav data-dl-id="dl-3" class="desktop">Read issue</nav><nav data-dl-id="dl-4" class="mobile">Menu</nav></header>
+<header data-dl-id="dl-1"><img data-dl-id="dl-2" alt="Mark" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath fill='red' d='M0 0h12v12H0z'/%3E%3C/svg%3E"><div data-dl-id="dl-8" class="pseudo-brand"></div><div data-dl-id="dl-9" class="url-brand"></div><nav data-dl-id="dl-3" class="desktop">Read issue</nav><nav data-dl-id="dl-4" class="mobile">Menu</nav></header>
 <h1 data-dl-id="dl-5">Exact measured typography</h1><p data-dl-id="dl-6">A responsive reference with a small mark.</p><article data-dl-id="dl-7"></article>
 </body></html>`;
+const PSEUDO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><path fill="#0055ee" d="M0 0h12v12H0z"/></svg>';
 
 function hash(bytes: string | Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
 
@@ -51,6 +54,7 @@ describe('offline fidelity against an independently rendered fixture', () => {
     template = path.join(root, 'template');
     await fs.mkdir(path.join(template, 'clone'), { recursive: true });
     await fs.writeFile(path.join(template, 'clone/index.html'), HTML);
+    await fs.writeFile(path.join(template, 'clone/pseudo.svg'), PSEUDO_SVG);
     const server = await startStaticServer(path.join(template, 'clone'));
     let browser: Browser | undefined;
     try {
@@ -68,7 +72,7 @@ describe('offline fidelity against an independently rendered fixture', () => {
             const style = getComputedStyle(element);
             const box = element.getBoundingClientRect();
             const tag = element.tagName.toLowerCase();
-            const roles: Record<string, string> = { header: 'header', img: 'image', nav: 'navigation', h1: 'heading', p: 'paragraph', article: 'article' };
+            const roles: Record<string, string> = { header: 'header', img: 'image', nav: 'navigation', h1: 'heading', p: 'paragraph', article: 'article', div: 'flex' };
             const ancestors: string[] = [];
             let node: Element | null = element;
             while (node && node !== document.body) {
@@ -78,6 +82,10 @@ describe('offline fidelity against an independently rendered fixture', () => {
               node = parent;
             }
             const image = element instanceof HTMLImageElement ? element : null;
+            const pseudo = (side: string): { content: string; styles: Record<string, string> } => {
+              const observed = getComputedStyle(element, side);
+              return { content: observed.content, styles: { display: observed.display, visibility: observed.visibility, opacity: observed.opacity, backgroundColor: observed.backgroundColor } };
+            };
             return {
               dlId: element.getAttribute('data-dl-id')!, tag, semantic: roles[tag],
               text: ((element as HTMLElement).innerText ?? element.textContent ?? '').replace(/\s+/g, ' ').trim(),
@@ -89,7 +97,7 @@ describe('offline fidelity against an independently rendered fixture', () => {
               styles: { fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight, lineHeight: style.lineHeight, letterSpacing: style.letterSpacing },
               currentSrc: image?.currentSrc ?? null,
               ...(image ? { image: { complete: image.complete, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight } } : {}),
-              pseudo: { before: { content: 'none', styles: {} }, after: { content: 'none', styles: {} } },
+              pseudo: { before: pseudo('::before'), after: pseudo('::after') },
             };
           });
           return {
@@ -109,6 +117,7 @@ describe('offline fidelity against an independently rendered fixture', () => {
           ['viewport.png', await page.screenshot({ fullPage: false })],
           ['full.png', await page.screenshot({ fullPage: true })],
           ['index.html', Buffer.from(HTML)],
+          ['pseudo.svg', Buffer.from(PSEUDO_SVG)],
         ] as const) {
           const relative = `${prefix}/${name}`;
           await fs.writeFile(path.join(template, relative), bytes);
@@ -165,6 +174,41 @@ describe('offline fidelity against an independently rendered fixture', () => {
     expect(result.code).toBe(1);
     expect(report.status).toBe('fail');
     expect(report.captures[0].elements.some((element) => element.sourceId === 'dl-2' && element.status === 'fail')).toBe(true);
+  });
+
+  // why: a tiny logo painted by CSS can disappear while both whole-page and header scores still pass.
+  it('rejects a missing tiny pseudo-element logo within a flex container', async () => {
+    const directory = await project('pseudo-logo');
+    const baseline = await runCli(['fidelity', directory, '--json']);
+    expect(baseline.code, baseline.stdout).toBe(0);
+    await fs.writeFile(path.join(directory, 'clone/index.html'), HTML.replace('background:#d90000', 'background:transparent'));
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('fail');
+    for (const capture of report.captures) {
+      expect(capture.viewportImage?.status).toBe('pass');
+      expect(capture.fullImage?.status).toBe('pass');
+      expect(capture.elements.find((element) => element.sourceId === 'dl-1')?.image?.status).toBe('pass');
+      expect(capture.elements.find((element) => element.sourceId === 'dl-8')?.image?.status).toBe('fail');
+    }
+    await fs.writeFile(path.join(directory, 'clone/index.html'), HTML.replace("content:''", 'content:none'));
+    const removed = await runCli(['fidelity', directory, '--json']);
+    expect(removed.code).toBe(1);
+    expect(JSON.parse(removed.stdout).status).toBe('fail');
+    expect(removed.stdout).toContain('before pseudo-element is missing');
+  });
+
+  // why: hashing only the descendants permits an apparently portable clone backed by an external tree.
+  it('marks a symlinked clone root unverified', async () => {
+    const directory = await project('symlink-root');
+    const external = path.join(root, 'external-clone');
+    await fs.rename(path.join(directory, 'clone'), external);
+    await fs.symlink(external, path.join(directory, 'clone'));
+    const result = await runCli(['fidelity', directory, '--json']);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stdout).status).toBe('unverified');
+    expect(result.stdout).toContain('root contains symlink');
   });
 
   // why: independent mobile source captures must expose desktop-only reproduction defects.

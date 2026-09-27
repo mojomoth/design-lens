@@ -15,22 +15,24 @@ with `npx -y design-lens setup` instead, then retry.
 
 Resolve the clone and target from the current request, prior returned project path, and manifest
 source/capture context. Substitute that actual path for `.design-lens/<slug>/` below. Read the
-capture viewport from `manifest.json`, then run fresh detailed inspection:
+capture viewports and immutable source paths from `evidence.json`, falling back to the manifest
+viewport for a legacy clone. Then run fresh detailed inspection:
 
 ```
-~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --details --pretty
+~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --all --details --pretty
 ```
 
 Match the request to roles, text and measured context. Use `--id <dl-id>` at the same viewport to
 inspect a precise element or follow its direct parent when a container is relevant; this includes
-hidden light-DOM elements and implies details. Consult body/root measurements and font warnings.
+hidden elements and open Shadow DOM and implies details. Repeat `--id <dl-id>` to inspect several
+related elements at the same viewport. Consult body/root measurements and font warnings.
 Ask which candidate the user means only if their request and these facts cannot resolve it; give
 its role, text and ID. An already-specified target does not require another selection pause.
 
 Locate the element with a targeted read:
 
 ```
-grep -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html
+rg -n 'data-dl-id="dl-N"' .design-lens/<slug>/clone/index.html
 ```
 
 Read only a window around the match. Never load the full index.html into context. Inspect output
@@ -41,24 +43,30 @@ reference clone through these edit rules.
 
 ## Establish the comparison
 
-Before each edit batch, capture and look at the current clone at the capture viewport. Use an
-unused filename, incrementing the suffix for every batch:
+Before each edit batch, record the current clone's hashes and the original evidence hash. Save
+an editable-clone backup outside `clone/` and all evidence paths. Read the current fidelity result:
 
 ```
-~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-before-capture-1.png
+~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
 ```
 
-For style, layout, text or asset changes that can affect responsive appearance, also inspect
-with `--viewport 390x844` and capture the mobile baseline:
+A customized clone may already differ intentionally from its source. Keep those changes and use
+current-clone before/after images to attribute this batch's effects. Treat original `evidence.json`
+and its listed files, capture images, `manifest.json` and `REPORT.md` as immutable.
+
+Inspect and capture a baseline at every viewport in `evidence.json`. For legacy clones without
+evidence, use 1440x900, 768x1024 and 390x844 plus any different manifest capture size; do not claim
+source fidelity. Use each captured device scale factor, and use 1 for a legacy baseline. For
+each viewport and batch, choose an unused screenshot filename:
 
 ```
-~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width 390 --height 844 --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-before-mobile-1.png
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf <scale> --full-page --out .design-lens/<slug>/screenshots/customize-before-<width>-<height>-<batch>.png
 ```
 
-If the capture viewport is already 390x844, one pair covers it. These current-clone baselines
-avoid attributing older customizations to the new batch. Preserve the three capture images and
-all prior analysis/customization images. If comparison evidence cannot be obtained, record the
-specific limit and do not later claim the edit was visually verified.
+View every baseline and record existing clipping, wrapping and font issues before editing. Keep
+all earlier screenshots. If baseline evidence is unavailable, identify that viewport as unverified.
+Fresh source capture, when needed for the request, goes into a new project and never replaces
+an existing customized clone.
 
 ## Edit rules
 
@@ -79,6 +87,12 @@ exactly that comment-plus-rule block, verbatim. If a captured rule wins on speci
 the attribute selector (`[data-dl-id="dl-17"][data-dl-id]`) to raise yours; use `!important` only
 as a last resort and explain it in the entry's comment.
 
+For an open shadow descendant, a document stylesheet cannot cross its root. Prefer a measured
+exposed host custom property or part when it exists. Otherwise append a new, dated override
+`<style data-dl-overrides>` inside its owning declarative shadow template, targeting the existing
+ID. Preserve captured style blocks and host/descendant IDs. Record the exact new block for undo;
+never claim a global ID rule affected an isolated shadow tree without measuring the result.
+
 **Text** (nav labels, headings, copy) — edit only the HTML text node in `clone/index.html`,
 leaving surrounding markup and every attribute untouched.
 
@@ -95,15 +109,20 @@ when sufficient, or ask for the missing asset when it is essential to the reques
 ```
 
 Use `clusterOf` to find near-duplicate values, then confirm their actual roles with targeted CSS
-and rendered measurements. Counts are CSS occurrences, not visible-area shares. Apply changes
+and rendered measurements. Schema 2 counts are CSS declaration occurrences, not rendered or visible-area shares. Preserve
+color alpha (`css` or `hex` plus `alpha`), and treat a null spacing base as unknown. Read the token
+provenance, unresolved declarations and relative-unit assumptions before applying a value. Apply changes
 through `dl-overrides.css`; when the site defines the relevant custom property on `:root`,
 override it there once instead of emitting a rule for each element. Do not change an unrelated
 semantic color just because it is numerically close.
 
-**Immutable evidence** — never remove, rename, renumber or duplicate a `data-dl-id`. Any inserted
-elements receive no capture ID; address them by their own class or ID. Never edit `manifest.json`
-or `REPORT.md`. Never overwrite `original-viewport.png`, `original-full.png`, `clone-full.png`
-or previous screenshots; new screenshots with unused names are allowed under `screenshots/`.
+**Immutable evidence** — never remove, rename, renumber or duplicate existing `data-dl-id` values.
+If an authorized edit requires inserted elements, use unused numeric IDs above the highest ID in
+the clone and source captures, and record them as clone-only additions. They do not acquire a
+source identity. Never edit `evidence.json`, its listed source files, `manifest.json` or `REPORT.md`.
+Never overwrite source images, `original-viewport.png`, `original-full.png`, `clone-full.png` or
+prior screenshots. New screenshots use unused names. Re-generated `fidelity.json` describes the
+current clone; its source evidence hash must match the baseline.
 
 ## Verify and inspect the result
 
@@ -113,28 +132,33 @@ After every batch, run:
 ~/.design-lens/bin/design-lens verify .design-lens/<slug>
 ```
 
-It must exit 0 before reporting the edit as done. On failure, fix or revert the batch. This checks
-clone-format structure, not visual quality. Re-run relevant detailed inspection, then capture
-the after view with exactly the baseline's viewport, DSF 1 and full-page mode:
+It must exit 0 before reporting the edit as done. Fix a structural error introduced by the batch;
+if correction is impossible, restore that batch's backup and report the unfinished request. The
+format check does not measure visual fidelity.
+
+Re-run detailed inspection at every baseline viewport. Capture and view an after image using
+exactly the matching viewport, device scale factor and full-page setting:
 
 ```
-~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-after-capture-1.png
+~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf <scale> --full-page --out .design-lens/<slug>/screenshots/customize-after-<width>-<height>-<batch>.png
+~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
 ```
 
-For each responsive baseline, also capture its matched mobile result:
+Check requested changes, text wrapping, alignment, clipping, overflow, replacement image selection
+and fonts across the complete viewport set. Fix unintended regressions, then repeat all viewport
+checks. Confirm that the source evidence hash and every source file hash remain unchanged.
 
-```
-~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width 390 --height 844 --dsf 1 --full-page --out .design-lens/<slug>/screenshots/customize-after-mobile-1.png
-```
+Intentional edits are expected to fail source-fidelity checks where their pixels or geometry
+changed. Identify those differences by viewport and element, separate them from unintended
+regressions, and preserve the user's authorized result. Do not run a source-matching repair loop
+that undoes requested copy, branding or layout changes, and do not alter the source evidence to
+make the comparison pass. An unverified report still means some comparison could not be made;
+it does not mean the requested edit failed or that the source match was established.
 
-Look at every before/after pair. Check the requested change, text wrapping, alignment, clipping,
-overflow, replaced-image choice and font fallback at the relevant viewports. Fix regressions and
-repeat the affected checks. Use available browser tools to check affected links and controls,
-including their destinations and keyboard focus. A screenshot does not validate an interaction;
-report any check you cannot perform as unverified. Do not compare a viewport-only after image
-with a full-page baseline, or assume a saved capture PNG's scale matches a new image. Viewing the result is required, not
-an optional offer. Report what changed, the evidence inspected, format-check outcome and any
-unavailable visual check in the user's language; link the new images.
+Use available browser tools to check affected link destinations, controls and keyboard focus.
+Screenshots alone do not validate interactions. Report the changes, structural outcome, all
+inspected viewports, expected source differences and unavailable checks in the user's language;
+link the new images. Viewing the result is required, not an optional follow-up.
 
 ## Ship intent
 
@@ -148,6 +172,6 @@ Run through every line before the user deploys anything derived from a reference
 - All copy rewritten in the user's own voice
 - Photography replaced or licensed (font/image source hosts are listed in REPORT.md)
 - Fonts licensed for the user's use
-- No trademarks, mascots, or brand names remain — finish with `grep -ri "<brand-name>"` over the output
+- No trademarks, mascots, or brand names remain — finish with `rg -ni "<brand-name>"` over the output
 - The shipped work is a derivation, not a copy
 Report anything that still contains original brand material.

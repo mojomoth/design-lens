@@ -3,19 +3,19 @@
 ## How to use this file
 
 These directions transfer supported principles from DESIGN.md to a different brand or product.
-Clone customization applies only the clone-compatible token changes. New work may also change
+Each direction cites verified measurement rows and rules from DESIGN.md. Clone customization applies only the clone-compatible token changes. New work may also change
 structure to serve its target task. Proposed design-role names are labels for the new design,
 not literal paths in tokens.json; cite real token keys or computed fields separately.
 
 Write explanations in the user's language. Use known conversation/project context before asking
-for essentials. A sufficient brief does not require another approval pause. If this is analysis
+for essentials. A sufficient brief does not require another approval pause. Check DESIGN.md with validate-design before treating its numbers as established. If this is analysis
 only and no target was supplied, state that and make the recommendation conditional.
 
 ## Target brief
 
 - **Product and audience:** {known context, or not supplied}
 - **Primary user task and success:** {what the intended user needs to accomplish}
-- **Content, data, and required interactions:** {supplied content and functional needs}
+- **Content, data, and required interactions:** {supplied content and functional needs, or not supplied; do not invent them}
 - **Existing stack/components and constraints:** {known project context, or not yet inspected}
 
 ## Selected direction

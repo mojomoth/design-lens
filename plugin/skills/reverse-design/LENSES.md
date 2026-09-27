@@ -9,7 +9,7 @@ the twelve required English heading prefixes.
 
 Use these labels in prose or table columns wherever the distinction affects a decision:
 
-- **Observed-reference:** visible in a named original screenshot, or a dated later source shot.
+- **Observed-reference:** measured in a complete evidence.json capture or visible in its named original screenshot. Later source shots are separate observations.
   State the region and viewport. An impression about mood or eye order is your reading of it.
 - **Observed-clone:** measured in the local render or found in captured CSS/HTML. Cite the ID,
   viewport, computed field, token key, or CSS rule. State whether it is rendered evidence or a
@@ -32,17 +32,17 @@ font-family stack does not by itself prove which face rendered.
 
 `tokens.json` describes captured stylesheets, including rules that may be inactive or unused.
 Color `count` is CSS occurrence frequency, not visible area, element count, or a 60-30-10 ratio.
-`palette.primaryGuess`, `typography.scaleRatioGuess`, and `spacing.base` are guesses. Static
+`palette.primaryGuess`, `typography.scaleRatioGuess`, and `spacing.base` are guesses; a null base is unknown. Token schema 2 preserves alpha in css/oklch and records declaration provenance, unresolved values, and unit assumptions. Static
 relative-unit conversions use a 16px basis, which may differ from measured root/body sizes.
 Clustering can merge intentional variants; it is not proof of a broken design system. Prefer
 rendered measurements for a stated viewport, retaining CSS statistics as context.
 
-Use `inspect --details` at the capture viewport and 390x844. Its `page` gives root/body geometry
+Use source observations first, then `inspect --all --details` at 1440x900, 768x1024, and 390x844 (or the explicitly requested capture widths). Its `page` gives root/body geometry
 and font status; element `details` gives typography, box, layout, direct parent/child IDs, and the
 selected `currentSrc`. Use `--id` for a container or hidden alternative; do not combine it with
 `--kind`. A null role or parent ID is valid. Role confidence describes a heuristic match only.
-Lookup is light DOM only; open shadow descendants are not covered by this command. Inspect output
-is ephemeral, so re-run it after edits. Access HTML and captured CSS through greps and short line
+Repeat `--id` to measure related elements together; open shadow descendants are covered. `--all` excludes `--id` and `--kind`. Iframe internals and closed roots are unavailable. Inspect output
+is ephemeral clone evidence, so re-run it after edits. Use fidelity to persist observations bound to the current clone hash. IDs must always be paired with their capture ID. Access HTML and captured CSS through greps and short line
 windows, never the whole cloned document.
 
 ## 1. First Impression
@@ -202,3 +202,17 @@ Do not prescribe unsupported pixel percentages or claim the reference's business
   request ends with the two documents, not an unrequested implementation.
 - Keep the chat summary within ten lines and link to the documents. State material evidence limits
   once, and carry the selected principles and verification criteria into the next requested flow.
+
+## Blueprint completion check
+
+Retain all recipe headings and the measured observation table from the template. Layout recipes
+state container constraints, box sizing, columns, gaps, and tested reflow; type recipes state
+family availability and actual roles; components state semantic markup order, parent/child
+relationships, padding, crop, borders, surfaces, and observed states. Cover meaningful content
+below the hero. Provide actual CSS a developer can apply, with numerical evidence beside it.
+
+Run validate-design after writing both documents and after correcting a claim. It checks required
+structure, capture-local references, units, alpha, decimal rounding, and current clone hashes.
+It does not establish that an interpretation is persuasive or that a CSS recipe reproduces the
+page; inspect the source images and independently review those conclusions. Missing evidence is
+qualified, not replaced by proposed values in the measured table.

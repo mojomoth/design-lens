@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 
-import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, matchObservation, missingLoadedFonts, normalizeObservationUrls } from '../../src/analyze/fidelity.js';
+import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, importantObservation, matchObservation, missingLoadedFonts, normalizeObservationUrls } from '../../src/analyze/fidelity.js';
 import type { ElementObservation, ObservationDocument } from '../../src/analyze/observations.js';
 
 function png(width: number, height: number, square = 0): Buffer {
@@ -60,6 +60,34 @@ describe('fidelity pixel comparison', () => {
 });
 
 describe('capture-local semantic correspondence', () => {
+  // why: a tiny pseudo-element logo can fit the page/header budgets but needs its own regional check.
+  it('measures generated pseudo-element regions without adding every layout container', () => {
+    const flex = element({ tag: 'div', semantic: 'flex', text: '' });
+    expect(importantObservation(flex)).toBe(false);
+    flex.pseudo.before.content = '""';
+    expect(importantObservation(flex)).toBe(true);
+    const grid = element({ tag: 'div', semantic: 'grid', text: '' });
+    grid.pseudo.after.content = '""';
+    expect(importantObservation(grid)).toBe(true);
+    const graphic = element({ tag: 'aside', semantic: 'complementary', text: '' });
+    graphic.pseudo.before.content = '""';
+    expect(importantObservation(graphic)).toBe(true);
+    const missing = structuredClone(graphic);
+    missing.pseudo.before.content = 'none';
+    expect(compareObservations(document([graphic]), document([missing]))[0].issues).toContain('before pseudo-element is missing or its content differs');
+  });
+
+  // why: localizing content:url(...) preserves the generated image but necessarily changes its URL.
+  it('compares generated image content structure without requiring original network URLs', () => {
+    const source = element();
+    source.pseudo.before.content = 'url("http://127.0.0.1:4001/mark.svg") / "Brand"';
+    const clone = structuredClone(source);
+    clone.pseudo.before.content = 'url("http://127.0.0.1:5002/assets/mark.svg") / "Brand"';
+    expect(compareObservations(document([source]), document([clone]))[0].status).toBe('pass');
+    clone.pseudo.before.content = 'url("/assets/mark.svg") / "Wrong brand"';
+    expect(compareObservations(document([source]), document([clone]))[0].status).toBe('fail');
+  });
+
   // why: saved body and pseudo-element observations must not depend on a dead ephemeral serving port.
   it('normalizes URLs in body and pseudo-element styles as well as ordinary elements', () => {
     const origin = 'http://127.0.0.1:54321';

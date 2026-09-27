@@ -17,35 +17,58 @@ with `npx -y design-lens setup` instead, then retry.
    continue through clone-reference using the known reference. Substitute the actual project path
    for `.design-lens/<slug>/` in the examples below.
 
-2. Read `manifest.json` for the capture width and height, and REPORT.md for capture limits. Run
-   fresh measurements at those dimensions instead of assuming inspect's 1440x900 default:
+2. Read `manifest.json`, REPORT.md and any `evidence.json` / `fidelity.json`. Source observations
+   belong to a particular capture ID and viewport in `evidence.json`; the same `dl-N` in another
+   capture does not establish the same element. `inspect` measures the current editable clone,
+   including overrides. Its `page.source` is `clone`, so do not present these measurements as
+   original-source facts. A missing or stale fidelity report does not prove a match.
+
+   Use the capture dimensions for a focused question. For a complete inventory, measure all
+   stamped elements instead of limiting the result to the original role heuristics:
 
    ```
-   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --details --pretty
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --all --details --pretty
    ```
 
-   Use `--kind <role>` when only one role is relevant. For an actual layout parent or a target
-   found in a small HTML window, use a direct ID instead of inventing a semantic role:
+   This covers text, cards, forms, tables, containers, hidden alternatives and open shadow roots.
+   Use `--kind <role> --details` when only one existing role is relevant. For actual layout
+   parents and targets identified in a small HTML window, batch direct IDs:
 
    ```
-   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --id <dl-id> --pretty
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --id <target-id> --id <parent-id> --pretty
    ```
 
-   Direct ID lookup implies details, includes hidden elements, and cannot be combined with
-   `--kind`. Follow `parentDlId` and `childDlIds` for direct relationships; consult `page.body`
-   and `page.rootFontSize` when the parent is unstamped. Lookup is light DOM only. A missing
-   shadow descendant is unavailable evidence, not proof that no component exists.
+   Direct lookup implies details and searches open shadow roots as well as the document. It
+   preserves requested order and reports missing or ambiguous IDs. Do not combine `--id` with
+   `--kind`, or `--all` with either selection option. Follow `parentDlId`, `childDlIds` and
+   `rootPath` for relationships and shadow boundaries; consult `page.body` and `page.rootFontSize`
+   for the document root. Ordinary CSS selectors cannot cross a shadow boundary: resolve the
+   recorded host path when inspecting that descendant. Read `pseudo`, `visual` and image
+   readiness for generated content, backgrounds, gradients, cropping and missing media.
 
-3. When the request concerns responsive appearance, layout, or an element that changes across
-   screen sizes, repeat relevant inspection with `--viewport 390x844`. Record the viewport for
-   each result. Distinguish the clone's retained CSS response from unobserved source behavior;
-   the inert clone does not recover JavaScript menus or other original interactions.
+3. For responsive appearance, repeat relevant measurements at 1440x900, 768x1024 and 390x844.
+   Record each viewport and include any additional requested capture size. Match a source
+   observation only to its recorded viewport. When a claim depends on source fidelity, run:
+
+   ```
+   ~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
+   ```
+
+   Read per-viewport issues and inspect the referenced images; command completion alone is not
+   a pass. A failed comparison qualifies the clone's measurements, while valid source observations
+   remain usable. Incomplete captures, failed fonts, inaccessible content and frame-scoped coverage
+   limits remain unverified. A legacy clone without source evidence can still be inspected; label
+   original appearance unavailable. If the already requested task requires original measurements,
+   use its known reference URL to capture a new project through clone-reference and retain the old
+   project. Never manufacture source observations from clone measurements. The inert clone's CSS
+   reflow does not establish original JavaScript menus, triggers or interaction states.
 
 4. Present a compact grouped list in the user's language, never the raw JSON: role or container,
    short description, stable `dl-N` address, and the few measured values that matter to the task.
-   Include viewport and material limits such as hidden state, missing assets, or `page.fonts`
-   timeout/failed families. A role's confidence is a heuristic label score, not certainty about
-   design intent. Every edit anchors to its actual `data-dl-id`.
+   Include the evidence source, viewport and material limits from `page.complete`, `page.warnings`
+   and `page.fonts`, including hidden state, missing assets and failed families. A role's confidence
+   is a heuristic label score; `semantic` and measured values do not prove design intent. Every
+   edit anchors to its actual `data-dl-id` within the recorded document or shadow root.
 
 5. Use `tokens.json` for captured color/font candidates; generate it if missing:
 
@@ -53,12 +76,15 @@ with `npx -y design-lens setup` instead, then retry.
    ~/.design-lens/bin/design-lens tokens .design-lens/<slug>
    ```
 
-   Color counts describe CSS occurrences, not painted-area shares. Static relative-unit values
-   assume 16px and palette/type/spacing guesses may include inactive rules. Prefer the live
-   computed measurements for the component and viewport being discussed; note differences.
+   Color counts describe CSS occurrences, not painted-area shares. Check the token schema version,
+   alpha information and declared unit assumptions. A null spacing basis means no basis was
+   established; do not substitute a convenient grid. Palette/type/spacing candidates may include
+   inactive rules. Prefer actual computed values for the component and viewport being discussed.
 
-6. State that this is a LIVE inventory, not a saved manifest: inspect writes no inventory into
-   the project and measurements go stale after edits. Re-run it when needed. If inspection is a
+6. State that this is a LIVE inventory: inspect itself writes no inventory into the project and
+   measurements go stale after edits. Fidelity comparisons produce their own dated images and
+   current report without changing source evidence. Re-run the relevant measurement after edits.
+   If inspection is a
    prerequisite for a change already requested, continue into customize-clone with that target;
    do not ask the user to pick it again. For inspection-only work, finish with the useful inventory
    and limits. Never open the cloned index.html's full contents into context; use targeted reads.

@@ -49,14 +49,18 @@ export async function resolveEvidencePath(projectDir: string, relative: string):
 
 /** Snapshot identity includes every file, not only images; symlinks are never followed. */
 export async function hashTree(directory: string): Promise<EvidenceFile[]> {
+  const root = path.resolve(directory);
+  const rootStat = await fs.lstat(root);
+  if (rootStat.isSymbolicLink()) throw new Error('evidence tree root contains symlink');
+  if (!rootStat.isDirectory()) throw new Error('evidence tree root is not a directory');
   const result: EvidenceFile[] = [];
   async function walk(relative: string): Promise<void> {
-    const entries = await fs.readdir(path.join(directory, relative), { withFileTypes: true });
+    const entries = await fs.readdir(path.join(root, relative), { withFileTypes: true });
     for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
       const child = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isSymbolicLink()) throw new Error(`evidence tree contains symlink: ${child}`);
       if (entry.isDirectory()) await walk(child);
-      else if (entry.isFile()) result.push({ path: child, sha256: await hashFile(path.join(directory, child)) });
+      else if (entry.isFile()) result.push({ path: child, sha256: await hashFile(path.join(root, child)) });
       else throw new Error(`evidence tree contains non-regular file: ${child}`);
     }
   }

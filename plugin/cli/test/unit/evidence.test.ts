@@ -92,6 +92,17 @@ describe('immutable capture evidence', () => {
     await expect(hashTree(directory)).rejects.toThrow('symlink');
   });
 
+  // why: checking descendants alone allows clone/ itself to point outside the self-contained project.
+  it('rejects a symlink tree root while accepting symlink ancestors and ordinary directories', async () => {
+    const alias = path.join(directory, 'alias');
+    const real = path.join(directory, 'evidence');
+    await fs.symlink(real, alias);
+    await expect(hashTree(alias)).rejects.toThrow('root contains symlink');
+    await expect(hashTree(`${alias}/`)).rejects.toThrow('root contains symlink');
+    expect(await hashTree(path.join(alias, 'desktop'))).toEqual(await hashTree(path.join(real, 'desktop')));
+    await expect(hashTree(path.join(directory, 'evidence.json'))).rejects.toThrow('not a directory');
+  });
+
   it('hashes nested asset bytes and returns deterministic relative paths', async () => {
     const files = await hashTree(path.join(directory, 'evidence/desktop'));
     expect(files.map((file) => file.path)).toEqual(['clone/index.html', 'full.png', 'viewport.png']);

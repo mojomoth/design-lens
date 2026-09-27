@@ -11,44 +11,105 @@ If that file is missing, the plugin bootstrap has not run: ask the user to resta
 plugin system (for example via `npx skills add` on Cursor or OpenCode), provision the runtime
 with `npx -y design-lens setup` instead, then retry.
 
-1. Resolve the target URL and scope from the user's message and current context. Ask for a URL
-   only when none can be established. Capture one page per clone. Respect a request to clone only;
-   when the user already asked to build a new product from the reference, carry that intent forward.
+## Capture the reference
 
-2. From the user's project root, run:
+Resolve the URL and single-page scope from the request and current context. Ask for a URL only
+when none can be established. Carry forward an already-requested analysis or new build.
+From the user's project root, run:
 
-   ```
-   ~/.design-lens/bin/design-lens clone <URL>
-   ```
+```
+~/.design-lens/bin/design-lens clone <URL> --viewports 1440x900,768x1024,390x844
+```
 
-   Add `--project <name>` when the user named the study, `--out <directory>` for a requested
-   output location, and repeated `--remove-selector <css>` flags for requested exclusions.
-   Consent and cookie banners are blocked by default, with any limitations reported by the CLI.
+Use the user's requested viewport list when provided. Never combine explicit `--viewport` and
+`--viewports`. Add `--project <name>` for a named study, `--out <directory>` for a requested
+location, and repeated `--remove-selector <css>` for requested exclusions. Consent blocking is
+on by default; report any limitations. A clone captures editable static appearance, including
+responsive layout, rather than reproducing the source application's JavaScript behavior.
 
-   Progress goes to stderr; stdout contains one JSON result. Use its returned `projectDir` as
-   the project path for every later step, rather than guessing a slug: repeated captures can
-   create suffixed directories. The examples `.design-lens/<slug>/` below stand for that actual
-   path. A non-zero exit is a failed operation; report the concrete error and inspect any partial
-   output before retrying, without claiming a completed capture.
+Read `projectDir` from stdout JSON and use that returned path for every later command. Repeated
+captures may create suffixed directories. Substitute the actual path for `.design-lens/<slug>`
+below. A failed capture command requires inspection of its error and partial output before any
+retry; its exit code alone is not a visual fidelity result.
 
-3. Read the returned project's `manifest.json` and `REPORT.md`. Record its source URL, capture
-   time and viewport. Look at `screenshots/original-viewport.png`, `original-full.png`, and
-   `clone-full.png`; image inspection is part of the capture check, not an optional follow-up.
-   The original images show the source at capture time; clone-full is the written clone rendered
-   from disk. Compare the full-page pair under its recorded capture conditions.
+## Preserve and inspect the source evidence
 
-   Summarize localized styles, images and fonts; resources left remote and their reasons; and
-   visible or reported capture limits, including font fallback. If an image is missing or cannot
-   be viewed, name the unavailable evidence. A passing format check and an existing PNG do not
-   establish visual fidelity. Preserve the capture images and provenance documents.
+Read `manifest.json`, `REPORT.md`, `evidence.json` and `fidelity.json`. Record capture IDs,
+viewports, device scale factors, source URLs, capture times, completeness and warnings. Each
+capture's observation IDs are scoped to that capture: `dl-N` in two captures does not prove
+that the nodes represent the same element. Match semantics, ancestry, text and measurements.
 
-4. Explain briefly that the clone is for design study and source brand assets must be replaced
-   in derived work. Write the summary in the user's language and link the actual project path.
+Use the paths recorded in `evidence.json` to view each source viewport/full image and inspect
+its saved markup and resources with targeted reads. View the current clone and difference
+images recorded by `fidelity.json` at every captured size. Inspect every failed region, missing
+image/font, geometry error, text difference and external request; a low overall pixel ratio can
+hide a missing logo. Run a current comparison:
 
-5. Continue the task the user requested. For clone-only work, finish with the capture result and
-   its limits. For an already-requested analysis, continue into reverse-design. For an
-   already-requested new build, continue through reverse-design and build-from-design, including
-   verification; do not stop at offering those next steps or ask for the same authorization again.
-   An inspection or clone customization request continues into its corresponding flow.
+```
+~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
+```
 
-Never open the cloned index.html's full contents into context — it is large; use grep and targeted reads.
+Exit 0 means the current clone passed all captured checks. Exit 1 covers both `fail` and
+`unverified`; read the report to distinguish them. `verify` checks document structure only.
+
+Before editing, save the current clone and comparison report under an unused directory such as
+`.design-lens/<slug>/repair-history/round-0/`. Backups contain only the editable clone and reports;
+keep them outside `clone/` and every evidence path. Record the initial `evidenceHash` and source
+file hashes. Never edit `evidence.json`, its listed files, source snapshots/images, `manifest.json`
+or `REPORT.md` to describe a later edit. `fidelity.json` may be regenerated: its `cloneHash`
+identifies the current editable result and its `evidenceHash` must remain unchanged.
+
+A legacy clone without usable source evidence cannot earn a visual pass. If fresh source capture
+is needed for this request, capture into a new project; preserve the earlier clone and its edits.
+Incomplete source evidence, source font failures, inaccessible frames or capture limits remain
+unverified. Repairing the clone cannot manufacture the missing original observation.
+
+## Repair visual differences
+
+When source evidence is complete and differences are repairable, perform at most three edit
+rounds. Diagnose each change from the source snapshot, source measurements and difference image.
+Use targeted searches and small reads; never load the entire cloned HTML into context.
+
+- Restore missing local assets and correct references, font faces, CSS rules and element geometry.
+  Preserve editable HTML/CSS and local resources. Never hotlink a missing asset.
+- Rebuild missing mobile-only structure from that viewport's source evidence and use media queries
+  so one clone document works at every captured size. Preserve all existing `data-dl-id` values.
+  New elements receive unused numeric IDs above the highest ID in the clone and all captures;
+  record these as clone-only repair IDs, without assigning them a source identity.
+- Never replace the page with a screenshot, hide differences with comparison masks, remove failing
+  evidence, change image dimensions to fit the test, or relax comparison tolerances. A source
+  canvas or individually inaccessible embed may retain its captured image only with its scope and
+  analysis limit disclosed; never represent that limited result as a complete capture.
+
+After each round, run both commands and examine every viewport and failed region:
+
+```
+~/.design-lens/bin/design-lens verify .design-lens/<slug>
+~/.design-lens/bin/design-lens fidelity .design-lens/<slug> --json
+```
+
+Check source hashes against the recorded baseline. Reject a candidate that changes source
+identity, breaks structure, introduces a missing required asset, or makes a previously passing
+viewport fail or become unverified. Among eligible results, prefer fewer failed/unverified
+captures, then fewer failed elements, then fewer unmatched image dimensions, then lower worst
+image mismatch ratio across full/viewport/region images, then lower maximum geometry delta.
+Use this ordered comparison consistently; a tie is not an improvement. Save each improved clone
+and report as the new best result outside the evidence tree.
+
+Stop as soon as all checks pass. Stop after a non-improving round or after three rounds total.
+If the last candidate is worse or tied, restore the best clone backup and rerun both checks
+across all captured sizes; the final report must describe the restored bytes. Do not retain a
+stale report from before restoration. If source verification is unavailable, retain the best
+supported result and clearly identify what could not be compared.
+
+## Complete the requested task
+
+Report the project link, verified viewports, repair rounds, final fidelity/format outcomes and
+remaining source or clone limitations in the user's language. Only call the capture visually
+matched when its current `fidelity` result is `pass` and the immutable source evidence is complete.
+Briefly explain that the clone is for design study and derived work must replace source branding.
+
+For clone-only work, finish with this result. For an already-requested analysis, continue into
+reverse-design. For an already-requested new build, continue through reverse-design and
+build-from-design with verification. Continue authorized inspection/customization requests in
+their respective flow; do not ask for the same authorization again.

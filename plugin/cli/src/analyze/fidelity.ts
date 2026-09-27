@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import * as cheerio from 'cheerio';
+import * as csstree from 'css-tree';
 import type { Browser } from 'playwright';
 
 import type { PlaywrightModule } from '../capture/browser.js';
@@ -158,11 +159,29 @@ export function matchObservation(
   return { element: null, reason: 'ambiguous semantic correspondence; no arbitrary ID match was used' };
 }
 
+function generatedPseudo(pseudo: ElementObservation['pseudo']['before']): boolean {
+  return pseudo.content !== 'none' && pseudo.content !== 'normal'
+    && pseudo.styles.display !== 'none' && pseudo.styles.visibility !== 'hidden' && pseudo.styles.opacity !== '0';
+}
+
+/** Localizing a generated image changes its URL, while its content structure stays the same. */
+function pseudoContentIdentity(content: string): string {
+  try {
+    const value = csstree.parse(content, { context: 'value' });
+    csstree.walk(value, (node) => { if (node.type === 'Url') node.value = 'localized-resource'; });
+    return csstree.generate(value);
+  } catch {
+    // Unsupported syntax remains an exact-string comparison, never an assumed equivalence.
+    return content;
+  }
+}
+
 export function importantObservation(element: ElementObservation): boolean {
   return element.visible && (
     /^(header|nav|main|footer|section|article|form|table|thead|tbody|tr|th|td|h[1-6]|p|a|button|input|select|textarea|label|img|picture|svg|canvas|video|iframe)$/.test(element.tag) ||
     /logo|hero|card|container|banner|heading|navigation|button|image/.test(element.semantic) ||
-    (element.styles.backgroundImage !== undefined && element.styles.backgroundImage !== 'none')
+    (element.styles.backgroundImage !== undefined && element.styles.backgroundImage !== 'none') ||
+    generatedPseudo(element.pseudo.before) || generatedPseudo(element.pseudo.after)
   );
 }
 
@@ -195,6 +214,11 @@ export function compareObservations(source: ObservationDocument, clone: Observat
     }
     if (actual.image && (!actual.image.complete || actual.image.naturalWidth === 0 || actual.image.naturalHeight === 0)) {
       result.issues.push('visible image failed to load');
+    }
+    for (const side of ['before', 'after'] as const) {
+      if (generatedPseudo(element.pseudo[side]) && (!generatedPseudo(actual.pseudo[side]) || pseudoContentIdentity(element.pseudo[side].content) !== pseudoContentIdentity(actual.pseudo[side].content))) {
+        result.issues.push(`${side} pseudo-element is missing or its content differs`);
+      }
     }
     result.status = result.issues.length > 0 ? 'fail' : 'pass';
     return result;

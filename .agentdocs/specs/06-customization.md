@@ -131,3 +131,11 @@ states, preserving existing IDs and allocating unique IDs to additions. It is di
 ordinary token/text customization. Keep source evidence untouched, use ID-scoped overrides (or
 scoped styles within original shadow roots), and preserve added asset provenance. Never replace
 the whole page with a screenshot or duplicate entire viewport bodies.
+
+### Scoped overrides and new clone-only elements (ADR-026)
+Document styles cannot cross a shadow boundary. For an addressed open shadow descendant, use
+an observed host custom property/part when available; otherwise append a new dated override
+style element inside the owning declarative shadow template. Preserve captured style blocks
+and existing stamps, record the exact appended block for undo, and verify its actual effect.
+Authorized inserted elements receive unused numeric dl-N IDs above all existing clone/capture
+IDs; record them as clone-only additions, never as source identity.

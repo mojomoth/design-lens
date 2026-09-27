@@ -464,3 +464,22 @@ and decimal precision declared per row. Valid source measurements remain usable 
 report is absent or stale; only clone claims depend on that current render. Prose interpretation
 and implementation sufficiency require independent evaluation. Exact field and table contracts
 replace obsolete wording in specs/04-design-analysis.md and specs/05-element-inventory.md.
+
+## ADR-026 — Portable repair and blueprint workflows (2026-09-27)
+
+T40 connects all five skills to T38/T39 evidence and validation, including a maximum of three
+source-grounded repair rounds with best-result restoration, all-viewport checks and unchanged
+source hashes. Intentional customization differences remain authorized differences; they are
+never undone simply to match the source. New clone-only elements receive unique numeric IDs
+without acquiring identity from another capture. Original stamps remain unchanged.
+
+An existing edit rule requiring all overrides in the document stylesheet cannot address an
+open shadow descendant. specs/06-customization.md permits a newly appended scoped override
+style in the owning declarative shadow template when an exposed host property/part is absent;
+captured styles remain untouched and the appended block is recorded for undo. This is an
+implementation consequence of the approved shadow-aware inspection, not a new product scope.
+
+The workflows are evaluated with independent local tasks: real responsive clone repair, source
+analysis with validated recipes, and a separate developer reproducing the design from only the
+blueprint. Outcomes and limits are recorded in test/evaluations rather than inferred from CLI
+format checks or fluent analysis prose.
