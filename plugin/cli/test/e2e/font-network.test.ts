@@ -98,7 +98,7 @@ async function fixture(options: { slowRedirect?: boolean; fastImage?: boolean } 
         response.writeHead(200, { 'Content-Type': 'text/css' });
         response.end(`
           @font-face { font-family: StalledEvidence; src: url('/stall.woff2'); }
-          @font-face { font-family: NormalEvidence; src: url('/redirect.woff2'); }
+          ${slowRedirect && options.fastImage ? '' : "@font-face { font-family: NormalEvidence; src: url('/redirect.woff2'); }"}
           @font-face { font-family: MissingEvidence; src: url('/missing.woff2'); }
           @font-face { font-family: RejectedEvidence; src: url('/cors-redirect.woff2'); }
           body { margin: 0; font: 22px sans-serif; }
@@ -133,6 +133,15 @@ async function fixture(options: { slowRedirect?: boolean; fastImage?: boolean } 
     <p class="missing" data-dl-id="dl-3">A missing font uses fallback.</p>
     <img data-dl-id="dl-4" src="${origin}/slow.svg" alt="Delayed local image">
     <p class="rejected" data-dl-id="dl-5">A cross-origin redirect still requires permission.</p>
+    ${slowRedirect && options.fastImage ? `<script>
+      // Start after load so this case measures the after-load budget on every Chromium schedule.
+      // A CSS-triggered request may already be seconds old when load fires under CPU contention.
+      window.addEventListener('load', () => {
+        const face = new FontFace('NormalEvidence', 'url(${origin}/redirect.woff2)', { display: 'swap' });
+        document.fonts.add(face);
+        face.load().catch(() => {});
+      });
+    </script>` : ''}
   </body></html>`;
   fs.writeFileSync(path.join(project, 'clone', 'index.html'), html);
 

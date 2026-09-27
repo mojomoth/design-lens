@@ -499,3 +499,26 @@ marketplace and reported all five skills plus one SessionStart hook. A fresh npm
 the public release tarball and executed its CLI, returning 0.2.0. These checks did not replace the
 user's installed plugins or shared runtime. npm registry publication remains pending required
 account 2FA; the release page states this and provides the verified GitHub-package install path.
+
+## T38 — Responsive capture, resource closure and measured fidelity (2026-09-28)
+
+Implemented independently loaded viewport captures with immutable source files, observations and
+hash baselines; an editable canonical clone; common HTML/CSS/SVG/srcdoc resource closure;
+redirect/base/fragment handling; content-addressed multi-capture assets; readiness and pixel/time
+bounds; and offline fidelity against viewport, full-page and important-region images plus
+semantic geometry and fonts. Page scripts are blocked before parsing while measurement timers
+remain available. Source edits, active clone content and missing evidence cannot obtain pass.
+
+Local marketing, editorial, dashboard/form and open-shadow/canvas captures pass all three widths.
+A JS-responsive fixture fails at mobile until an explicit static markup/CSS repair, then all
+widths pass without changing evidence. Negative controls detect small logo loss, changed fonts,
+mobile structure loss, source hash changes, external requests and visually neutral active content.
+Accessible iframe snapshots remain editable but explicitly unverified for unmeasured child
+semantics (ADR-024), preventing tiny missing children from hiding under parent image tolerance.
+
+Two regression fixtures were strengthened without dropping assertions: a genuinely absent icon
+now tests failed resources because the valid favicon is successfully localized; the redirected
+font readiness case starts its request at load to remove browser scheduling ambiguity.
+Final validation: typecheck, lint, 496 unit tests and 144 E2E tests; default sealed gate and all
+18 sealed assertions passed. The sealed harness is unchanged. NOTICE includes the pinned
+pixelmatch/pngjs additions and the rebuilt bundle remains below 2 MiB.

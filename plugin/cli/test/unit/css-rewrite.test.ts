@@ -155,3 +155,19 @@ describe('rewriteCss — mixed document', () => {
     ]);
   });
 });
+
+// Why: custom properties and image-set string candidates bypassed the old Url-only AST walk.
+describe('rewriteCss — indirect image declarations', () => {
+  it('rewrites custom-property URLs and each image-set candidate without touching MIME strings', () => {
+    const { css, refs } = rewriteCss(
+      ':root{--hero:url(hero.png)}.a{background:image-set("small.avif" type("image/avif") 1x,url(large.png) 2x);mask-image:-webkit-image-set("mask.png" 1x)}',
+      BASE, toLocal,
+    );
+    expect(refs.map((ref) => ref.url)).toEqual([
+      'https://cdn.example.com/css/hero.png', 'https://cdn.example.com/css/small.avif',
+      'https://cdn.example.com/css/large.png', 'https://cdn.example.com/css/mask.png',
+    ]);
+    expect(css).toContain('type("image/avif")');
+    expect(css).toContain('--hero:url(local/css/hero.png)');
+  });
+});

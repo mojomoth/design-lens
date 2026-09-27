@@ -20,12 +20,16 @@
  * Spec: specs/02-clone-engine.md §1 (Launch → ResourceStore), §6 (Localize), §M2 (Refetch).
  */
 
+import { createHash } from 'node:crypto';
+
 import type { ResourceVia } from '../output/manifest.js';
 
 /** One captured response: its URL, HTTP status, content type, raw body bytes, and provenance. */
 export interface StoredResource {
   /** Absolute URL the resource is keyed by (the reference the localize pass will look up). */
   url: string;
+  /** Final response URL, used as the base for relative references after a redirect. */
+  responseUrl?: string;
   /** HTTP status (only 2xx bodies are recorded by the capture wiring). */
   status: number;
   /** `content-type` header verbatim (may include a `; charset=…` parameter). */
@@ -50,20 +54,49 @@ function normalizeUrl(url: string): string {
 /** Records captured responses and answers "were these bytes captured?" for the localize pass. */
 export class ResourceStore {
   private readonly byUrl = new Map<string, StoredResource>();
+  private readonly aliases = new Map<string, string>();
 
   /** Record (or overwrite) the response for its URL; the last body served for a URL wins. */
   record(resource: StoredResource): void {
-    this.byUrl.set(normalizeUrl(resource.url), resource);
+    const url = normalizeUrl(resource.url);
+    this.aliases.delete(url);
+    this.byUrl.set(url, resource);
+  }
+
+  /** Associate a redirect request with its successful response without duplicating the body. */
+  recordAlias(alias: string, target: string): void {
+    const from = normalizeUrl(alias);
+    const to = normalizeUrl(target);
+    if (from !== to) this.aliases.set(from, to);
   }
 
   /** The captured response for `url` (fragment-insensitive), or `undefined` if never captured. */
   get(url: string): StoredResource | undefined {
-    return this.byUrl.get(normalizeUrl(url));
+    let key = normalizeUrl(url);
+    const visited = new Set<string>();
+    while (this.aliases.has(key) && !visited.has(key)) {
+      visited.add(key);
+      key = this.aliases.get(key)!;
+    }
+    return this.byUrl.get(key);
   }
 
   /** True when a body for `url` was captured. */
   has(url: string): boolean {
-    return this.byUrl.has(normalizeUrl(url));
+    return this.get(url) !== undefined;
+  }
+
+  /** A content identity for the capture, including children whose bytes affect rewritten CSS paths. */
+  fingerprint(): string {
+    const hash = createHash('sha256');
+    for (const [url, resource] of [...this.byUrl.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      hash.update(JSON.stringify([url, resource.responseUrl ?? url, resource.contentType]));
+      hash.update(createHash('sha256').update(resource.body).digest());
+    }
+    for (const [alias, target] of [...this.aliases.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      hash.update(JSON.stringify([alias, target]));
+    }
+    return hash.digest('hex');
   }
 
   /** Number of distinct captured resources (for stats/tests). */

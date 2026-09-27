@@ -1,0 +1,131 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { evidenceHash, hashFile, hashTree, readEvidence, resolveEvidencePath, sha256, type EvidenceDocument } from '../../src/capture/evidence.js';
+
+describe('immutable capture evidence', () => {
+  let directory: string;
+  let evidence: EvidenceDocument;
+
+  beforeEach(async () => {
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dl-evidence-'));
+    const snapshot = 'evidence/desktop/clone/index.html';
+    const viewportScreenshot = 'evidence/desktop/viewport.png';
+    const fullScreenshot = 'evidence/desktop/full.png';
+    await fs.mkdir(path.join(directory, 'evidence/desktop/clone'), { recursive: true });
+    for (const file of [snapshot, viewportScreenshot, fullScreenshot]) await fs.writeFile(path.join(directory, file), file);
+    evidence = {
+      schemaVersion: 1,
+      captures: [{
+        id: 'desktop', viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1,
+        capturedAt: '2026-09-27T00:00:00.000Z', browserVersion: 'test', userAgent: 'test',
+        sourceUrl: 'http://127.0.0.1/', finalUrl: 'http://127.0.0.1/',
+        policy: { reducedMotion: 'reduce', colorScheme: 'light', removeSelectors: [] },
+        observations: {
+          viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, width: 1440, height: 900,
+          rootFontSize: '16px', fonts: { status: 'ready', failedFamilies: [] }, elements: [], complete: true, warnings: [],
+        },
+        snapshot, viewportScreenshot, fullScreenshot,
+        files: await Promise.all([snapshot, viewportScreenshot, fullScreenshot].map(async (file) => ({ path: file, sha256: await hashFile(path.join(directory, file)) }))),
+        complete: true, warnings: [],
+      }],
+    };
+    await save();
+  });
+  afterEach(async () => { await fs.rm(directory, { recursive: true, force: true }); });
+  async function save(): Promise<void> { await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(evidence)); }
+
+  it('reads a complete capture only after checking every protected byte', async () => {
+    expect(await readEvidence(directory)).toEqual(evidence);
+    await fs.writeFile(path.join(directory, evidence.captures[0].snapshot), 'changed');
+    await expect(readEvidence(directory)).rejects.toThrow('file hash mismatch');
+  });
+
+  it('allows an explicit failed viewport alongside valid evidence', async () => {
+    const failed = structuredClone(evidence.captures[0]);
+    Object.assign(failed, { id: 'mobile', complete: false, warnings: ['navigation failed'], files: [], snapshot: '', viewportScreenshot: '', fullScreenshot: '' });
+    failed.observations.complete = false;
+    failed.observations.elements = [];
+    failed.observations.fonts.status = 'unavailable';
+    evidence.captures.push(failed);
+    await save();
+    expect((await readEvidence(directory)).captures).toHaveLength(2);
+  });
+
+  it('does not let incomplete status bypass integrity checks of existing files', async () => {
+    evidence.captures[0].complete = false;
+    await save();
+    await fs.writeFile(path.join(directory, evidence.captures[0].fullScreenshot), 'changed');
+    await expect(readEvidence(directory)).rejects.toThrow('file hash mismatch');
+  });
+
+  it('requires referenced screenshots and DOM to belong to the integrity inventory', async () => {
+    evidence.captures[0].files.pop();
+    await save();
+    await expect(readEvidence(directory)).rejects.toThrow('not integrity protected');
+  });
+
+  it('rejects duplicate capture IDs and mismatched observation dimensions', async () => {
+    evidence.captures.push(structuredClone(evidence.captures[0]));
+    await save();
+    await expect(readEvidence(directory)).rejects.toThrow('duplicate capture ID');
+    evidence.captures.pop();
+    evidence.captures[0].observations.viewport.width = 390;
+    await save();
+    await expect(readEvidence(directory)).rejects.toThrow('viewport differ');
+  });
+
+  it('rejects traversal, absolute and ambiguous file paths before reading', async () => {
+    for (const file of ['../outside', '/tmp/file', 'evidence/../evidence.json', 'evidence//file', 'evidence\\file', './evidence.json']) {
+      await expect(resolveEvidencePath(directory, file)).rejects.toThrow('invalid evidence path');
+    }
+  });
+
+  it('rejects symlink files and symlink directories even within the project', async () => {
+    await fs.symlink(path.join(directory, 'evidence.json'), path.join(directory, 'alias.json'));
+    await fs.symlink(path.join(directory, 'evidence/desktop'), path.join(directory, 'alias'));
+    await expect(resolveEvidencePath(directory, 'alias.json')).rejects.toThrow('symlink');
+    await expect(resolveEvidencePath(directory, 'alias/full.png')).rejects.toThrow('symlink');
+    await expect(hashTree(directory)).rejects.toThrow('symlink');
+  });
+
+  it('hashes nested asset bytes and returns deterministic relative paths', async () => {
+    const files = await hashTree(path.join(directory, 'evidence/desktop'));
+    expect(files.map((file) => file.path)).toEqual(['clone/index.html', 'full.png', 'viewport.png']);
+    expect(files[0].sha256).toBe(sha256('evidence/desktop/clone/index.html'));
+    expect(await hashTree(path.join(directory, 'evidence/desktop'))).toEqual(files);
+  });
+
+  it('canonical evidence hashes ignore formatting and key order, but retain values', () => {
+    const reordered = { captures: evidence.captures, schemaVersion: 1 as const };
+    expect(evidenceHash(reordered)).toBe(evidenceHash(evidence));
+    const modified = structuredClone(evidence);
+    modified.captures[0].observations.rootFontSize = '18px';
+    expect(evidenceHash(modified)).not.toBe(evidenceHash(evidence));
+  });
+
+  it('rejects malformed font readiness instead of treating it as measured data', async () => {
+    const invalid = JSON.parse(JSON.stringify(evidence)) as { captures: Array<{ observations: { fonts: unknown } }> };
+    invalid.captures[0].observations.fonts = { status: 'ready' };
+    await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(invalid));
+    await expect(readEvidence(directory)).rejects.toThrow('font readiness');
+  });
+
+  it('does not silently synthesize evidence for a legacy project', async () => {
+    await fs.unlink(path.join(directory, 'evidence.json'));
+    await expect(readEvidence(directory)).rejects.toThrow();
+  });
+
+  it('validates optional measured font faces without inventing them for older evidence', async () => {
+    expect((await readEvidence(directory)).captures[0].observations.fontFaces).toBeUndefined();
+    evidence.captures[0].observations.fontFaces = [{ family: 'MeasuredFace', status: 'loaded', style: 'normal', weight: 'normal', stretch: 'normal' }];
+    await save();
+    expect((await readEvidence(directory)).captures[0].observations.fontFaces).toEqual(evidence.captures[0].observations.fontFaces);
+    evidence.captures[0].observations.fontFaces[0].status = 'ready';
+    await save();
+    await expect(readEvidence(directory)).rejects.toThrow('font face observations');
+  });
+});

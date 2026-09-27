@@ -721,7 +721,8 @@ describe('clone basic --max-asset-mb (oversize policy)', () => {
   });
 
   // why: `remote[]` reasons are per-resource, not per-clone. This run produces BOTH `oversize` (the
-  // 2x hero) and `fetch-failed` (the favicon Chromium never requests headless). A regression that
+  // 2x hero) and `fetch-failed` (the deliberately absent alternate favicon). The valid favicon
+  // must now be recovered by DOM discovery even when Chromium never requests it. A regression that
   // stamps one reason across every remote entry — easy to write, since they share a recorder — would
   // pass every single-reason assertion in this suite.
   it('records each remote reason independently, and renders them under ## Left remote', () => {
@@ -729,6 +730,12 @@ describe('clone basic --max-asset-mb (oversize policy)', () => {
     const reasons = new Set(manifest.remote.map((r) => r.reason));
     expect(reasons).toContain('oversize');
     expect(reasons).toContain('fetch-failed');
+    expect(manifest.remote.find((entry) => entry.url.endsWith('/img/missing-favicon.png'))?.reason)
+      .toBe('fetch-failed');
+    const favicon = manifest.resources.find((entry) => entry.originalUrl.endsWith('/img/favicon.png'));
+    expect(favicon, 'the available favicon must be recovered by DOM discovery').toBeDefined();
+    expect(fs.existsSync(path.join(projectDir, favicon!.localPath))).toBe(true);
+    expect(manifest.remote.some((entry) => entry.url.endsWith('/img/favicon.png'))).toBe(false);
 
     const report = fs.readFileSync(path.join(projectDir, 'REPORT.md'), 'utf8');
     const leftRemote = report.split('## Left remote')[1]!.split('\n## ')[0]!;

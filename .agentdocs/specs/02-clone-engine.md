@@ -227,7 +227,7 @@ Dev: `typescript`, `tsup`, `vitest`, `eslint` + `typescript-eslint`, `@types/nod
 
 ## Verified facts (do not re-litigate)
 - `networkidle` is documented "DISCOURAGED" yet remains the standard capture signal; it MUST be
-  capped via `Promise.race` because analytics/websockets can starve it — research/clone-tech.md §A1.
+  capped with a native timeout or a cancellable timer because analytics/websockets can starve it — research/clone-tech.md §A1.
 - `@percy/dom` (1.32.x, MIT) serializes CSSOM rules, `adoptedStyleSheets`, input state →
   attributes, canvas → data-URI `<img>`, open shadow roots → `<template shadowroot>`; injected as
   a script tag then `PercyDOM.serialize()` — research/clone-tech.md §A1.
@@ -269,3 +269,9 @@ mismatch <=0.01, landmark geometry delta <=1 CSS px; unequal image dimensions fa
 rescaling. Missing evidence/assets/fonts/elements, unsupported states or truncation prevent pass.
 CLI clone may return a saved degraded capture with warnings; only fidelity pass certifies the
 comparison. The fidelity command exits 1 on fail/unverified.
+
+Embedded documents are recursively staticized. While frame-scoped semantic observation is not
+available, a capture containing an iframe is incomplete for fidelity, even when frame pixels
+match. Record this limitation rather than certifying a tiny missing frame element by aggregate
+image tolerance. Apply the pixel budget before both viewport and full-page screenshots. Offline
+rendering blocks page scripts before parsing without disabling the measurement runner's timers.

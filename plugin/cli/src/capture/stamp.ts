@@ -13,14 +13,14 @@
  * Spec: specs/02-clone-engine.md §3 (Pre-serialize DOM mutations).
  */
 
-import type { Page } from 'playwright';
+import type { Frame, Page } from 'playwright';
 
 /**
  * Remove every `removeSelectors` match, then stamp `data-dl-id="dl-N"` (N from 1, document order)
  * on every body element (descending into open shadow roots), skipping `script`/`style`. Returns the
  * number of elements stamped (for the manifest `stats.elementsStamped`).
  */
-export function stampDom(page: Page, removeSelectors: string[]): Promise<number> {
+export function stampDom(page: Page | Frame, removeSelectors: string[]): Promise<number> {
   return page.evaluate((selectors: string[]): number => {
     for (const selector of selectors) {
       try {

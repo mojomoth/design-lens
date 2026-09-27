@@ -119,6 +119,8 @@ export interface StaticServer {
 export interface StaticServerOptions {
   /** Port to bind; 0 (the default) lets the OS assign an ephemeral port. */
   port?: number;
+  /** Applied before parsing any served document; DevTools measurements remain available. */
+  contentSecurityPolicy?: string;
 }
 
 /** True only for a real file on disk; directories and missing paths are false (→ 404 upstream). */
@@ -142,6 +144,7 @@ export function startStaticServer(root: string, options: StaticServerOptions = {
   const rootResolved = path.resolve(root);
 
   const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (options.contentSecurityPolicy) res.setHeader('Content-Security-Policy', options.contentSecurityPolicy);
     const method = req.method ?? 'GET';
     if (method !== 'GET' && method !== 'HEAD') {
       res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', Allow: 'GET, HEAD' });

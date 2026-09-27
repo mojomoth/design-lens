@@ -54,7 +54,7 @@ export interface RewriteCssOptions {
 
 /** A `url()` value that can never be localised: an inline payload or a same-document fragment. */
 function isInlineOrFragment(value: string): boolean {
-  return value.startsWith('data:') || value.startsWith('#');
+  return /^data:/i.test(value) || value.startsWith('#');
 }
 
 /**
@@ -71,17 +71,22 @@ export function rewriteCss(
   resolve: CssResolver,
   options: RewriteCssOptions = {},
 ): RewriteCssResult {
-  const ast = csstree.parse(css, { context: options.context ?? 'stylesheet' });
+  const ast = csstree.parse(css, {
+    context: options.context ?? 'stylesheet',
+    parseCustomProperty: true,
+  });
   const refs: CssRef[] = [];
 
   // Rewrite the target of one Url/String node in place; record it if `resolve` localises it.
   const handleNode = (node: csstree.Url | csstree.StringNode, kind: CssRefKind): void => {
     const raw = node.value;
-    if (kind === 'url' && isInlineOrFragment(raw)) return;
+    if (isInlineOrFragment(raw)) return;
 
     let absolute: string;
     try {
-      absolute = new URL(raw, baseUrl).href;
+      const url = new URL(raw, baseUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      absolute = url.href;
     } catch {
       return; // an unresolvable reference (e.g. malformed) is left exactly as authored
     }
@@ -106,6 +111,10 @@ export function rewriteCss(
     }
 
     if (node.type === 'Url') {
+      handleNode(node, 'url');
+    }
+    // Only image-set's direct strings are URLs; type("image/avif") and ordinary CSS strings are not.
+    if (node.type === 'String' && /^(?:-webkit-)?image-set$/i.test(this.function?.name ?? '')) {
       handleNode(node, 'url');
     }
     return undefined;

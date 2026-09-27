@@ -45,8 +45,10 @@ function isIeConditionalComment(data: string): boolean {
  * Return `html` sanitized to an inert, network-passive document. Pure: parses, mutates a detached
  * DOM, and re-serializes — no I/O, no live-web access.
  */
-export function sanitizeHtml(html: string): string {
-  const $ = cheerio.load(html);
+export function sanitizeHtml(html: string, options: { xml?: boolean; depth?: number } = {}): string {
+  const depth = options.depth ?? 0;
+  if (depth > 16) throw new Error('embedded document depth exceeds 16');
+  const $ = cheerio.load(html, options.xml ? { xml: true } : undefined);
 
   // 1. All <script> elements (inline + external) and their contents.
   $('script').remove();
@@ -61,6 +63,10 @@ export function sanitizeHtml(html: string): string {
     // Snapshot names first: we mutate `attribs` inside the loop.
     for (const name of Object.keys(el.attribs)) {
       const value = el.attribs[name];
+      if (name.toLowerCase() === 'integrity') {
+        $(el).removeAttr(name);
+        continue;
+      }
       if (/^on/i.test(name)) {
         $(el).removeAttr(name);
         continue;
@@ -74,10 +80,16 @@ export function sanitizeHtml(html: string): string {
     }
   });
 
+  // srcdoc is a separate document: outer-DOM script removal cannot inspect its escaped markup.
+  $('iframe[srcdoc]').each((_, el) => {
+    $(el).attr('srcdoc', sanitizeHtml(el.attribs.srcdoc, { depth: depth + 1 }));
+  });
+
   // 4. <meta http-equiv="refresh"> — a scriptless redirect that would pull the clone off-page.
   $('meta').each((_, el) => {
     const httpEquiv = el.attribs['http-equiv'];
-    if (httpEquiv && httpEquiv.trim().toLowerCase() === 'refresh') $(el).remove();
+    if (httpEquiv && ['refresh', 'content-security-policy', 'content-security-policy-report-only']
+      .includes(httpEquiv.trim().toLowerCase())) $(el).remove();
   });
 
   // 5. Dead resource hints: preconnect/dns-prefetch/modulepreload always, and preload/prefetch
@@ -100,7 +112,7 @@ export function sanitizeHtml(html: string): string {
     });
 
   // 7. Guarantee a charset declaration so the written UTF-8 bytes render correctly.
-  if ($('meta[charset]').length === 0) {
+  if (!options.xml && $('meta[charset]').length === 0) {
     const meta = '<meta charset="utf-8">';
     if ($('head').length) $('head').prepend(meta);
     else if ($('html').length) $('html').prepend(meta);

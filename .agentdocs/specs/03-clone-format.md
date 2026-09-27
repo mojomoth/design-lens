@@ -152,3 +152,7 @@ files and checksummed. Legacy projects may lack this artifact and remain structu
 clone observations. Old results cannot be reused after edits. Preserve the primary capture's
 existing image paths and format contracts. Additional viewport assets stay separate from primary
 resources; source origin URLs remain outside clone/. inspect does not write inventory state.
+
+The optional root manifest `evidenceHash` anchors the original evidence document. Later fidelity
+runs retain this baseline, reject conflicting prior report hashes, and never silently establish
+a new baseline after source edits. Older manifests without it remain readable.

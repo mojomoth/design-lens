@@ -77,6 +77,8 @@ export interface ManifestStats {
 /** The full manifest document written to `<projectDir>/manifest.json`. */
 export interface Manifest {
   version: number;
+  /** Immutable source evidence digest; absent on captures made before evidence support. */
+  evidenceHash?: string;
   tool: { name: string; version: string; playwright: string };
   source: ManifestSource;
   resources: ManifestResource[];

@@ -60,7 +60,7 @@ export interface Capture {
   /** Non-fatal capture warnings (e.g. a response body that could not be read). */
   warnings: string[];
   /** Resolve once every in-flight response body has been read into the store. */
-  drainResponses(): Promise<void>;
+  drainResponses(deadline?: number): Promise<void>;
 }
 
 /** Options that shape the render context. Timeouts/settle live in `capture/settle.ts`. */
@@ -78,12 +78,14 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
   const context = await browser.newContext({
     viewport: options.viewport,
     deviceScaleFactor: options.deviceScaleFactor,
+    colorScheme: 'light',
     // Bypass Content-Security-Policy so a target page's CSP cannot block asset loads we need to
     // capture; combined with --disable-web-security this maximises cross-origin asset capture.
     bypassCSP: true,
     ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
   });
   const page = await context.newPage();
+  await guardFontRequests(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
   const store = new ResourceStore();
@@ -106,6 +108,12 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
         // `via: 'network'` — these bytes came off the wire while the page rendered. A resource the
         // render never requested is recorded later, with `via: 'refetch'` (localize/fetch-missing).
         store.record({ url: response.url(), status, contentType, body, via: 'network' });
+        // The DOM retains the requested URL; relative CSS URLs use the final response URL.
+        let redirected = response.request().redirectedFrom();
+        while (redirected) {
+          store.recordAlias(redirected.url(), response.url());
+          redirected = redirected.redirectedFrom();
+        }
       })(),
     );
   });
@@ -117,12 +125,23 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
     store,
     warnings,
     // Snapshot the queue: awaiting may let already-registered handlers push more, so loop to a fixpoint.
-    async drainResponses(): Promise<void> {
+    async drainResponses(deadline = Date.now() + 15_000): Promise<void> {
       let drained = 0;
       while (drained < pending.length) {
         const batch = pending.slice(drained);
         drained = pending.length;
-        await Promise.allSettled(batch);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const complete = await Promise.race([
+          Promise.allSettled(batch).then(() => true),
+          new Promise<false>((resolve) => {
+            timer = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now()));
+          }),
+        ]);
+        clearTimeout(timer);
+        if (!complete) {
+          warnings.push('resource bodies did not finish before the capture deadline');
+          break;
+        }
       }
     },
   };
@@ -289,11 +308,11 @@ async function waitForPaint(page: Page, settleMs: number, requests: FontRequestG
  */
 export async function capturePng(page: Page, fullPage: boolean): Promise<Buffer> {
   await page.evaluate(() => window.scrollTo(0, 0));
-  return page.screenshot({ fullPage, type: 'png' });
+  return page.screenshot({ fullPage, type: 'png', timeout: 10_000 });
 }
 
 /** Capture current pixels after a readiness failure without Playwright waiting for fonts again. */
-async function capturePngWithUnreadyFonts(page: Page, fullPage: boolean, deviceScaleFactor: number): Promise<Buffer> {
+export async function capturePngWithUnreadyFonts(page: Page, fullPage: boolean, deviceScaleFactor: number): Promise<Buffer> {
   await page.evaluate(() => window.scrollTo(0, 0));
   const session = await page.context().newCDPSession(page);
   try {

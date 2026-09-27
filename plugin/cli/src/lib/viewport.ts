@@ -14,3 +14,12 @@ export function parseViewport(raw: string): Viewport {
   }
   return { width, height };
 }
+
+/** Independent source navigations are bounded and unambiguous; ordering chooses the canonical clone. */
+export function parseViewports(raw: string): Viewport[] {
+  const values = raw.split(',').map((part) => parseViewport(part));
+  if (values.length > 8) throw new Error('--viewports supports at most eight capture sizes');
+  const unique = new Set(values.map(({ width, height }) => `${width}x${height}`));
+  if (unique.size !== values.length) throw new Error('--viewports contains duplicate dimensions');
+  return values;
+}

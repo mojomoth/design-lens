@@ -432,3 +432,18 @@ Format for new entries (append at the bottom, never edit existing ones):
   08-testing.md, CONVENTIONS.md and ARCHITECTURE.md in this commit. These additions supersede
   the earlier ban on automated visual thresholds and persisted capture observations, not ADR-002's
   prohibition on edit manifests. Runtime capture remains a single public page without source JS.
+
+## ADR-024 — Bounded capture and honest embedded-document verification (2026-09-27)
+
+The T38 source review found that iframe pixels can be retained while a small required element
+inside the frame escapes the parent image tolerance. Until frame-scoped observations are
+available, accessible frames remain editable static documents but make source coverage incomplete;
+fidelity must return unverified. This narrows the implementation claim, not the acceptance policy.
+Source state is anchored by an optional manifest evidenceHash and checked against prior reports.
+
+Chromium disables browser timers when JavaScript is globally disabled, including the measurement
+runner's readiness timers. Offline fidelity therefore applies a script-src none response policy
+before parsing, audits recursive active content, and retains browser instrumentation with a
+Node-side readiness deadline. No captured source program executes. Navigation's native timeout
+replaces an uncancelled Promise.race timer; both viewport and full-page pixel budgets are checked.
+Minimal clarifications update specs/02-clone-engine.md and specs/03-clone-format.md.

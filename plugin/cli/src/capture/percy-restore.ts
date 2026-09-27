@@ -81,6 +81,9 @@ export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
     const resource = src ? byUrl.get(src) : undefined;
     if (resource) {
       $(el).attr('src', `data:${resource.mimetype};base64,${resource.content}`);
+      $(el).attr('data-dl-original-tag', 'canvas');
+      const canvasStyle = $(el).attr('data-dl-canvas-style');
+      if (canvasStyle) $(el).attr('style', canvasStyle).removeAttr('data-dl-canvas-style');
       canvasConverted += 1;
     }
   });
@@ -109,6 +112,11 @@ export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
   // 4. Count declarative shadow roots (both the legacy `shadowroot` and current `shadowrootmode`
   //    attribute) for the REPORT before we would ever touch them — we never do; they pass through.
   const shadowRootsSerialized = $('template[shadowroot], template[shadowrootmode]').length;
+  // Modern Chromium parses declarative roots only with shadowrootmode. Percy also supports the
+  // older spelling; retaining that spelling alone preserves bytes but paints no shadow content.
+  $('template[shadowroot]').each((_, el) => {
+    $(el).attr('shadowrootmode', $(el).attr('shadowroot') ?? 'open').removeAttr('shadowroot');
+  });
 
   // 5. Strip all remaining percy bookkeeping (`data-percy-element-id`, `-cssom-serialized`,
   //    `-canvas-serialized`, `-shadow-host`, the just-consumed `-*-serialized` markers, …). Doing

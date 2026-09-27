@@ -46,13 +46,8 @@ export async function navigateAndSettle(page: Page, options: SettleOptions): Pro
   await page.goto(options.url, { waitUntil: 'load', timeout: Math.max(1, options.gotoTimeoutMs) });
 
   const idleCap = Math.min(NETWORKIDLE_CAP_MS, Math.max(0, options.deadline - Date.now()));
-  await Promise.race([
-    // timeout: 0 disables Playwright's own timeout; the sleep is what caps the wait.
-    page.waitForLoadState('networkidle', { timeout: 0 }).catch(() => undefined),
-    sleep(idleCap),
-  ]);
-
-  await sleep(options.settleMs);
+  if (idleCap > 0) await page.waitForLoadState('networkidle', { timeout: idleCap }).catch(() => undefined);
+  await sleep(Math.min(options.settleMs, Math.max(0, options.deadline - Date.now())));
 
   return { finalUrl: page.url(), title: await page.title() };
 }
@@ -92,24 +87,26 @@ export function scrollStepPx(viewportHeight: number): number {
  * event each step so IntersectionObserver-based lazy-loaders that listen on `window` also fire, then
  * stop once no further downward progress is made (bottom reached) or the step cap trips.
  */
-async function scrollToBottom(page: Page, step: number): Promise<void> {
+async function scrollToBottom(page: Page, step: number, deadline: number): Promise<void> {
   await page.evaluate(
-    async ({ step, intervalMs, maxSteps }) => {
+    async ({ step, intervalMs, maxSteps, deadline }) => {
       const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
       let previousY = -1;
       for (let i = 0; i < maxSteps; i += 1) {
+        if (Date.now() >= deadline) throw new Error('scroll capture deadline reached; coverage is incomplete');
         window.scrollBy(0, step);
         // Some lazy-loaders subscribe to scroll on window rather than using IntersectionObserver;
         // a synthetic event wakes both without depending on real scroll momentum.
         window.dispatchEvent(new Event('scroll'));
-        await pause(intervalMs);
+        await pause(Math.min(intervalMs, Math.max(0, deadline - Date.now())));
         const y = window.scrollY;
         // No forward movement ⇒ we are at (or past) the bottom; stop.
-        if (y <= previousY) break;
+        if (y <= previousY) return;
         previousY = y;
       }
+      throw new Error('scroll step limit reached; coverage is incomplete');
     },
-    { step, intervalMs: SCROLL_INTERVAL_MS, maxSteps: MAX_SCROLL_STEPS },
+    { step, intervalMs: SCROLL_INTERVAL_MS, maxSteps: MAX_SCROLL_STEPS, deadline },
   );
 }
 
@@ -127,19 +124,22 @@ export async function lazyLoadSweep(page: Page, options: SweepOptions): Promise<
   // Pass 0 always runs; pass 1 runs only if pass 0 revealed more page. The loop can never run more
   // than twice — that is the spec's "repeat ONCE" bound.
   for (let pass = 0; pass < 2; pass += 1) {
-    await scrollToBottom(page, step);
+    try {
+      await scrollToBottom(page, step, options.deadline);
+    } catch (error) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      throw error;
+    }
 
     const idleCap = Math.min(NETWORKIDLE_CAP_MS, Math.max(0, options.deadline - Date.now()));
-    await Promise.race([
-      page.waitForLoadState('networkidle', { timeout: 0 }).catch(() => undefined),
-      sleep(idleCap),
-    ]);
+    if (idleCap > 0) await page.waitForLoadState('networkidle', { timeout: idleCap }).catch(() => undefined);
 
     await page.evaluate(() => window.scrollTo(0, 0));
-    await sleep(options.settleMs);
+    await sleep(Math.min(options.settleMs, Math.max(0, options.deadline - Date.now())));
 
     const heightAfter = await page.evaluate(() => document.body.scrollHeight);
     if (heightAfter <= heightBefore) break;
+    if (pass === 1) throw new Error('page continues growing after scroll passes; coverage is incomplete');
     heightBefore = heightAfter;
   }
 }
@@ -149,7 +149,7 @@ export async function lazyLoadSweep(page: Page, options: SweepOptions): Promise<
  * context (real UA) and returns whether a `User-agent: *` group `Disallow`s the path. Any
  * fetch/parse failure ⇒ `false` (no warning): the clone always proceeds, this only feeds a notice.
  */
-export async function checkRobotsDisallowed(context: BrowserContext, pageUrl: string): Promise<boolean> {
+export async function checkRobotsDisallowed(context: BrowserContext, pageUrl: string, timeoutMs = 3_000): Promise<boolean> {
   let target: URL;
   try {
     target = new URL(pageUrl);
@@ -157,7 +157,8 @@ export async function checkRobotsDisallowed(context: BrowserContext, pageUrl: st
     return false;
   }
   try {
-    const response = await context.request.get(`${target.origin}/robots.txt`);
+    if (timeoutMs <= 0) return false;
+    const response = await context.request.get(`${target.origin}/robots.txt`, { timeout: timeoutMs });
     if (!response.ok()) return false;
     return pathIsDisallowed(await response.text(), target.pathname);
   } catch {

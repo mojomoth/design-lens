@@ -18,7 +18,7 @@
  * Spec: specs/02-clone-engine.md §4 (Serialize) & §M2 (percy upgrade).
  */
 
-import type { Page } from 'playwright';
+import type { Frame, Page } from 'playwright';
 
 import { PERCY_DOM_SRC } from './percy-dom-src.js';
 import { restorePercyDom, type PercySerialized } from './percy-restore.js';
@@ -40,7 +40,7 @@ export interface SerializeResult {
 }
 
 /** Count readable CSS rules across `styleSheets` + `adoptedStyleSheets` (cross-origin sheets skip). */
-function countStyleRules(page: Page): Promise<number> {
+function countStyleRules(page: Page | Frame): Promise<number> {
   return page.evaluate((): number => {
     let total = 0;
     const add = (sheet: CSSStyleSheet): void => {
@@ -61,7 +61,20 @@ function countStyleRules(page: Page): Promise<number> {
  * payload, or `null` if percy did not define its global or produced empty output (→ caller falls
  * back). Throwing propagates to the caller's try/catch, which also falls back.
  */
-async function serializePercy(page: Page): Promise<PercySerialized | null> {
+async function serializePercy(page: Page | Frame): Promise<PercySerialized | null> {
+  await page.evaluate(() => {
+    const roots: Array<Document | ShadowRoot> = [document];
+    for (let index = 0; index < roots.length; index++) {
+      for (const element of Array.from(roots[index].querySelectorAll('*'))) {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+        if (element instanceof HTMLCanvasElement) {
+          const computed = getComputedStyle(element);
+          const style = Array.from(computed).map((property) => `${property}:${computed.getPropertyValue(property)};`).join('');
+          element.setAttribute('data-dl-canvas-style', style);
+        }
+      }
+    }
+  });
   await page.addScriptTag({ content: PERCY_DOM_SRC });
   const raw = await page.evaluate((): { html: string; resources: unknown[] } | null => {
     const percy = (window as unknown as {
@@ -82,7 +95,7 @@ async function serializePercy(page: Page): Promise<PercySerialized | null> {
  * and appending one `<style data-dl-adopted>` per adopted sheet. `<link>` sheets keep their element
  * (bodies come from the ResourceStore); cross-origin sheets throw `SecurityError` and are skipped.
  */
-function serializeOwn(page: Page): Promise<{ html: string; styleRules: number }> {
+function serializeOwn(page: Page | Frame): Promise<{ html: string; styleRules: number }> {
   return page.evaluate((): { html: string; styleRules: number } => {
     const serializeRules = (sheet: CSSStyleSheet): { text: string; count: number } | null => {
       let rules: CSSRuleList;
@@ -124,7 +137,7 @@ function serializeOwn(page: Page): Promise<{ html: string; styleRules: number }>
  * HTML is a full document ready for the sanitize → localize → beautify passes; `data-dl-id` stamps
  * and shadow roots are preserved by both engines.
  */
-export async function serializeDom(page: Page): Promise<SerializeResult> {
+export async function serializeDom(page: Page | Frame): Promise<SerializeResult> {
   const warnings: string[] = [];
   try {
     const raw = await serializePercy(page);

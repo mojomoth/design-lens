@@ -38,7 +38,7 @@ import path from 'node:path';
 import type { Command } from 'commander';
 
 import { OVERRIDES_LOCAL_PATH } from '../analyze/css-sources.js';
-import { capturePng, launchCapture, renderScreenshotOfDir } from '../capture/browser.js';
+import { capturePng, capturePngWithUnreadyFonts, launchCapture, renderScreenshotOfDir } from '../capture/browser.js';
 import {
   applyConsentBlocking,
   createConsentBlocker,
@@ -52,10 +52,14 @@ import { navigateAndSettle, checkRobotsDisallowed, lazyLoadSweep } from '../capt
 import { stampDom } from '../capture/stamp.js';
 import { serializeDom } from '../capture/serialize.js';
 import { sanitizeHtml } from '../localize/html-rewrite.js';
-import { parseViewport } from '../lib/viewport.js';
+import { parseViewport, parseViewports, type Viewport } from '../lib/viewport.js';
+import { observePage, type ObservationDocument } from '../analyze/observations.js';
+import { evidenceHash, hashTree, type EvidenceDocument, type SourceCapture } from '../capture/evidence.js';
+import { stabilize } from '../capture/stabilize.js';
+import { captureFrames, embedFrameSnapshots } from '../capture/frames.js';
+import { runFidelity } from './fidelity.js';
 import {
-  collectCssUrls,
-  collectSrcsetUrls,
+  collectResourceReferences,
   fetchMissing,
   MAX_CSS_IMPORT_DEPTH,
 } from '../localize/fetch-missing.js';
@@ -71,6 +75,7 @@ import {
   buildManifest,
   manifestJson,
   resourceEntry,
+  type Manifest,
   type ManifestResource,
   type ManifestStats,
 } from '../output/manifest.js';
@@ -96,6 +101,8 @@ export interface CloneRunOptions {
   out: string;
   /** Render viewport (`--viewport WxH`). */
   viewport: { width: number; height: number };
+  /** Independently loaded source states; the first is the editable canonical clone. */
+  viewports?: Viewport[];
   /** Device scale factor (`--dsf`). */
   dsf: number;
   /** Whole-run budget in milliseconds (from `--timeout <seconds>`). */
@@ -124,6 +131,7 @@ export interface CloneResult {
   projectDir: string;
   /** Count of non-fatal warnings recorded during the run. */
   warnings: number;
+  fidelity?: 'pass' | 'fail' | 'unverified';
 }
 
 /** A `.css` body must be beautified and never treated as opaque bytes; fonts/images pass through. */
@@ -150,9 +158,10 @@ function captureRow(assets: LocalizedAsset[], pred: (a: LocalizedAsset) => boole
  * absolute project dir and warning count. Throws (fatal ⇒ exit 1 upstream) only on a navigation
  * failure or a write failure; every optional degradation is folded into the warning count.
  */
-export async function runClone(url: string, opts: CloneRunOptions): Promise<CloneResult> {
-  const start = Date.now();
-  const deadline = start + opts.timeoutMs;
+type CaptureMetadata = Omit<SourceCapture, 'id' | 'files' | 'snapshot' | 'viewportScreenshot' | 'fullScreenshot'>;
+interface SingleCloneResult extends CloneResult { source: CaptureMetadata }
+
+async function runSingleClone(url: string, opts: CloneRunOptions, deadline: number): Promise<SingleCloneResult> {
   const capturedAt = new Date().toISOString();
 
   // Resolve a fresh project dir up front — the writer refuses to overwrite, and computing this
@@ -179,6 +188,9 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   let title: string;
   let userAgent: string;
   let robotsDisallowed: boolean;
+  let observations: ObservationDocument | undefined;
+  let sourceComplete = true;
+  let browserVersion = '';
   let consentBlocking: ConsentBlockingStatus = 'disabled';
   let cosmeticSelectors: () => string[] = () => [];
   // Held in memory across the browser teardown: the project dir does not exist until the tree is
@@ -195,7 +207,7 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
         cachePath: defaultFilterListCachePath(),
         listUrl: DEFAULT_FILTER_LIST_URL,
         // Bounded by the whole-run budget: a hanging list server must not eat the navigation's time.
-        timeoutMs: Math.max(1_000, Math.min(deadline - Date.now(), 10_000)),
+        timeoutMs: Math.max(1, Math.min(deadline - Date.now(), 10_000)),
         now: Date.now(),
         download: httpFilterListDownloader,
         warnings: capture.warnings,
@@ -241,27 +253,40 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
           settleMs: opts.settleMs,
           deadline,
         });
-        await capture.drainResponses();
+        await capture.drainResponses(deadline);
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
         capture.warnings.push(`lazy-load scroll sweep failed: ${detail}`);
       }
     }
-    robotsDisallowed = await checkRobotsDisallowed(capture.context, finalUrl);
+    robotsDisallowed = await checkRobotsDisallowed(capture.context, finalUrl, Math.min(3_000, deadline - Date.now()));
     userAgent = await capture.page.evaluate(() => navigator.userAgent);
     // `--remove-selector` matches AND everything the consent engine's cosmetic rules matched on this
     // page are REMOVED here (not hidden): a clone is markup, so a `display:none` banner would still
     // be in it. Cosmetic selectors are read now, after settle+sweep, so DOM-derived rules are in.
     elementsStamped = await stampDom(capture.page, [...opts.removeSelectors, ...cosmeticSelectors()]);
+    const embedded = await captureFrames(capture.page, deadline);
+    capture.warnings.push(...embedded.warnings);
+    const stabilization = await stabilize(capture.page, deadline);
+    capture.warnings.push(...stabilization.warnings);
+    sourceComplete = stabilization.complete && embedded.warnings.length === 0;
+    observations = await observePage(capture.page, { deadline });
+    if (opts.noScroll) {
+      const deferred = await capture.page.evaluate(() => Array.from(document.querySelectorAll('img, source'))
+        .some((element) => (element.hasAttribute('data-src') && !element.getAttribute('src'))
+          || (element.hasAttribute('data-srcset') && !element.getAttribute('srcset'))));
+      if (deferred) capture.warnings.push('scroll sweep disabled with dormant deferred assets; coverage is incomplete');
+    }
+    browserVersion = capture.browser.version();
     const serialized = await serializeDom(capture.page);
-    serializedHtml = serialized.html;
+    serializedHtml = embedFrameSnapshots(serialized.html, embedded.frames);
     styleRules = serialized.styleRules;
     canvasConverted = serialized.canvasConverted;
     shadowRootsSerialized = serialized.shadowRootsSerialized;
     // Surface a percy-fallback (or any serializer) warning into the run's warning count.
     capture.warnings.push(...serialized.warnings);
     // Ensure every captured response body has landed in the store before we ask what is MISSING.
-    await capture.drainResponses();
+    await capture.drainResponses(deadline);
     // Refetch uncaptured references (optional stage, spec 02 §M2), through the browser context's
     // request client so every request carries the real Chromium UA — load-bearing for webfont CDNs,
     // which serve a lone TTF to an unknown UA but woff2 to Chrome. Individual URL failures come back
@@ -269,46 +294,29 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     // `fetch-failed`. A throw here degrades to ONE warning — a refetch must never block a clone
     // (degradation ladder, spec 02 §Error handling).
     try {
-      const refetchTimeout = (): number => Math.max(1_000, Math.min(deadline - Date.now(), 15_000));
-
-      // (a) srcset variants. Chromium requests exactly one candidate — the one matching this
-      // viewport and `--dsf` — so every other variant is referenced but never captured. Go back for
-      // them so the clone carries ALL candidates, not just the one this capture happened to pick.
-      const srcsetMissing = collectSrcsetUrls(serializedHtml, finalUrl).filter(
-        (url) => !capture.store.has(url),
-      );
-      if (srcsetMissing.length > 0) {
-        const outcome = await fetchMissing(capture.context.request, srcsetMissing, capture.store, {
-          timeoutMs: refetchTimeout(),
-          via: 'refetch',
-        });
-        for (const failure of outcome.failed) {
-          capture.warnings.push(`refetch failed: ${failure.url} (${failure.detail})`);
-        }
+      const current = await observePage(capture.page, { deadline });
+      if (JSON.stringify(current) !== JSON.stringify(observations)) {
+        capture.warnings.push('source observations changed after serialization; source state is inconsistent');
       }
-
-      // (b) CSS-discovered references: an unused `@font-face src`, a `background-image` on an
-      // element this capture never painted, a nested `@import`. The browser never requested them,
-      // and no DOM attribute names them — only stylesheet text does.
-      //
-      // This LOOPS because discovery depends on what is in the store: an `@import`ed sheet that was
-      // itself uncaptured yields no references until its own bytes arrive. Each round fetches one
-      // more level of the chain and re-collects. `attempted` makes the loop strictly monotone (a URL
-      // is tried at most once, so a permanently-failing font cannot be retried every round), which
-      // together with the round cap guarantees termination.
       const attempted = new Set<string>();
       for (let round = 0; round < MAX_CSS_IMPORT_DEPTH; round++) {
-        const cssMissing = collectCssUrls(serializedHtml, finalUrl, capture.store).filter(
-          (url) => !capture.store.has(url) && !attempted.has(url),
-        );
-        if (cssMissing.length === 0) break;
-        for (const url of cssMissing) attempted.add(url);
-        const outcome = await fetchMissing(capture.context.request, cssMissing, capture.store, {
-          timeoutMs: refetchTimeout(),
-          via: 'css-fetch',
-        });
-        for (const failure of outcome.failed) {
-          capture.warnings.push(`css-fetch failed: ${failure.url} (${failure.detail})`);
+        const missing = collectResourceReferences(serializedHtml, finalUrl, capture.store)
+          .filter((ref) => !capture.store.has(ref.url) && !attempted.has(ref.url));
+        if (missing.length === 0) break;
+        if (Date.now() >= deadline) {
+          capture.warnings.push('resource capture deadline reached; coverage is incomplete');
+          break;
+        }
+        for (const via of ['refetch', 'css-fetch'] as const) {
+          const urls = missing.filter((ref) => ref.via === via).map((ref) => ref.url);
+          for (const resourceUrl of urls) attempted.add(resourceUrl);
+          if (urls.length === 0) continue;
+          const outcome = await fetchMissing(capture.context.request, urls, capture.store, {
+            timeoutMs: Math.max(1, Math.min(deadline - Date.now(), 15_000)), deadline, via,
+          });
+          for (const failure of outcome.failed) {
+            capture.warnings.push(`${via} failed: ${failure.url} (${failure.detail})`);
+          }
         }
       }
     } catch (err) {
@@ -325,13 +333,29 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
     // cannot race the `store.has()` checks that decide what is missing. Any responses the expansion
     // does trigger are drained below, before the browser closes and the store is read.
     try {
-      originalViewportPng = await capturePng(capture.page, false);
-      originalFullPng = await capturePng(capture.page, true);
+      if (opts.viewport.width * opts.viewport.height * opts.dsf * opts.dsf > 40_000_000) {
+        capture.warnings.push('viewport screenshot pixel limit exceeded; coverage is incomplete');
+        sourceComplete = false;
+      } else if (observations.width * observations.height * opts.dsf * opts.dsf > 40_000_000) {
+        capture.warnings.push('full-page screenshot pixel limit exceeded; coverage is incomplete');
+        sourceComplete = false;
+        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
+      } else if (stabilization.fonts.status !== 'ready') {
+        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
+        originalFullPng = await capturePngWithUnreadyFonts(capture.page, true, opts.dsf);
+      } else {
+        originalViewportPng = await capturePng(capture.page, false);
+        originalFullPng = await capturePng(capture.page, true);
+      }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       capture.warnings.push(`original screenshots failed: ${detail}`);
     }
-    await capture.drainResponses();
+    await capture.drainResponses(deadline);
+    const afterScreenshots = await observePage(capture.page, { deadline });
+    if (JSON.stringify(afterScreenshots) !== JSON.stringify(observations)) {
+      capture.warnings.push('source state changed before screenshots completed; coverage is inconsistent');
+    }
   } finally {
     await capture.browser.close();
   }
@@ -341,6 +365,7 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   const localized = localizeDocument(inertHtml, finalUrl, capture.store, {
     maxAssetBytes: opts.maxAssetBytes,
     includeMedia: opts.includeMedia,
+    contentAddressed: opts.viewports !== undefined,
   });
 
   // Pretty-print every localized stylesheet BEFORE hashing, so the manifest sha256/bytes describe
@@ -462,9 +487,8 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       fontFiles: fontFilesFrom(resources),
     },
     remote: localized.remote,
-    // Canvas → data: images and shadow roots → <template> come from the @percy/dom serializer;
-    // cross-origin iframe capture is still deferred (spec 02 §M2), so that counter stays 0.
-    fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: 0 },
+    // Count only frames still remote after snapshot/localization, rather than claiming none exist.
+    fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: localized.remote.filter((ref) => ref.reason === 'cross-origin-iframe').length },
     warnings: capture.warnings,
     verify: summarizeVerify(verifyReport),
   });
@@ -476,11 +500,73 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   process.stderr.write(
     `design-lens: wrote ${resources.length} asset(s) to ${projectDir} (${warnings} warning(s))\n`,
   );
-  // Spec 10 §Layer 1: verbatim, on stderr (the human channel — stdout stays machine-only), and LAST,
-  // so the ethics notice is the line still on screen when the clone finishes.
-  process.stderr.write(`${COMPLETION_NOTICE}\n`);
 
-  return { projectDir, warnings };
+  if (!observations) throw new Error('source observation capture did not complete');
+  return { projectDir, warnings, source: {
+    viewport: opts.viewport, deviceScaleFactor: opts.dsf, capturedAt, browserVersion,
+    userAgent, sourceUrl: url, finalUrl,
+    policy: { reducedMotion: 'reduce', colorScheme: 'light', removeSelectors: [...opts.removeSelectors, ...cosmeticSelectors()] },
+    observations,
+    complete: sourceComplete && observations.complete && !!originalViewportPng && !!originalFullPng
+      && capture.warnings.length === 0 && localized.remote.length === 0,
+    warnings: [...capture.warnings, ...localized.remote.map((remote) => `remote ${remote.reason}: ${remote.url}`)],
+  } };
+}
+
+/** Preserve each source independently; later repairs cannot alter the evidence they are judged against. */
+export async function runClone(url: string, opts: CloneRunOptions): Promise<CloneResult> {
+  const viewports = opts.viewports ?? [opts.viewport];
+  const deadline = Date.now() + opts.timeoutMs;
+  const primary = await runSingleClone(url, { ...opts, viewport: viewports[0] }, deadline);
+  const evidenceRoot = path.join(primary.projectDir, 'evidence');
+  const captures: SourceCapture[] = [];
+  let warnings = primary.warnings;
+  for (const [index, viewport] of viewports.entries()) {
+    const id = `viewport-${viewport.width}x${viewport.height}`;
+    let captured = primary;
+    const captureDir = path.join(evidenceRoot, id);
+    if (index === 0) {
+      fs.mkdirSync(captureDir, { recursive: true });
+      for (const entry of ['clone', 'screenshots', 'manifest.json', 'REPORT.md']) {
+        const source = path.join(primary.projectDir, entry);
+        if (fs.existsSync(source)) fs.cpSync(source, path.join(captureDir, entry), { recursive: true, errorOnExist: true });
+      }
+    } else {
+      try {
+        captured = await runSingleClone(url, { ...opts, viewport, out: evidenceRoot, project: id }, deadline);
+        warnings += captured.warnings;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`design-lens: warning: source viewport ${id} unavailable: ${detail}\n`);
+        captures.push({ ...primary.source, id, viewport, complete: false,
+          warnings: [`source viewport unavailable: ${detail}`], capturedAt: new Date().toISOString(),
+          observations: { viewport, deviceScaleFactor: opts.dsf, width: viewport.width, height: viewport.height,
+            rootFontSize: 'unknown', fonts: { status: 'unavailable', failedFamilies: [] }, elements: [],
+            complete: false, warnings: [`source viewport unavailable: ${detail}`] },
+          snapshot: '', viewportScreenshot: '', fullScreenshot: '', files: [] });
+        warnings++;
+        continue;
+      }
+    }
+    const prefix = path.relative(primary.projectDir, captureDir).split(path.sep).join('/');
+    const files = (await hashTree(captureDir)).map((file) => ({ ...file, path: `${prefix}/${file.path}` }));
+    const available = (relative: string): string => files.some((file) => file.path === `${prefix}/${relative}`) ? `${prefix}/${relative}` : '';
+    captures.push({ ...captured.source, id, files, snapshot: available('clone/index.html'),
+      viewportScreenshot: available('screenshots/original-viewport.png'), fullScreenshot: available('screenshots/original-full.png') });
+  }
+  const evidence: EvidenceDocument = { schemaVersion: 1, captures };
+  fs.writeFileSync(path.join(primary.projectDir, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
+  const manifestPath = path.join(primary.projectDir, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
+  manifest.evidenceHash = evidenceHash(evidence);
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const fidelity = await runFidelity(primary.projectDir);
+  const reportPath = path.join(primary.projectDir, 'REPORT.md');
+  const report = fs.readFileSync(reportPath, 'utf8').replace('## Fidelity notes\n',
+    `## Fidelity notes\n- Measured responsive fidelity: ${fidelity.report.status}; see fidelity.json (${captures.length} source viewport(s)).\n`);
+  fs.writeFileSync(reportPath, report);
+  process.stderr.write(`${COMPLETION_NOTICE}\n`);
+  return { projectDir: primary.projectDir, warnings, fidelity: fidelity.report.status };
 }
 
 /** Accumulate a repeatable commander option into an array (used by `--remove-selector`). */
@@ -510,8 +596,9 @@ export function registerCloneCommand(program: Command): void {
     .option('--project <name>', 'project directory name (defaults to the URL host)')
     .option('--out <dir>', 'output root directory', './.design-lens')
     .option('--viewport <WxH>', 'render viewport, e.g. 1440x900', '1440x900')
+    .option('--viewports <list>', 'independent source viewports, e.g. 1440x900,768x1024,390x844')
     .option('--dsf <n>', 'device scale factor', '1')
-    .option('--timeout <s>', 'whole-run budget in seconds', '90')
+    .option('--timeout <s>', 'source capture budget in seconds (default: 90 per requested viewport)')
     .option('--settle <ms>', 'extra quiet time after networkidle, in ms', '1500')
     .option('--no-scroll', 'disable the lazy-load scroll sweep before serialization')
     .option('--no-block-cookies', 'disable consent/cookie-banner blocking')
@@ -531,8 +618,9 @@ export function registerCloneCommand(program: Command): void {
           project?: string;
           out: string;
           viewport: string;
+          viewports?: string;
           dsf: string;
-          timeout: string;
+          timeout?: string;
           settle: string;
           scroll: boolean;
           blockCookies: boolean;
@@ -542,14 +630,20 @@ export function registerCloneCommand(program: Command): void {
           maxAssetMb: string;
           includeMedia?: boolean;
         },
+        command: Command,
       ): Promise<void> => {
         try {
+          if (options.viewports !== undefined && command.getOptionValueSource('viewport') === 'cli') {
+            throw new Error('--viewport and --viewports cannot be used together');
+          }
+          const viewports = options.viewports === undefined ? undefined : parseViewports(options.viewports);
           const parsed: CloneRunOptions = {
             ...(options.project !== undefined ? { project: options.project } : {}),
             out: options.out,
-            viewport: parseViewport(options.viewport),
+            viewport: viewports?.[0] ?? parseViewport(options.viewport),
+            ...(viewports ? { viewports } : {}),
             dsf: parsePositive(options.dsf, '--dsf'),
-            timeoutMs: parsePositive(options.timeout, '--timeout') * 1000,
+            timeoutMs: (options.timeout === undefined ? 90 * (viewports?.length ?? 1) : parsePositive(options.timeout, '--timeout')) * 1000,
             settleMs: Number(options.settle),
             // Commander maps `--no-scroll` to `options.scroll === false`; default is true.
             noScroll: options.scroll === false,
@@ -562,6 +656,7 @@ export function registerCloneCommand(program: Command): void {
             // A bare `--include-media` arrives as `true`; absent, commander leaves it undefined.
             includeMedia: options.includeMedia === true,
           };
+          if (!Number.isFinite(parsed.settleMs) || parsed.settleMs < 0) throw new Error('--settle must be a non-negative number');
           const result = await runClone(url, parsed);
           process.stdout.write(`${JSON.stringify(result)}\n`);
         } catch (err) {

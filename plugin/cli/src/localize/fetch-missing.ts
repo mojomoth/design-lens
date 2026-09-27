@@ -41,6 +41,8 @@ import { rewriteCss, type CssRefKind } from './css-rewrite.js';
 import { isCssResource } from './media-type.js';
 import { ResourceStore } from './resource-store.js';
 import type { ResourceVia } from '../output/manifest.js';
+import { documentBaseUrl, rewriteDocumentReferences, type DocumentReference } from './document-references.js';
+import { sanitizeHtml } from './html-rewrite.js';
 
 /** Extra attempts after the first (spec 02 §M2: "Retries ×2"). */
 export const DEFAULT_RETRIES = 2;
@@ -69,6 +71,7 @@ export interface RefetchClient {
 
 /** The slice of Playwright's `APIResponse` this module reads. */
 export interface RefetchResponse {
+  url?(): string;
   ok(): boolean;
   status(): number;
   headers(): Record<string, string>;
@@ -91,6 +94,8 @@ export interface RefetchOutcome {
 
 /** Tunables for {@link fetchMissing}; each defaults to the module constant named beside it. */
 export interface FetchMissingOptions {
+  /** Absolute whole-capture deadline; each request and retry uses only the remaining budget. */
+  deadline?: number;
   /** Extra attempts after the first. `0` ⇒ a single attempt. Default {@link DEFAULT_RETRIES}. */
   retries?: number;
   /** Per-request timeout in ms, handed to the client. Default {@link DEFAULT_TIMEOUT_MS}. */
@@ -148,6 +153,7 @@ function toFetchableUrl(raw: string, pageUrl: string): string | null {
  */
 export function collectSrcsetUrls(html: string, pageUrl: string): string[] {
   const $ = cheerio.load(html);
+  pageUrl = documentBaseUrl($, pageUrl);
   const urls: string[] = [];
   const seen = new Set<string>();
 
@@ -222,7 +228,7 @@ export function collectCssUrls(html: string, pageUrl: string, store: ResourceSto
         if (!isSheet) return null;
 
         descended.add(fetchable);
-        walkCss(stored.body.toString('utf8'), fetchable, depth + 1);
+        walkCss(stored.body.toString('utf8'), stored.responseUrl ?? stored.url, depth + 1);
         return null;
       },
       inline ? { context: 'declarationList' } : {},
@@ -230,6 +236,7 @@ export function collectCssUrls(html: string, pageUrl: string, store: ResourceSto
   };
 
   const $ = cheerio.load(html);
+  pageUrl = documentBaseUrl($, pageUrl);
 
   $('style').each((_, el) => {
     const css = $(el).text();
@@ -246,16 +253,55 @@ export function collectCssUrls(html: string, pageUrl: string, store: ResourceSto
     const stored = store.get(absolute);
     if (stored === undefined) return; // see the doc comment: HTML-discovered, not ours to refetch
     descended.add(absolute);
-    walkCss(stored.body.toString('utf8'), absolute, 0);
+    walkCss(stored.body.toString('utf8'), stored.responseUrl ?? stored.url, 0);
   });
 
   $('[style]').each((_, el) => {
     const raw = $(el).attr('style');
-    if (raw === undefined || !raw.includes('url(')) return;
+    if (raw === undefined) return;
     walkCss(raw, pageUrl, 0, true);
   });
 
   return urls;
+}
+
+/**
+ * Discover the same resource closure localization consumes, preserving where every URL was found.
+ * Calling again after fetches discovers children of newly available stylesheets/frames/SVG files.
+ */
+export function collectResourceReferences(
+  html: string,
+  pageUrl: string,
+  store: ResourceStore,
+): { url: string; via: RefetchVia }[] {
+  const found = new Map<string, { url: string; via: RefetchVia }>();
+  const descended = new Set<string>();
+  const visit = (reference: DocumentReference, depth: number): null => {
+    const url = toFetchableUrl(reference.url, pageUrl);
+    if (url === null) return null;
+    if (!found.has(url)) found.set(url, { url, via: reference.via });
+    const stored = store.get(url);
+    if (!stored || descended.has(url)) return null;
+    const base = stored.responseUrl ?? stored.url;
+    const isSheet = reference.kind === 'stylesheet' || isCssResource(stored.contentType, new URL(base).pathname);
+    const isDocument = /^(?:text\/html|application\/xhtml\+xml|image\/svg\+xml)(?:;|$)/i.test(stored.contentType);
+    if (!isSheet && !isDocument) return null;
+    if (depth > MAX_CSS_IMPORT_DEPTH) throw new Error(`resource discovery depth exceeds ${MAX_CSS_IMPORT_DEPTH}`);
+    descended.add(url);
+    if (isSheet) {
+      rewriteCss(stored.body.toString('utf8'), base, (child, kind) => visit({
+        url: child, kind: kind === 'import' ? 'stylesheet' : 'leaf',
+        via: 'css-fetch', referencedBy: url,
+      }, depth + 1));
+    } else {
+      const xml = /^image\/svg\+xml/i.test(stored.contentType);
+      const inert = sanitizeHtml(stored.body.toString('utf8'), { xml });
+      rewriteDocumentReferences(inert, base, (child) => visit(child, depth + 1), { xml });
+    }
+    return null;
+  };
+  rewriteDocumentReferences(sanitizeHtml(html), pageUrl, (reference) => visit(reference, 0));
+  return [...found.values()];
 }
 
 /**
@@ -267,11 +313,14 @@ async function fetchWithRetries(
   url: string,
   attempts: number,
   timeoutMs: number,
+  deadline?: number,
 ): Promise<RefetchResponse> {
   let lastDetail = 'no attempt was made';
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      const response = await client.get(url, { timeout: timeoutMs });
+      const remaining = deadline === undefined ? timeoutMs : deadline - Date.now();
+      if (remaining <= 0) throw new Error('capture deadline exhausted');
+      const response = await client.get(url, { timeout: Math.max(1, Math.min(timeoutMs, remaining)) });
       if (response.ok()) return response;
       lastDetail = `HTTP ${response.status()}`;
     } catch (err) {
@@ -310,14 +359,17 @@ export async function fetchMissing(
   for (const url of urls) {
     if (store.has(url)) continue; // already captured during render — nothing to refetch
     try {
-      const response = await fetchWithRetries(client, url, attempts, timeoutMs);
+      const response = await fetchWithRetries(client, url, attempts, timeoutMs, options.deadline);
+      const responseUrl = response.url?.() ?? url;
       store.record({
         url,
+        responseUrl,
         status: response.status(),
         contentType: (response.headers()['content-type'] ?? '').trim(),
         body: await response.body(),
         via,
       });
+      store.recordAlias(responseUrl, url);
       fetched.push(url);
     } catch (err) {
       failed.push({ url, detail: err instanceof Error ? err.message : String(err) });

@@ -26,12 +26,14 @@
  */
 
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import * as cheerio from 'cheerio';
 
 import { localPathFor } from './urlmap.js';
 import { rewriteCss, type CssRefKind } from './css-rewrite.js';
-import { rewriteSrcset } from './srcset.js';
+import { rewriteDocumentReferences, type DocumentRefKind } from './document-references.js';
+import { sanitizeHtml } from './html-rewrite.js';
 import { ResourceStore } from './resource-store.js';
 import { isBulkMediaResource, isCssResource, isFontResource, isImageResource } from './media-type.js';
 import type { ManifestRemote, RemoteReason, ResourceVia } from '../output/manifest.js';
@@ -56,6 +58,8 @@ export interface LocalizeOptions {
   maxAssetBytes: number;
   /** When false, `mp4/webm/mp3/pdf/zip` refs stay remote with reason `media-skipped`. */
   includeMedia: boolean;
+  /** Include a captured-body hash in paths when several viewport captures share an asset tree. */
+  contentAddressed?: boolean;
 }
 
 /** The policy a bare `localizeDocument(html, url, store)` applies: spec defaults, media excluded. */
@@ -99,18 +103,6 @@ export interface LocalizeResult {
   stats: { images: number; fonts: number; cssFiles: number };
 }
 
-/** A reference we can never localise: inline payload, mail/tel scheme, or same-document fragment. */
-function isUnlocalizable(raw: string): boolean {
-  return (
-    raw === '' ||
-    raw.startsWith('data:') ||
-    raw.startsWith('mailto:') ||
-    raw.startsWith('tel:') ||
-    raw.startsWith('#') ||
-    raw.startsWith('javascript:')
-  );
-}
-
 /**
  * Localise every capturable reference in `html`. `pageUrl` is the document's own (final) URL —
  * relative references resolve against it. `store` holds the bytes captured during render, and
@@ -124,6 +116,7 @@ export function localizeDocument(
 ): LocalizeResult {
   const assets = new Map<string, LocalizedAsset>();
   const remote = new Map<string, ManifestRemote>();
+  const captureIdentity = options.contentAddressed ? store.fingerprint() : '';
 
   const recordRemote = (url: string, reason: RemoteReason, referencedBy: string): void => {
     if (!remote.has(url)) remote.set(url, { url, reason, referencedBy });
@@ -146,7 +139,7 @@ export function localizeDocument(
    */
   const localizeAsset = (
     absoluteUrl: string,
-    kind: 'stylesheet' | 'leaf',
+    kind: DocumentRefKind,
     referencedBy: string,
   ): string | null => {
     const stored = store.get(absoluteUrl);
@@ -165,9 +158,25 @@ export function localizeDocument(
       recordRemote(absoluteUrl, 'oversize', referencedBy);
       return null;
     }
-    const assetPath = localPathFor(absoluteUrl, stored.contentType);
+    const responseUrl = stored.responseUrl ?? stored.url;
+    let assetPath = localPathFor(responseUrl, stored.contentType);
+    // The local static server infers MIME from the filename; extensionless/PHP frame routes need HTML.
+    if (/^(?:text\/html|application\/xhtml\+xml)(?:;|$)/i.test(stored.contentType) &&
+      !/\.html?$/i.test(assetPath)) assetPath += '.html';
+    if ((kind === 'stylesheet' || isCssResource(stored.contentType, assetPath)) &&
+      !/\.css$/i.test(assetPath)) assetPath += '.css';
+    if (/^image\/svg\+xml(?:;|$)/i.test(stored.contentType) && !/\.svg$/i.test(assetPath)) assetPath += '.svg';
+    if (options.contentAddressed) {
+      const ext = path.posix.extname(assetPath);
+      const hash = createHash('sha256').update(captureIdentity).update(responseUrl).update(stored.body)
+        .digest('hex').slice(0, 16);
+      assetPath = `${assetPath.slice(0, -ext.length)}__c-${hash}${ext}`;
+    }
+    // A URL fragment selects an SVG symbol/filter and never belongs in the disk filename.
+    const fragment = new URL(absoluteUrl).hash;
+    const referencePath = assetPath + fragment;
     const already = assets.get(assetPath);
-    if (already !== undefined) return assetPath;
+    if (already !== undefined) return referencePath;
 
     // Reserve the slot BEFORE recursing so a circular @import chain terminates on the second visit.
     const entry: LocalizedAsset = {
@@ -182,121 +191,30 @@ export function localizeDocument(
 
     if (kind === 'stylesheet' || isCssResource(stored.contentType, assetPath)) {
       const resolveInCss = (refUrl: string, refKind: CssRefKind): string | null => {
-        const target = localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', absoluteUrl);
+        const target = localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', responseUrl);
         if (target === null) return null;
         // A reference inside a CSS file is relative to THAT file's directory, not the page root.
         return path.posix.relative(path.posix.dirname(assetPath), target);
       };
-      const { css } = rewriteCss(stored.body.toString('utf8'), absoluteUrl, resolveInCss);
+      const { css } = rewriteCss(stored.body.toString('utf8'), responseUrl, resolveInCss);
       entry.body = Buffer.from(css, 'utf8');
+    } else if (/^(?:text\/html|application\/xhtml\+xml|image\/svg\+xml)(?:;|$)/i.test(stored.contentType)) {
+      const xml = /^image\/svg\+xml/i.test(stored.contentType);
+      const inert = sanitizeHtml(stored.body.toString('utf8'), { xml });
+      entry.body = Buffer.from(rewriteDocumentReferences(inert, responseUrl, (ref) => {
+        const target = localizeAsset(ref.url, ref.kind, ref.referencedBy);
+        return target === null ? null : path.posix.relative(path.posix.dirname(assetPath), target);
+      }, { xml }), 'utf8');
     } else {
       entry.body = stored.body;
     }
-    return assetPath;
+    return referencePath;
   };
 
-  const $ = cheerio.load(html);
-
-  /** Resolve a raw attribute value to an absolute URL, or `null` if it is not localisable. */
-  const toAbsolute = (raw: string): string | null => {
-    if (isUnlocalizable(raw)) return null;
-    try {
-      return new URL(raw, pageUrl).href;
-    } catch {
-      return null;
-    }
-  };
-
-  /**
-   * Localise a leaf attribute value (img `src`, link icon `href`, …), returning the new value to
-   * substitute or `null` to leave the attribute exactly as authored (uncaptured or unlocalisable).
-   */
-  const leafValue = (raw: string | undefined, referencedBy: string): string | null => {
-    if (raw === undefined) return null;
-    const absolute = toAbsolute(raw);
-    if (absolute === null) return null;
-    return localizeAsset(absolute, 'leaf', referencedBy);
-  };
-
-  /** Localise every candidate in a `srcset`/`imagesrcset` value; `null` when nothing changed. */
-  const srcsetValue = (raw: string | undefined, referencedBy: string): string | null => {
-    if (raw === undefined) return null;
-    const { srcset } = rewriteSrcset(raw, pageUrl, (absolute) => localizeAsset(absolute, 'leaf', referencedBy));
-    return srcset === raw ? null : srcset;
-  };
-
-  // --- <link> (stylesheet / icon / manifest) --------------------------------------------------
-  $('link').each((_, el) => {
-    const $el = $(el);
-    const href = $el.attr('href');
-    if (href === undefined) return;
-    const rel = (el.attribs.rel ?? '').toLowerCase().split(/\s+/).filter(Boolean);
-    const referencedBy = $el.attr('data-dl-id') ?? el.name;
-    if (rel.includes('stylesheet')) {
-      const absolute = toAbsolute(href);
-      const localPath = absolute === null ? null : localizeAsset(absolute, 'stylesheet', referencedBy);
-      if (localPath !== null) $el.attr('href', localPath);
-    } else if (rel.some((r) => ['icon', 'apple-touch-icon', 'mask-icon', 'manifest'].includes(r))) {
-      const localPath = leafValue(href, referencedBy);
-      if (localPath !== null) $el.attr('href', localPath);
-    }
-  });
-
-  // --- <style> blocks (folded-in CSSOM rules, author styles) ----------------------------------
-  $('style').each((_, el) => {
-    const $el = $(el);
-    const css = $el.text();
-    if (css.trim() === '') return;
-    const referencedBy = $el.attr('data-dl-id') ?? el.name;
-    // A <style> block lives at the page root, so no relativisation of localised paths is needed.
-    const { css: rewritten } = rewriteCss(css, pageUrl, (refUrl, refKind) =>
-      localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', referencedBy),
-    );
-    if (rewritten !== css) $el.text(rewritten);
-  });
-
-  // --- src / srcset / poster / data on media elements -----------------------------------------
-  $('img, source').each((_, el) => {
-    const $el = $(el);
-    const id = $el.attr('data-dl-id') ?? el.name;
-    const src = leafValue($el.attr('src'), id);
-    if (src !== null) $el.attr('src', src);
-    const srcset = srcsetValue($el.attr('srcset'), id);
-    if (srcset !== null) $el.attr('srcset', srcset);
-  });
-  $('video').each((_, el) => {
-    const $el = $(el);
-    const id = $el.attr('data-dl-id') ?? el.name;
-    const src = leafValue($el.attr('src'), id);
-    if (src !== null) $el.attr('src', src);
-    const poster = leafValue($el.attr('poster'), id);
-    if (poster !== null) $el.attr('poster', poster);
-  });
-  $('audio, track, embed').each((_, el) => {
-    const $el = $(el);
-    const src = leafValue($el.attr('src'), $el.attr('data-dl-id') ?? el.name);
-    if (src !== null) $el.attr('src', src);
-  });
-  $('object').each((_, el) => {
-    const $el = $(el);
-    const data = leafValue($el.attr('data'), $el.attr('data-dl-id') ?? el.name);
-    if (data !== null) $el.attr('data', data);
-  });
-
-  // --- inline style="" url() ------------------------------------------------------------------
-  $('[style]').each((_, el) => {
-    const $el = $(el);
-    const raw = $el.attr('style');
-    if (raw === undefined || !raw.includes('url(')) return;
-    const referencedBy = $el.attr('data-dl-id') ?? el.name;
-    const { css } = rewriteCss(
-      raw,
-      pageUrl,
-      (refUrl, refKind) => localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', referencedBy),
-      { context: 'declarationList' },
-    );
-    if (css !== raw) $el.attr('style', css);
-  });
+  const rewritten = rewriteDocumentReferences(html, pageUrl, (ref) =>
+    localizeAsset(ref.url, ref.kind, ref.referencedBy),
+  );
+  const $ = cheerio.load(rewritten);
 
   // --- the override stylesheet, linked LAST in <head> so its rules win the cascade -------------
   if ($('head').length === 0) $('html').prepend('<head></head>');

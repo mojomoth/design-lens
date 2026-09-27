@@ -40,6 +40,8 @@ These packages are compiled into the shipped single-file CJS bundle and are ther
 | `nth-check` | 2.1.1 | BSD-2-Clause | Felix Böhm |
 | `parse5` | 7.3.0 | MIT | 2013-2019 Ivan Nikulin |
 | `parse5-htmlparser2-tree-adapter` | 7.1.0 | MIT | 2013-2019 Ivan Nikulin |
+| `pixelmatch` | 7.2.0 | ISC | 2025 Mapbox |
+| `pngjs` | 7.0.0 | MIT | 2015 Luke Page & Original Contributors; 2012 Kuba Niegowski |
 | `source-map-js` | 1.2.1 | BSD-3-Clause | 2009-2011 Mozilla Foundation and contributors |
 
 ### A note on `@percy/dom`
@@ -94,3 +96,46 @@ Pages, images, fonts, and text captured by `design-lens clone` are **not covered
 and are **not licensed to you by Design Lens**. They remain the property of their owners. Each
 clone carries its own `REPORT.md` with a `## License & usage notice` section and a full
 `manifest.json` source-URL mapping. See `## Fair use & respect for designers` in `README.md`.
+
+## Image comparison licenses
+
+### pixelmatch
+
+ISC License
+
+Copyright (c) 2025, Mapbox
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+### pngjs
+
+pngjs original work Copyright (c) 2015 Luke Page & Original Contributors
+pngjs derived work Copyright (c) 2012 Kuba Niegowski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
