@@ -226,8 +226,8 @@ describe('extractTokens — typography', () => {
 
 describe('extractTokens — spacing, radii, shadows, motion', () => {
   // why: `base` is the claim "this design is on an 8px grid". It must be count-weighted over
-  // OCCURRENCES (a value used 10× counts 10×), and fall back to the finer 4px grid when the
-  // evidence is not there — otherwise every design gets reported as 8px by default.
+  // OCCURRENCES (a value used 10× counts 10×), and use a finer 4px grid only with alignment
+  // evidence — otherwise arbitrary dimensions get reported as a grid.
   it('picks the 8px base only when most spacing occurrences land on it', () => {
     expect(tokensOf('.a{padding:8px}.b{margin:16px}.c{gap:24px}.d{padding:8px}').spacing.base).toBe(8);
     expect(tokensOf('.a{padding:4px}.b{padding:12px}.c{padding:20px}.d{padding:4px}').spacing.base).toBe(4);
@@ -235,8 +235,7 @@ describe('extractTokens — spacing, radii, shadows, motion', () => {
 
   // why: three separate traps. (1) `margin: 0 auto` is centering, not spacing — zero and keyword
   // values must never enter the histogram. (2) A value seen once is noise, not a scale step.
-  // (3) A 1px hairline SNAPS TO ZERO on a 4px grid; emitting `0` as a spacing token would be
-  // meaningless and would sort to the front of the scale.
+  // (3) Repeated 1px hairlines provide neither a spacing grid nor a reusable spacing step.
   it('builds the spacing scale from repeated, positive, snapped values only', () => {
     const tokens = tokensOf('.a{padding:1rem}.b{padding:1rem}.c{margin:0 auto}.d{gap:24px}');
     expect(tokens.spacing.scalePx).toEqual([16]);
@@ -246,7 +245,7 @@ describe('extractTokens — spacing, radii, shadows, motion', () => {
     expect(snapped.spacing.scalePx).toEqual([16]);
 
     const hairline = tokensOf('.a{padding:1px}.b{padding:1px}');
-    expect(hairline.spacing.base).toBe(4);
+    expect(hairline.spacing.base).toBeNull();
     expect(hairline.spacing.scalePx).toEqual([]);
   });
 
@@ -310,6 +309,7 @@ describe('extractTokens — contract', () => {
   it('always emits the full schema, even for empty CSS', () => {
     const tokens = tokensOf('');
     expect(Object.keys(tokens)).toEqual([
+      'schemaVersion',
       'colors',
       'palette',
       'typography',
@@ -317,11 +317,109 @@ describe('extractTokens — contract', () => {
       'radii',
       'shadows',
       'motion',
+      'provenance',
     ]);
+    expect(tokens.schemaVersion).toBe(2);
+    expect(tokens.spacing).toEqual({ base: null, scalePx: [] });
+    expect(tokens.provenance).toEqual({
+      kind: 'css-declaration-census', source: 'clone', rendered: false,
+      sources: [], assumptions: [], unresolved: [], warnings: [],
+    });
     expect(tokens.colors).toEqual([]);
     expect(tokens.palette).toEqual({ primaryGuess: null, neutrals: [], accents: [] });
     expect(tokens.typography.families).toEqual([]);
     expect(tokens.typography.scaleRatioGuess).toBeNull();
     expect(tokens.motion.keyframes).toEqual([]);
+  });
+});
+
+describe('schema 2 — truthful declaration evidence', () => {
+  // Why: every zero-alpha spelling is invisible; treating it as opaque invents a dominant brand color.
+  it('excludes fully transparent hex and functional colors from palette candidates', () => {
+    const tokens = tokensOf('.a{color:#ff000000;background:rgba(255,0,0,0);border-color:rgb(255 0 0 / 0%)}.b{color:#3347ff}');
+    expect(tokens.colors).toHaveLength(1);
+    expect(tokens.palette.primaryGuess).toBe('#3347ff');
+    expect(tokens.colors[0]).toMatchObject({ hex: '#3347ff', alpha: 1, css: '#3347ff' });
+  });
+
+  // Why: opacity changes compositing; clusters and palette strings must not flatten it away.
+  it('separates opacity variants and preserves alpha in palette values and members', () => {
+    const tokens = tokensOf('.a{color:rgb(51 71 255 / 0.5);background:rgb(51 71 255 / 0.5)}.b{color:#3347ff}.c{color:rgb(51 71 255 / 0.25)}');
+    expect(tokens.colors).toHaveLength(3);
+    expect(tokens.colors.map((color) => color.alpha).sort()).toEqual([0.25, 0.5, 1]);
+    const translucent = tokens.colors.find((color) => color.alpha === 0.5)!;
+    expect(translucent.count).toBe(2);
+    expect(translucent.css).toBe('rgb(51 71 255 / 0.5)');
+    expect(translucent.oklch).toMatch(/^oklch\(\d+% \d+\.\d{2} \d+ \/ 0\.5\)$/);
+    expect(translucent.clusterOf).toEqual(['rgb(51 71 255 / 0.5)']);
+    expect(tokens.palette.primaryGuess).toBe(translucent.css);
+  });
+
+  // Why: font shorthand carries the chosen family and weight, while its line-height is not a weight.
+  it('extracts semantic font shorthand components including implicit normal weight', () => {
+    const tokens = tokensOf('h1{font:italic small-caps 650 24px/1.4 "A B",serif}body{font:16px/1.5 Body,sans-serif}');
+    expect(tokens.typography.families).toEqual([
+      { name: 'A B', usage: 'heading', faces: [] },
+      { name: 'Body', usage: 'body', faces: [] },
+    ]);
+    expect(tokens.typography.weights).toEqual([400, 650]);
+    expect(tokens.typography.sizesPx).toEqual([16, 24]);
+    expect(tokens.typography.lineHeights).toEqual([1.4, 1.5]);
+  });
+
+  // Why: ancestors and :has/:not arguments describe relationships, not the element receiving the font.
+  it('classifies the selector subject without inventing body usage from declaration popularity', () => {
+    const tokens = tokensOf('body h1{font-family:Display}h1 .child{font-family:Child}' +
+      '.container:has(h1){font-family:Container}:not(h1){font-family:Excluded}' +
+      'body :is(h2,h3){font-family:Subheading}:where(body,p){font-family:Reading}');
+    expect(Object.fromEntries(tokens.typography.families.map((family) => [family.name, family.usage]))).toEqual({
+      Display: 'heading', Child: 'unknown', Container: 'unknown', Excluded: 'unknown',
+      Subheading: 'heading', Reading: 'body',
+    });
+  });
+
+  // Why: values inside calc/clamp/var are inputs, not the resulting spacing or radius on screen.
+  it('never emits arithmetic operands as spacing/radius steps and returns null without evidence', () => {
+    const functions = tokensOf('.a{padding:calc(100% - 16px);margin:clamp(8px,2vw,32px);gap:var(--space);border-radius:calc(4px + 8px + 12px)}');
+    expect(functions.spacing).toEqual({ base: null, scalePx: [] });
+    expect(functions.radii).toEqual([]);
+    expect(functions.provenance.unresolved.map((entry) => entry.property)).toEqual([
+      'padding', 'margin', 'gap', 'border-radius',
+    ]);
+    const mixed = tokensOf('.a{padding:calc(100% - 8px) 24px}.b{margin:24px}');
+    expect(mixed.spacing).toEqual({ base: 8, scalePx: [24] });
+  });
+
+  // Why: odd-only distances support no 4px/8px grid; preserve repeated measured values instead of snapping them.
+  it('returns no spacing base for unsupported odd steps and keeps their actual repeated lengths', () => {
+    expect(tokensOf('.a{padding:7px}.b{margin:7px}.c{gap:11px}.d{padding:11px}').spacing)
+      .toEqual({ base: null, scalePx: [7, 11] });
+    expect(tokensOf('.a{padding:7px}.b{margin:11px}').spacing).toEqual({ base: null, scalePx: [] });
+  });
+
+  // Why: static em/rem conversion is an estimate, and percentages/functions cannot be measured from CSS alone.
+  it('records relative-unit assumptions and unresolved declaration context', () => {
+    const tokens = tokensOf('html{font-size:10px}.card{padding:1rem 2em;width:calc(100% - 1rem);font-size:120%}');
+    expect(tokens.provenance.rendered).toBe(false);
+    expect(tokens.provenance.assumptions).toEqual([
+      'em lengths estimated using 16px; actual root/element font size was not measured',
+      'rem lengths estimated using 16px; actual root/element font size was not measured',
+    ]);
+    expect(tokens.provenance.unresolved).toContainEqual({
+      selector: '.card', property: 'font-size', value: '120%',
+      reason: 'percentage requires a rendered reference size',
+    });
+    expect(tokens.provenance.unresolved).toContainEqual({
+      selector: '.card', property: 'width', value: 'calc(100% - 1rem)',
+      reason: 'function requires rendered measurements or variable resolution',
+    });
+  });
+
+  // Why: system fonts and variable shorthands cannot name a concrete family without a browser.
+  it('reports unresolved font shorthands without inventing families or numeric weights', () => {
+    const tokens = tokensOf('.a{font:menu}.b{font:var(--font)}.c{font-weight:calc(100 + 200)}.d{font-family:var(--family),"Fallback"}');
+    expect(tokens.typography.families).toEqual([]);
+    expect(tokens.typography.weights).toEqual([]);
+    expect(tokens.provenance.unresolved).toHaveLength(4);
   });
 });

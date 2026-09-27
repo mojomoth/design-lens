@@ -128,4 +128,22 @@ describe('immutable capture evidence', () => {
     await save();
     await expect(readEvidence(directory)).rejects.toThrow('font face observations');
   });
+
+  it('validates optional body evidence without inserting an inventory ID', async () => {
+    const pseudo = { content: 'none', styles: {} };
+    evidence.captures[0].observations.body = {
+      tag: 'body', text: 'Body evidence', semantic: 'body', domPath: 'body', rootPath: [],
+      parentDlId: null, childDlIds: [], rect: { x: 0, y: 0, width: 1440, height: 900 },
+      styles: { fontFamily: 'sans-serif', backgroundColor: 'rgb(255, 255, 255)' },
+      visible: true, currentSrc: null, pseudo: { before: pseudo, after: pseudo },
+    };
+    await save();
+    const read = await readEvidence(directory);
+    expect(read.captures[0].observations.body).toEqual(evidence.captures[0].observations.body);
+    expect(read.captures[0].observations.body).not.toHaveProperty('dlId');
+    const malformed = JSON.parse(JSON.stringify(evidence));
+    malformed.captures[0].observations.body.rect.width = '1440px';
+    await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(malformed));
+    await expect(readEvidence(directory)).rejects.toThrow('invalid element rectangle');
+  });
 });

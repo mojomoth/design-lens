@@ -17,6 +17,7 @@ import { registerSetupCommand } from './commands/setup.js';
 import { registerTokensCommand } from './commands/tokens.js';
 import { registerVerifyCommand } from './commands/verify.js';
 import { registerFidelityCommand } from './commands/fidelity.js';
+import { registerValidateDesignCommand } from './commands/validate-design.js';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -32,6 +33,7 @@ export function buildProgram(): Command {
   registerServeCommand(program);
   registerVerifyCommand(program);
   registerFidelityCommand(program);
+  registerValidateDesignCommand(program);
   registerSetupCommand(program);
   return program;
 }

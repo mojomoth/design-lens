@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 
-import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, matchObservation, missingLoadedFonts } from '../../src/analyze/fidelity.js';
+import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, matchObservation, missingLoadedFonts, normalizeObservationUrls } from '../../src/analyze/fidelity.js';
 import type { ElementObservation, ObservationDocument } from '../../src/analyze/observations.js';
 
 function png(width: number, height: number, square = 0): Buffer {
@@ -60,6 +60,20 @@ describe('fidelity pixel comparison', () => {
 });
 
 describe('capture-local semantic correspondence', () => {
+  // why: saved body and pseudo-element observations must not depend on a dead ephemeral serving port.
+  it('normalizes URLs in body and pseudo-element styles as well as ordinary elements', () => {
+    const origin = 'http://127.0.0.1:54321';
+    const observed = document([element({ currentSrc: `${origin}/image.png` })]);
+    observed.body = element({ tag: 'body', styles: { backgroundImage: `url("${origin}/body.png")` } });
+    observed.body.pseudo.before.styles.backgroundImage = `url("${origin}/before.png")`;
+    observed.elements[0].pseudo.after.styles.backgroundImage = `url("${origin}/after.png")`;
+    const normalized = normalizeObservationUrls(observed, origin);
+    expect(normalized.body?.styles.backgroundImage).toBe('url("/body.png")');
+    expect(normalized.body?.pseudo.before.styles.backgroundImage).toBe('url("/before.png")');
+    expect(normalized.elements[0].pseudo.after.styles.backgroundImage).toBe('url("/after.png")');
+    expect(normalized.elements[0].currentSrc).toBe('/image.png');
+  });
+
   // why: source numbering changes between viewports, so equality of dl-N is not identity.
   it('matches a heading whose stamped ID changed and rejects a different heading with the same ID', () => {
     const source = element();

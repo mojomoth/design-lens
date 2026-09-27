@@ -182,7 +182,7 @@ with a `Look at:` evidence line and an `Answer:` line addressing the following q
 
 - `~/.design-lens/bin/design-lens tokens .design-lens/<slug>` writes `tokens.json`.
 - `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --details --viewport <width>x<height> --pretty` prints ephemeral measurements.
-- `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --id dl-N --viewport <width>x<height> --pretty` measures a light-DOM target.
+- `~/.design-lens/bin/design-lens inspect .design-lens/<slug> --id dl-N --viewport <width>x<height> --pretty` measures a target including open shadow descendants; repeat --id for related elements.
 - `~/.design-lens/bin/design-lens screenshot --url <URL> --width <width> --height <height> --dsf 1 --out <unused-file>` captures a fresh reference image.
 - `~/.design-lens/bin/design-lens screenshot .design-lens/<slug> --width <width> --height <height> --dsf 1 --out <unused-file>` captures the current clone.
 
@@ -221,3 +221,19 @@ An observation table records viewport, observation ID, field, value, unit and ro
 required sections/tables, resolvable references, measured values, units and declared rounding.
 Conversions require supporting root/font evidence. Interpretation remains independently reviewed;
 a valid citation alone does not prove rationale. Missing source evidence is explicit.
+
+### Machine-readable blueprint tables (ADR-025)
+`## Measured observations` contains exactly one table with columns
+`Label | Capture | Viewport | Observation | Field | Value | Unit | Precision`.
+Labels are observed-reference, observed-clone, or unavailable. Capture names the exact source
+capture ID; Viewport is WxH; Observation is a capture-local dl-N or page; Field is an own-property
+path such as rect.width, styles.fontSize or body.styles.backgroundColor. Numeric values use
+px/rem/unitless with precision 0–6; exact CSS strings use css and precision -, and equivalent
+RGBA colors use color and precision -. Root-supported px/rem conversion preserves dimensions.
+Every complete source viewport and layout, typography and color categories need verified rows.
+
+The twelve sections retain these populated table subheadings: Layout recipe, Typography recipe,
+Color roles, Spacing recipe, Component recipes, Responsive rules. CSS recipe contains an actual
+fenced CSS example. VARIATIONS retains Target brief, Selected direction, Structural changes and
+Verification criteria, plus three to five named Variation sections. Fail or unverified exits 1;
+a machine pass validates cited facts and required structure, not prose intent or recipe quality.

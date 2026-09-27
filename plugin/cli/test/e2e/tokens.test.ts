@@ -78,15 +78,21 @@ function tmpOut(): string {
 }
 
 interface TokensDocument {
-  colors: { hex: string; count: number; roles: string[]; clusterOf: string[] }[];
+  schemaVersion: 2;
+  colors: { hex: string; alpha: number; css: string; count: number; roles: string[]; clusterOf: string[] }[];
   palette: { primaryGuess: string | null; neutrals: string[]; accents: string[] };
   typography: {
     families: { name: string; usage: string; faces: string[] }[];
     sizesPx: number[];
     weights: number[];
   };
-  spacing: { base: number; scalePx: number[] };
+  spacing: { base: number | null; scalePx: number[] };
   radii: number[];
+  provenance: {
+    kind: 'css-declaration-census'; source: 'clone'; rendered: false;
+    sources: { path: string; kind: string; sha256: string }[];
+    assumptions: string[]; unresolved: { property: string; value: string }[];
+  };
 }
 
 interface ManifestDocument {
@@ -130,8 +136,15 @@ describe('tokens on a basic clone', () => {
     ) as TokensDocument;
 
     expect(tokens.palette.primaryGuess).toBe(BRAND_HEX);
+    expect(tokens.schemaVersion).toBe(2);
+    expect(tokens.provenance.kind).toBe('css-declaration-census');
+    expect(tokens.provenance.source).toBe('clone');
+    expect(tokens.provenance.rendered).toBe(false);
+    expect(tokens.provenance.sources.every((source) => /^[a-f0-9]{64}$/.test(source.sha256))).toBe(true);
     const dominant = [...tokens.colors].sort((a, b) => b.count - a.count)[0];
     expect(dominant.hex).toBe(BRAND_HEX);
+    expect(dominant.alpha).toBe(1);
+    expect(dominant.css).toBe(BRAND_HEX);
     expect(dominant.count).toBe(BRAND_USES_TOTAL);
     // The clone spells this color BOTH as `#3347ff` (stylesheets) and `rgb(51, 71, 255)` (percy's
     // materialized pseudo-state block). One hex in `clusterOf` proves the two notations were
@@ -239,4 +252,28 @@ describe('tokens on a directory that is not a clone', () => {
       fs.rmSync(empty, { recursive: true, force: true });
     }
   });
+});
+
+// Why: the built CLI must census inline styles and expose uncertainty instead of inventing a grid from calc operands.
+it('emits schema 2 inline style evidence with alpha, shorthand families and unresolved spacing', async () => {
+  const root = tmpOut();
+  try {
+    fs.mkdirSync(path.join(root, 'clone'));
+    fs.writeFileSync(path.join(root, 'manifest.json'), '{"resources":[]}');
+    fs.writeFileSync(path.join(root, 'clone/index.html'), '<h1 style="font:700 2rem Display;color:rgb(51 71 255 / .5);padding:calc(100% - 8px)">Heading</h1>');
+    const result = await runCli(['tokens', root, '--stdout'], root);
+    expect(result.code, result.stderr).toBe(0);
+    const tokens = JSON.parse(result.stdout) as TokensDocument;
+    expect(tokens.schemaVersion).toBe(2);
+    expect(tokens.colors[0]).toMatchObject({ hex: '#3347ff', alpha: 0.5, css: 'rgb(51 71 255 / 0.5)' });
+    expect(tokens.typography.families).toEqual([{ name: 'Display', usage: 'heading', faces: [] }]);
+    expect(tokens.typography.weights).toEqual([700]);
+    expect(tokens.typography.sizesPx).toEqual([32]);
+    expect(tokens.spacing).toEqual({ base: null, scalePx: [] });
+    expect(tokens.provenance.sources[0].kind).toBe('style-attribute');
+    expect(tokens.provenance.assumptions).toHaveLength(1);
+    expect(tokens.provenance.unresolved).toContainEqual(expect.objectContaining({ property: 'padding' }));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

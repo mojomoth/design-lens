@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   OVERRIDES_LOCAL_PATH,
   inlineStyleBlocks,
+  inlineCssSources,
   selectManifestCssPaths,
 } from '../../src/analyze/css-sources.js';
 
@@ -13,6 +14,24 @@ const resource = (localPath: string, contentType: string): Record<string, unknow
   bytes: 1,
   sha256: 'x',
   via: 'network',
+});
+
+// Why: inline CSS is visible evidence even without a stylesheet; frame and shadow declarations must be counted too.
+describe('inlineCssSources', () => {
+  it('retains provenance and selector subjects for markup, shadow and srcdoc declarations', () => {
+    const html = '<style>h1{color:red}</style><h1 style="font:700 24px Display">Heading</h1>' +
+      '<div><template shadowrootmode="open"><p style="color:blue">Copy</p></template></div>' +
+      '<iframe srcdoc="&lt;body style=&quot;padding:16px&quot;&gt;&lt;style&gt;p{color:green}&lt;/style&gt;&lt;/body&gt;"></iframe>';
+    const sources = inlineCssSources(html);
+    expect(sources.map((source) => source.kind)).toEqual([
+      'style-block', 'style-attribute', 'style-attribute', 'style-attribute', 'style-block',
+    ]);
+    expect(sources[1].css).toMatch(/h1:nth-child\(1\)\{font:700 24px Display\}$/);
+    expect(sources[2].css).toContain('p:nth-child(1){color:blue}');
+    expect(sources[3].path).toContain('#srcdoc-');
+    expect(sources[4].css).toBe('p{color:green}');
+    expect(new Set(sources.map((source) => source.path)).size).toBe(sources.length);
+  });
 });
 
 describe('selectManifestCssPaths', () => {

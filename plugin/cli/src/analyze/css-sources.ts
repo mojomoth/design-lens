@@ -1,14 +1,14 @@
 /**
  * Decide WHICH CSS a clone's design tokens are allowed to come from (PURE, no I/O).
  *
- * Exactly two sources count (spec 05-element-inventory §tokens): the stylesheets the capture
- * localized (manifest `resources[]`) and the `<style>` blocks inline in `clone/index.html`.
+ * Sources include localized stylesheets, style blocks and inline declarations from clone markup.
  *
  * Two exclusions are load-bearing, not cosmetic:
  *   - `clone/assets/dl-overrides.css` is the USER's edit layer. Feeding it back in would make
  *     `tokens` report the user's own overrides as the reference site's design — the analysis would
  *     drift a little further from the original every time someone customized the clone.
- *   - inline `style=""` attributes are never read, for the same reason plus they carry no selector.
+ * Inline declarations carry explicit document/element provenance. These are current-clone CSS
+ * counts, not claims about the original page's rendered design.
  *
  * Spec: specs/05-element-inventory.md §tokens; specs/03-clone-format.md (manifest shape).
  */
@@ -76,4 +76,39 @@ export function inlineStyleBlocks(html: string): string[] {
     if (css.trim().length > 0) blocks.push(css);
   });
   return blocks;
+}
+
+export interface InlineCssSource {
+  path: string;
+  kind: 'style-block' | 'style-attribute';
+  css: string;
+}
+
+/** Current markup CSS, including declaration attributes and nested static frame documents. */
+export function inlineCssSources(html: string, documentPath = 'clone/index.html', depth = 0): InlineCssSource[] {
+  if (depth > 16) throw new Error('inline CSS document depth exceeds 16');
+  const $ = cheerio.load(html);
+  const sources: InlineCssSource[] = [];
+  $('style, [style], iframe[srcdoc]').each((index, element) => {
+    const $element = $(element);
+    if (element.name.toLowerCase() === 'style') {
+      const css = $element.html() ?? '';
+      if (css.trim()) sources.push({ path: `${documentPath}#style-${index}`, kind: 'style-block', css });
+    }
+    const declaration = $element.attr('style');
+    if (declaration?.trim()) {
+      // nth-child paths identify unstamped legacy clones without inventing classes or IDs.
+      const selector = [...$element.parents().toArray().reverse(), element].map((node) => {
+        const tag = node.name;
+        return `${tag}:nth-child(${$(node).prevAll().length + 1})`;
+      }).join('>');
+      sources.push({
+        path: `${documentPath}#style-attribute-${index}`, kind: 'style-attribute',
+        css: `${selector}{${declaration}}`,
+      });
+    }
+    const srcdoc = $element.attr('srcdoc');
+    if (srcdoc !== undefined) sources.push(...inlineCssSources(srcdoc, `${documentPath}#srcdoc-${index}`, depth + 1));
+  });
+  return sources;
 }

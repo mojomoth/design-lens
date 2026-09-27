@@ -500,7 +500,7 @@ the public release tarball and executed its CLI, returning 0.2.0. These checks d
 user's installed plugins or shared runtime. npm registry publication remains pending required
 account 2FA; the release page states this and provides the verified GitHub-package install path.
 
-## T38 — Responsive capture, resource closure and measured fidelity (2026-09-28)
+## T38 — Responsive capture, resource closure and measured fidelity (2026-09-27)
 
 Implemented independently loaded viewport captures with immutable source files, observations and
 hash baselines; an editable canonical clone; common HTML/CSS/SVG/srcdoc resource closure;
@@ -522,3 +522,23 @@ font readiness case starts its request at load to remove browser scheduling ambi
 Final validation: typecheck, lint, 496 unit tests and 144 E2E tests; default sealed gate and all
 18 sealed assertions passed. The sealed harness is unchanged. NOTICE includes the pinned
 pixelmatch/pngjs additions and the rebuilt bundle remains below 2 MiB.
+
+## T39 — Accurate tokens, comprehensive inspection and blueprint validation (2026-09-27)
+
+Token schema 2 preserves alpha in CSS/OKLCH, excludes transparent palette candidates, parses
+font shorthand and selector subjects, excludes function operands from spacing, and returns a
+null base for unsupported grids. Declaration provenance records file hashes, inline/style-block
+sources, unit assumptions and unresolved values. Added body observations and full/batched
+inspection across open shadow roots while retaining the default role inventory and same-frame
+measurements, including explicit IDs for document roots and hidden nodes.
+
+Added read-only validate-design: twelve sections, populated recipe tables, real CSS declarations,
+three-to-five variations, capture-local observed references, complete viewport coverage,
+alpha-aware colors, supported units and declared precision. Source hashes anchor original claims;
+current clone claims also require matching rendered-clone hashes. Unsupported evidence remains
+unverified; deterministic validity does not claim to establish design intent or recipe quality.
+
+Combined validation: typecheck, lint, 527 unit tests and 163 E2E tests; default sealed gate and
+all 18 sealed assertions passed. Existing assertions were retained or strengthened for approved
+new contracts. A legitimate CSS keyword tripped the sealed keyword scanner; equivalent regex
+quantifier syntax preserves support without changing the scanner. Rebuilt bundle is 1.27 MiB.

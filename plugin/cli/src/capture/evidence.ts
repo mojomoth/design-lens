@@ -97,7 +97,12 @@ function validateObservations(value: unknown): asserts value is ObservationDocum
   }
   assert(Array.isArray(value.elements) && value.elements.length <= 20_000, 'invalid element observations');
   const ids = new Set<string>();
-  for (const element of value.elements) {
+  const measuredElements = [...value.elements];
+  if (value.body !== undefined) {
+    assert(object(value.body) && value.body.tag === 'body' && value.body.domPath === 'body', 'invalid body observation');
+    measuredElements.push({ ...value.body, dlId: '__document_body__' });
+  }
+  for (const element of measuredElements) {
     assert(object(element), 'element must be an object');
     assert(typeof element.dlId === 'string' && element.dlId.length > 0 && !ids.has(element.dlId), 'missing or duplicate element ID');
     ids.add(element.dlId);
@@ -107,6 +112,7 @@ function validateObservations(value: unknown): asserts value is ObservationDocum
     assert(object(rect) && ['x', 'y', 'width', 'height'].every((key) => typeof rect[key] === 'number' && Number.isFinite(rect[key])), 'invalid element rectangle');
     assert(object(element.styles) && Object.values(element.styles).every((item) => typeof item === 'string'), 'invalid computed styles');
     assert(typeof element.visible === 'boolean' && (element.currentSrc === null || typeof element.currentSrc === 'string'), 'invalid element visibility or image source');
+    if (element.src !== undefined) assert(element.src === null || typeof element.src === 'string', 'invalid attribute source');
     if (element.image !== undefined) {
       assert(object(element.image) && typeof element.image.complete === 'boolean'
         && typeof element.image.naturalWidth === 'number' && Number.isFinite(element.image.naturalWidth) && element.image.naturalWidth >= 0

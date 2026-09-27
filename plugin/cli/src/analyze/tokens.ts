@@ -84,14 +84,17 @@ export type ColorRole = 'text' | 'background' | 'border' | 'shadow' | 'fill' | '
 const ROLE_ORDER: readonly ColorRole[] = ['text', 'background', 'border', 'shadow', 'fill', 'other'];
 
 export interface ColorCluster {
-  /** 6-digit lowercase hex of the highest-count member, alpha stripped. */
+  /** RGB channels of the representative. Read together with alpha, or use css directly. */
   hex: string;
-  /** `oklch(<L>% <C> <H>)` — L whole percent, C 2 decimals, H whole degrees. */
+  alpha: number;
+  /** Alpha-preserving CSS color; opaque representatives retain their six-digit hex. */
+  css: string;
+  /** L whole percent, C 2 decimals, H whole degrees, with explicit alpha when translucent. */
   oklch: string;
   /** Summed occurrences of every cluster member. */
   count: number;
   roles: ColorRole[];
-  /** Member hexes, count descending; always starts with `hex`. */
+  /** Alpha-preserving member colors, count descending; always starts with css. */
   clusterOf: string[];
 }
 
@@ -101,7 +104,7 @@ export interface Palette {
   accents: string[];
 }
 
-export type FontUsage = 'body' | 'heading' | 'both';
+export type FontUsage = 'body' | 'heading' | 'both' | 'unknown';
 
 export interface FontFamilyToken {
   name: string;
@@ -119,7 +122,7 @@ export interface TypographyTokens {
 }
 
 export interface SpacingTokens {
-  base: number;
+  base: number | null;
   scalePx: number[];
 }
 
@@ -131,6 +134,7 @@ export interface MotionTokens {
 
 /** The exact `tokens.json` document (spec 05 §Interfaces & contracts). Key order is the schema's. */
 export interface Tokens {
+  schemaVersion: 2;
   colors: ColorCluster[];
   palette: Palette;
   typography: TypographyTokens;
@@ -138,6 +142,35 @@ export interface Tokens {
   radii: number[];
   shadows: string[];
   motion: MotionTokens;
+  provenance: TokenProvenance;
+}
+
+export interface TokenSource {
+  path: string;
+  kind: 'stylesheet' | 'style-block' | 'style-attribute';
+  sha256: string;
+}
+
+export interface UnresolvedToken {
+  selector: string | null;
+  property: string;
+  value: string;
+  reason: string;
+}
+
+export interface TokenProvenance {
+  kind: 'css-declaration-census';
+  source: 'clone';
+  rendered: false;
+  sources: TokenSource[];
+  assumptions: string[];
+  unresolved: UnresolvedToken[];
+  warnings: string[];
+}
+
+export interface TokenExtractionOptions {
+  sources?: TokenSource[];
+  warnings?: string[];
 }
 
 export interface TokenExtraction {
@@ -235,17 +268,24 @@ export function normalizeRole(property: string): ColorRole {
   return 'other';
 }
 
-/** 6-digit lowercase hex, alpha stripped; null for keywords and unparseable values. */
-function toHex(raw: string): string | null {
+/** Preserve alpha before normalization; zero-alpha colors cannot be brand candidates. */
+function normalizedColor(raw: string): { hex: string; alpha: number; css: string } | null {
   if (DROPPED_COLOR_KEYWORDS.has(raw.trim().toLowerCase())) return null;
   const parsed = parseColor(raw);
   if (!parsed) return null;
-  const hex = formatHex(parsed);
-  return hex ? hex.toLowerCase() : null;
+  const alpha = Math.min(1, Math.max(0, parsed.alpha ?? 1));
+  if (alpha === 0) return null;
+  const hex = formatHex(parsed)?.toLowerCase();
+  if (!hex) return null;
+  const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+  const css = alpha === 1 ? hex : `rgb(${channels.join(' ')} / ${alpha})`;
+  return { hex, alpha, css };
 }
 
 interface ColorOccurrence {
   hex: string;
+  alpha: number;
+  css: string;
   count: number;
   roles: Set<ColorRole>;
   /** First-appearance index — the deterministic tiebreak when counts are equal. */
@@ -263,15 +303,15 @@ function collectColorOccurrences(colors: Analyzed['values']['colors']): ColorOcc
   let order = 0;
 
   const add = (raw: string, count: number, role: ColorRole): void => {
-    const hex = toHex(raw);
-    if (!hex) return;
-    const existing = byHex.get(hex);
+    const color = normalizedColor(raw);
+    if (!color) return;
+    const existing = byHex.get(color.css);
     if (existing) {
       existing.count += count;
       existing.roles.add(role);
       return;
     }
-    byHex.set(hex, { hex, count, roles: new Set([role]), order: order++ });
+    byHex.set(color.css, { ...color, count, roles: new Set([role]), order: order++ });
   };
 
   for (const [property, collection] of Object.entries(colors.itemsPerContext)) {
@@ -303,7 +343,8 @@ function clusterColors(occurrences: ColorOccurrence[]): ScoredCluster[] {
   const clusters: { representative: ColorOccurrence; members: ColorOccurrence[] }[] = [];
   for (const occurrence of occurrences) {
     const home = clusters.find(
-      (cluster) => oklabDistance(occurrence.hex, cluster.representative.hex) < CLUSTER_DELTA_E,
+      (cluster) => occurrence.alpha === cluster.representative.alpha &&
+        oklabDistance(occurrence.hex, cluster.representative.hex) < CLUSTER_DELTA_E,
     );
     if (home) home.members.push(occurrence);
     else clusters.push({ representative: occurrence, members: [occurrence] });
@@ -317,17 +358,19 @@ function clusterColors(occurrences: ColorOccurrence[]): ScoredCluster[] {
     const hue = Number.isFinite(oklch?.h) ? Math.round(oklch?.h ?? 0) : 0;
     return {
       hex: representative.hex,
-      oklch: `oklch(${Math.round(lightness * 100)}% ${chroma.toFixed(2)} ${hue})`,
+      alpha: representative.alpha,
+      css: representative.css,
+      oklch: `oklch(${Math.round(lightness * 100)}% ${chroma.toFixed(2)} ${hue}${representative.alpha < 1 ? ` / ${representative.alpha}` : ''})`,
       count: members.reduce((sum, member) => sum + member.count, 0),
       roles: ROLE_ORDER.filter((role) => members.some((member) => member.roles.has(role))),
-      clusterOf: members.map((member) => member.hex),
+      clusterOf: members.map((member) => member.css),
       lightness,
       chroma,
     };
   });
 
   return scored.sort(
-    (a, b) => b.lightness - a.lightness || b.count - a.count || (a.hex < b.hex ? -1 : 1),
+    (a, b) => b.lightness - a.lightness || b.count - a.count || a.css.localeCompare(b.css),
   );
 }
 
@@ -341,9 +384,9 @@ function buildPalette(clusters: ScoredCluster[]): Palette {
     .map((entry) => entry.cluster);
 
   return {
-    primaryGuess: chromatic[0]?.hex ?? null,
-    neutrals: neutrals.map((cluster) => cluster.hex),
-    accents: chromatic.slice(1, 1 + MAX_ACCENTS).map((cluster) => cluster.hex),
+    primaryGuess: chromatic[0]?.css ?? null,
+    neutrals: neutrals.map((cluster) => cluster.css),
+    accents: chromatic.slice(1, 1 + MAX_ACCENTS).map((cluster) => cluster.css),
   };
 }
 
@@ -364,6 +407,8 @@ interface CssTreeFacts {
   weights: number[];
   spacingPx: number[];
   warnings: string[];
+  assumptions: string[];
+  unresolved: UnresolvedToken[];
 }
 
 function isSpacingProperty(property: string): boolean {
@@ -405,6 +450,13 @@ function familyStack(value: csstree.CssNode): string[] {
 
 /** The stack's first real typeface, or null when the stack is generic-only (spec 05). */
 export function primaryFamily(value: csstree.CssNode): string | null {
+  if (value.type === 'Value') {
+    for (const child of value.children.toArray()) {
+      if (child.type === 'Operator' && child.value === ',') break;
+      // An unresolved first stack entry may replace its fallback; do not report that fallback as chosen.
+      if (child.type === 'Function' || child.type === 'Raw') return null;
+    }
+  }
   for (const entry of familyStack(value)) {
     const name = unquote(entry);
     if (name.length === 0) continue;
@@ -417,12 +469,19 @@ export function primaryFamily(value: csstree.CssNode): string | null {
 function selectorTypeNames(rule: csstree.Rule | null): Set<string> {
   const names = new Set<string>();
   if (!rule || rule.prelude.type !== 'SelectorList') return names;
-  csstree.walk(rule.prelude, {
-    visit: 'TypeSelector',
-    enter(node) {
-      names.add(node.name.toLowerCase());
-    },
-  });
+  const visit = (node: csstree.CssNode): void => {
+    if (node.type === 'SelectorList') { node.children.forEach(visit); return; }
+    if (node.type !== 'Selector') return;
+    const children = node.children.toArray();
+    const lastCombinator = children.map((child) => child.type).lastIndexOf('Combinator');
+    for (const child of children.slice(lastCombinator + 1)) {
+      if (child.type === 'TypeSelector') names.add(child.name.toLowerCase());
+      else if (child.type === 'PseudoClassSelector' && /^(?:is|where)$/i.test(child.name)) {
+        child.children?.forEach(visit);
+      }
+    }
+  };
+  visit(rule.prelude);
   return names;
 }
 
@@ -432,40 +491,58 @@ function intersects(names: Set<string>, wanted: Set<string>): boolean {
 }
 
 function fontWeightsOf(value: csstree.CssNode): number[] {
-  const weights: number[] = [];
-  csstree.walk(value, {
-    enter(node: csstree.CssNode) {
-      if (node.type === 'Number') {
-        const weight = Number(node.value);
-        // CSS clamps font-weight to [1, 1000]; anything else is a different `font` component.
-        if (Number.isFinite(weight) && weight >= 1 && weight <= 1000) weights.push(weight);
-      } else if (node.type === 'Identifier') {
-        const keyword = node.name.toLowerCase();
-        if (keyword === 'normal') weights.push(400);
-        else if (keyword === 'bold') weights.push(700);
-        // `lighter`/`bolder` are relative to the parent — no absolute number to record.
-      }
-    },
+  if (value.type !== 'Value') return [];
+  return value.children.toArray().flatMap((node) => {
+    if (node.type === 'Number') {
+      const weight = Number(node.value);
+      return Number.isFinite(weight) && weight >= 1 && weight <= 1000 ? [weight] : [];
+    }
+    if (node.type === 'Identifier') {
+      if (node.name.toLowerCase() === 'normal') return [400];
+      if (node.name.toLowerCase() === 'bold') return [700];
+    }
+    return [];
   });
-  return weights;
 }
 
 function lengthsOf(value: csstree.CssNode): number[] {
-  const lengths: number[] = [];
-  csstree.walk(value, {
-    visit: 'Dimension',
-    enter(node) {
-      const px = lengthToPx(`${node.value}${node.unit}`);
-      if (px !== null) lengths.push(px);
-    },
+  if (value.type !== 'Value') return [];
+  return value.children.toArray().flatMap((node) => {
+    if (node.type !== 'Dimension') return [];
+    const px = lengthToPx(`${node.value}${node.unit}`);
+    return px === null ? [] : [px];
   });
-  return lengths;
+}
+
+/** Runtime lexer traces are richer than css-tree's published declaration types. */
+interface GrammarMatch {
+  syntax?: { type: string; name?: string } | null;
+  node?: csstree.CssNode;
+  match?: GrammarMatch[];
+}
+
+function shorthandFont(value: csstree.CssNode): { family: csstree.CssNode; weights: number[] } | null {
+  const result = csstree.lexer.matchProperty('font', value) as csstree.LexerMatchResult & { matched?: GrammarMatch | null };
+  if (result.error || !result.matched) return null;
+  const tokens = (match: GrammarMatch): string => match.node ? csstree.generate(match.node)
+    : (match.match ?? []).map(tokens).join(' ');
+  const properties = result.matched.match ?? [];
+  const families = properties.filter((match) => match.syntax?.type === 'Property' && match.syntax.name === 'font-family');
+  if (families.length === 0) return null;
+  const weight = properties.find((match) => match.syntax?.type === 'Property' && match.syntax.name === 'font-weight');
+  return {
+    family: csstree.parse(families.map(tokens).join(','), { context: 'value' }),
+    weights: weight ? fontWeightsOf(csstree.parse(tokens(weight), { context: 'value' })) : [400],
+  };
 }
 
 function walkCss(css: string): CssTreeFacts {
   const warnings: string[] = [];
+  const assumptions = new Set<string>();
+  const unresolved: UnresolvedToken[] = [];
   const ast = csstree.parse(css, {
     positions: false,
+    parseCustomProperty: true,
     // css-tree recovers from a bad rule by parking it in a Raw node. Record what it could not
     // understand instead of pretending the stylesheet was clean.
     onParseError(error: { message: string }) {
@@ -481,6 +558,31 @@ function walkCss(css: string): CssTreeFacts {
     visit: 'Declaration',
     enter(node) {
       const property = node.property.trim().toLowerCase();
+      const value = csstree.generate(node.value);
+      const selector = this.rule ? csstree.generate(this.rule.prelude) : null;
+      const reasons = new Set<string>();
+      csstree.walk(node.value, (child) => {
+        if (child.type === 'Function' && /^(?:var|env|calc|min|max|clamp|color-mix|light-dark)$/i.test(child.name)) {
+          reasons.add('function requires rendered measurements or variable resolution');
+        }
+      });
+      const metric = isSpacingProperty(property) || ['font', 'font-size', 'line-height', 'border-radius'].includes(property);
+      if (metric && node.value.type === 'Value') {
+        for (const child of node.value.children.toArray()) {
+          if (child.type === 'Dimension') {
+            const unit = child.unit.toLowerCase();
+            if (unit === 'em' || unit === 'rem') {
+              assumptions.add(`${unit} lengths estimated using ${ROOT_FONT_SIZE_PX}px; actual root/element font size was not measured`);
+            } else if (unit !== 'px' && unit !== 'deg') reasons.add('relative or unsupported unit requires rendered measurements');
+          } else if (child.type === 'Percentage') reasons.add('percentage requires a rendered reference size');
+        }
+      }
+      if ((property === 'font-size' || property === 'line-height' || property === 'font-weight') &&
+        /^(?:normal|larger|smaller|xx-small|x-small|small|medium|large|x-large|x{2,3}-large|bolder|lighter|inherit|initial|unset)$/i.test(value) &&
+        !(property === 'font-weight' && value.toLowerCase() === 'normal')) {
+        reasons.add('keyword requires inherited or browser-resolved metrics');
+      }
+      for (const reason of reasons) unresolved.push({ selector, property, value, reason });
       if (property.startsWith('--')) return;
 
       if (property === 'font-weight') {
@@ -494,12 +596,18 @@ function walkCss(css: string): CssTreeFacts {
         return;
       }
 
-      if (property !== 'font-family') return;
+      if (property !== 'font-family' && property !== 'font') return;
       // Inside `@font-face`, `font-family` NAMES the face being defined; it is not a usage of it.
       // Counting it would make every declared-but-unused webfont look like a design decision.
       if (this.atrule?.name.toLowerCase() === 'font-face') return;
 
-      const name = primaryFamily(node.value);
+      const shorthand = property === 'font' ? shorthandFont(node.value) : null;
+      if (property === 'font' && shorthand === null) {
+        if (reasons.size === 0) unresolved.push({ selector, property, value, reason: 'font shorthand could not be resolved into family and weight' });
+        return;
+      }
+      if (shorthand) weights.push(...shorthand.weights);
+      const name = primaryFamily(shorthand?.family ?? node.value);
       if (!name) return;
       const selectors = selectorTypeNames(this.rule);
       const key = name.toLowerCase();
@@ -518,7 +626,7 @@ function walkCss(css: string): CssTreeFacts {
     },
   });
 
-  return { families, weights, spacingPx, warnings };
+  return { families, weights, spacingPx, warnings, assumptions: [...assumptions].sort(), unresolved };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -543,14 +651,9 @@ function facesFor(familyName: string, fontfaces: Record<string, string>[]): stri
 
 function buildTypography(analyzed: Analyzed, facts: CssTreeFacts): TypographyTokens {
   const uses = [...facts.families.values()].sort((a, b) => b.count - a.count || a.order - b.order);
-  const mostUsed = uses[0]?.name.toLowerCase();
 
   const families = uses.map((use): FontFamilyToken => {
-    // Spec 05: `body` when it lands on html/body/p OR it is simply the dominant family. A family
-    // seen only on `.btn` is neither heading nor dominant — it still sets body copy, so `body`
-    // is the residual case rather than a fourth enum value.
-    const isBody = use.body || use.name.toLowerCase() === mostUsed;
-    const usage: FontUsage = use.heading && isBody ? 'both' : use.heading ? 'heading' : 'body';
+    const usage: FontUsage = use.heading && use.body ? 'both' : use.heading ? 'heading' : use.body ? 'body' : 'unknown';
     return { name: use.name, usage, faces: facesFor(use.name, analyzed.atrules.fontface.unique) };
   });
 
@@ -583,16 +686,18 @@ function buildTypography(analyzed: Analyzed, facts: CssTreeFacts): TypographyTok
 }
 
 function buildSpacing(spacingPx: number[]): SpacingTokens {
-  // An 8-px grid only earns the name if most of the design actually lands on it; otherwise the
-  // finer 4-px grid is the honest base. With no spacing at all the predicate is vacuously true.
+  // A grid requires alignment evidence, including for the finer 4px candidate.
+  if (spacingPx.length === 0) return { base: null, scalePx: [] };
   const multiplesOfEight = spacingPx.filter((px) => px % 8 === 0).length;
-  const base = multiplesOfEight >= spacingPx.length / 2 ? 8 : 4;
+  const multiplesOfFour = spacingPx.filter((px) => px % 4 === 0).length;
+  const base = multiplesOfEight >= spacingPx.length / 2 ? 8
+    : multiplesOfFour >= spacingPx.length / 2 ? 4 : null;
 
   const counts = new Map<number, number>();
   for (const px of spacingPx) {
-    const snapped = Math.round(px / base) * base;
-    // A 1-px hairline snaps to 0 on a 4-px grid; a zero step is not a spacing token.
-    if (snapped > 0) counts.set(snapped, (counts.get(snapped) ?? 0) + 1);
+    const snapped = base === null ? px : Math.round(px / base) * base;
+    // Hairline-sized values do not establish a reusable spacing step, with or without a grid.
+    if (snapped > 1) counts.set(snapped, (counts.get(snapped) ?? 0) + 1);
   }
 
   const scalePx = [...counts.entries()]
@@ -607,8 +712,12 @@ function buildSpacing(spacingPx: number[]): SpacingTokens {
 function buildRadii(analyzed: Analyzed): number[] {
   const radii: number[] = [];
   for (const raw of Object.keys(analyzed.values.borderRadiuses.unique)) {
-    // `border-radius: 4px 8px / 2px` — every component is a radius the design uses.
-    for (const token of raw.split(/[\s/]+/).filter(Boolean)) {
+    // Only complete top-level terms are radii; calc/clamp operands are not resulting lengths.
+    const value = csstree.parse(raw, { context: 'value' });
+    if (value.type !== 'Value') continue;
+    for (const child of value.children.toArray()) {
+      if (child.type === 'Function') continue;
+      const token = csstree.generate(child);
       const percent = PERCENT_RE.exec(token);
       if (percent) {
         if (Number(percent[1]) >= RADIUS_PILL_MIN_PERCENT) radii.push(RADIUS_PILL_SENTINEL);
@@ -645,15 +754,18 @@ function buildMotion(analyzed: Analyzed): MotionTokens {
  * Deterministic: every list is sorted by an explicit key with an explicit tiebreak, so two runs
  * over the same bytes produce byte-identical JSON.
  */
-export function extractTokens(css: string): TokenExtraction {
+export function extractTokens(css: string, options: TokenExtractionOptions = {}): TokenExtraction {
   const analyzed = analyzeCss(css);
   const facts = walkCss(css);
   const clusters = clusterColors(collectColorOccurrences(analyzed.values.colors));
 
   const tokens: Tokens = {
+    schemaVersion: 2,
     colors: clusters.map(
-      ({ hex, oklch, count, roles, clusterOf }): ColorCluster => ({
+      ({ hex, alpha, css, oklch, count, roles, clusterOf }): ColorCluster => ({
         hex,
+        alpha,
+        css,
         oklch,
         count,
         roles,
@@ -666,6 +778,11 @@ export function extractTokens(css: string): TokenExtraction {
     radii: buildRadii(analyzed),
     shadows: byCountDescending(analyzed.values.boxShadows.unique).slice(0, MAX_SHADOWS),
     motion: buildMotion(analyzed),
+    provenance: {
+      kind: 'css-declaration-census', source: 'clone', rendered: false,
+      sources: options.sources ?? [], assumptions: facts.assumptions, unresolved: facts.unresolved,
+      warnings: [...(options.warnings ?? []), ...facts.warnings],
+    },
   };
 
   return { tokens, warnings: facts.warnings };

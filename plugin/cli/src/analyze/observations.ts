@@ -21,6 +21,8 @@ export interface ElementObservation {
   styles: Record<string, string>;
   visible: boolean;
   currentSrc: string | null;
+  /** Attribute source is distinct from the browser-selected responsive image candidate. */
+  src?: string | null;
   image?: { complete: boolean; naturalWidth: number; naturalHeight: number };
   pseudo: { before: PseudoObservation; after: PseudoObservation };
 }
@@ -34,11 +36,18 @@ export interface ObservationDocument {
   fonts: FontReadiness;
   fontFaces?: Array<{ family: string; status: string; style: string; weight: string; stretch: string }>;
   elements: ElementObservation[];
+  /** Body is a measured document root, not a stamped editable inventory element. */
+  body?: Omit<ElementObservation, 'dlId'>;
   complete: boolean;
   warnings: string[];
 }
 
-export interface ObservationOptions { maxElements?: number; deadline?: number }
+export interface ObservationOptions {
+  maxElements?: number;
+  deadline?: number;
+  /** Explicit inspection may address stamped document roots and nonvisual nodes as well. */
+  includeDocumentElements?: boolean;
+}
 
 /** Runs inside Chromium; all runtime values deliberately live inside the callback. */
 export function probeObservations(options: ObservationOptions = {}): ObservationDocument {
@@ -78,7 +87,7 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     if (role) return role;
     const tag = tagOf(element);
     const roles: Record<string, string> = {
-      header: 'header', nav: 'navigation', main: 'main', footer: 'footer', aside: 'complementary',
+      body: 'body', header: 'header', nav: 'navigation', main: 'main', footer: 'footer', aside: 'complementary',
       h1: 'heading', h2: 'heading', h3: 'heading', h4: 'heading', h5: 'heading', h6: 'heading',
       p: 'paragraph', img: 'image', picture: 'picture', svg: 'graphic', canvas: 'graphic', video: 'video',
       form: 'form', input: 'input', button: 'button', select: 'select', textarea: 'textbox',
@@ -108,11 +117,12 @@ export function probeObservations(options: ObservationOptions = {}): Observation
       const tag = tagOf(element);
       const ordinal = (ordinals.get(tag) ?? 0) + 1;
       ordinals.set(tag, ordinal);
-      children.push({ element, rootPath, domPath: `${prefix}>${tag}:nth-of-type(${ordinal})`, parent: host });
+      children.push({ element, rootPath, domPath: tag === 'body' ? 'body' : `${prefix}>${tag}:nth-of-type(${ordinal})`, parent: host });
     }
     stack.push(...children.reverse());
   }
-  if (document.body) pushChildren(document.body, [], 'body', document.body);
+  if (options.includeDocumentElements) stack.push({ element: document.documentElement, rootPath: [], domPath: 'html', parent: null });
+  else if (document.body) pushChildren(document.body, [], 'body', document.body);
   else warnings.push('document has no body');
   while (stack.length > 0) {
     if (visited >= maxElements) { warnings.push(`observation element limit reached (${maxElements})`); break; }
@@ -125,17 +135,23 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     if (element.shadowRoot) {
       pushChildren(element.shadowRoot, [...rootPath, dlId ?? domPath], `${domPath}::shadow`, element);
     }
-    if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'template') continue;
-    if (!dlId) { unstamped += 1; continue; }
+    if (['script', 'style', 'link', 'template'].includes(tag) && (!options.includeDocumentElements || !dlId)) continue;
+    if (!dlId) {
+      if (!['html', 'head', 'body', 'meta', 'title', 'base'].includes(tag)) unstamped += 1;
+      continue;
+    }
     if (seenIds.has(dlId)) warnings.push(`duplicate observation ID: ${dlId}`);
     seenIds.add(dlId);
+    elements.push({ dlId, ...measure(element, rootPath, domPath, parent) });
+  }
+  function measure(element: Element, rootPath: string[], domPath: string, parent: Element | null): Omit<ElementObservation, 'dlId'> {
     const style = getComputedStyle(element);
     const box = element.getBoundingClientRect();
     const rect = { x: box.x + window.scrollX, y: box.y + window.scrollY, width: box.width, height: box.height };
     const children = [...Array.from(element.children), ...Array.from(element.shadowRoot?.children ?? [])];
     const image = element instanceof HTMLImageElement ? element : undefined;
-    elements.push({
-      dlId, tag,
+    return {
+      tag: tagOf(element),
       text: ((element as HTMLElement).innerText ?? element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 500),
       semantic: semanticOf(element, style), domPath, rootPath,
       parentDlId: parent?.getAttribute('data-dl-id') ?? null,
@@ -143,9 +159,10 @@ export function probeObservations(options: ObservationOptions = {}): Observation
       rect, styles: stylesOf(style),
       visible: box.width > 0 && box.height > 0 && element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
       currentSrc: image ? image.currentSrc || null : null,
+      src: image ? image.getAttribute('src') : /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/.exec(style.backgroundImage)?.slice(1).find((value) => value !== undefined) ?? null,
       ...(image ? { image: { complete: image.complete, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight } } : {}),
       pseudo: { before: pseudoOf(element, '::before'), after: pseudoOf(element, '::after') },
-    });
+    };
   }
   if (unstamped > 0) warnings.push(`${unstamped} elements without data-dl-id were not measurable by ID`);
   const failed = new Set<string>();
@@ -169,7 +186,7 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   return {
     viewport: { width: window.innerWidth, height: window.innerHeight }, deviceScaleFactor: window.devicePixelRatio,
     width, height, rootFontSize: getComputedStyle(document.documentElement).fontSize,
-    fonts, fontFaces, elements, complete: warnings.length === 0, warnings,
+    fonts, fontFaces, elements, ...(document.body ? { body: measure(document.body, [], 'body', document.body.parentElement) } : {}), complete: warnings.length === 0, warnings,
   };
 }
 

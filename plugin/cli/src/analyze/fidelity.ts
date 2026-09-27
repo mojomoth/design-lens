@@ -279,10 +279,12 @@ function reportStatus(captures: readonly CaptureComparison[], issues: readonly s
 }
 
 /** Absolute filesystem paths and ephemeral local origins never enter the persisted observations. */
-function normalizeObservationUrls(document: ObservationDocument, origin: string): ObservationDocument {
-  for (const element of document.elements) {
+export function normalizeObservationUrls(document: ObservationDocument, origin: string): ObservationDocument {
+  for (const element of [...document.elements, ...(document.body ? [document.body] : [])]) {
     if (element.currentSrc?.startsWith(`${origin}/`)) element.currentSrc = element.currentSrc.slice(origin.length);
-    for (const [key, value] of Object.entries(element.styles)) element.styles[key] = value.split(origin).join('');
+    for (const styles of [element.styles, element.pseudo.before.styles, element.pseudo.after.styles]) {
+      for (const [key, value] of Object.entries(styles)) styles[key] = value.split(origin).join('');
+    }
   }
   return document;
 }

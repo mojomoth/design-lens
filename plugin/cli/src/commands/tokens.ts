@@ -15,11 +15,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import type { Command } from 'commander';
 
-import { inlineStyleBlocks, selectManifestCssPaths } from '../analyze/css-sources.js';
-import { extractTokens, type Tokens } from '../analyze/tokens.js';
+import { inlineCssSources, selectManifestCssPaths } from '../analyze/css-sources.js';
+import { extractTokens, type Tokens, type TokenSource } from '../analyze/tokens.js';
 
 export interface TokensResult {
   /** Absolute path of the written `tokens.json`. */
@@ -55,21 +56,26 @@ export function runTokens(projectDir: string): TokensResult {
   const warnings = [...selection.warnings];
 
   const sources: string[] = [];
+  const provenance: TokenSource[] = [];
+  const addSource = (sourcePath: string, kind: TokenSource['kind'], css: string): void => {
+    sources.push(css);
+    provenance.push({ path: sourcePath, kind, sha256: createHash('sha256').update(css).digest('hex') });
+  };
   for (const localPath of selection.paths) {
     const assetPath = path.join(root, localPath);
     if (!fs.existsSync(assetPath)) {
       warnings.push(`manifest CSS missing on disk, skipped: ${localPath}`);
       continue;
     }
-    sources.push(fs.readFileSync(assetPath, 'utf8'));
+    addSource(localPath, 'stylesheet', fs.readFileSync(assetPath, 'utf8'));
   }
 
   const html = fs.readFileSync(indexPath, 'utf8');
-  // Manifest order first, then `<style>` document order (spec 05).
-  sources.push(...inlineStyleBlocks(html));
+  // Stylesheet order first, then markup declaration order; every source has its own content hash.
+  for (const source of inlineCssSources(html)) addSource(source.path, source.kind, source.css);
   process.stderr.write(`design-lens: analyzing ${sources.length} CSS source(s) in ${root}\n`);
 
-  const extraction = extractTokens(sources.join('\n'));
+  const extraction = extractTokens(sources.join('\n'), { sources: provenance, warnings });
   warnings.push(...extraction.warnings);
 
   const json = `${JSON.stringify(extraction.tokens, null, 2)}\n`;

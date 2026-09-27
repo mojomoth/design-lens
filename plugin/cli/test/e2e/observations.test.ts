@@ -53,6 +53,9 @@ describe('rendered source observations and static animation replay', () => {
   it('measures body content, forms, tables, pseudo styles, image crop, and composed relationships', async () => {
     const observed = await observePage(page);
     expect(observed.complete).toBe(true);
+    expect(observed.body).toMatchObject({ tag: 'body', semantic: 'body', domPath: 'body', parentDlId: null,
+      rect: { x: 0, y: 0, width: 1440 }, styles: { marginTop: '0px', fontFamily: 'MeasuredFace, sans-serif' } });
+    expect(observed.body).not.toHaveProperty('dlId');
     expect(observed.fontFaces).toContainEqual({ family: 'MeasuredFace', status: 'loaded', style: 'normal', weight: 'normal', stretch: 'normal' });
     expect(observed.elements.map((element) => element.semantic)).toEqual(expect.arrayContaining(['heading', 'paragraph', 'form', 'input', 'button', 'table', 'columnheader', 'cell']));
     const card = observed.elements.find((element) => element.tag === 'article')!;

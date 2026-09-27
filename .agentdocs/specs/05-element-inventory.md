@@ -28,11 +28,11 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
   `color` → `text`; `background*` → `background`; `border*`/`outline*` → `border`; `*shadow` →
   `shadow`; `fill`/`stroke` → `fill`; anything else → `other`.
 - `palette`: a cluster is neutral iff its OKLCH chroma < 0.03. `primaryGuess` = highest-count
-  non-neutral cluster's hex (null if none); `neutrals` = neutral hexes, lightness descending;
-  `accents` = remaining non-neutral hexes, count descending, max 6.
-- `typography`: `families` from font-family declarations (generic-only stacks like `sans-serif`
-  excluded); `usage` = `heading` if the family appears in a rule whose selector mentions `h1`–`h6`,
-  `body` if it appears on `html`/`body`/`p` or is the most-used family, `both` if both. `faces` =
+  non-neutral cluster's alpha-preserving CSS value (null if none); `neutrals` = neutral CSS values, lightness descending;
+  `accents` = remaining non-neutral CSS values, count descending, max 6.
+- `typography`: `families` from font-family and parsed font shorthand declarations (generic-only stacks like `sans-serif`
+  excluded); `usage` = `heading` if the family appears in a rule whose selector subject targets `h1`–`h6`,
+  `body` if its subject targets `html`/`body`/`p`, `both` if both, otherwise `unknown`. `faces` =
   the `src` `url()` paths of matching `@font-face` rules exactly as written in the localized CSS —
   stylesheet-relative inside an external stylesheet, `assets/…` inside an inline `<style>` block,
   absolute URL when left remote (ADR-013). `sizesPx` = distinct
@@ -42,8 +42,9 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
   distinct unitless values, 2 decimals, ascending.
 - `spacing`: collect px values (rem/em ×16) of `margin*`/`padding*`/`gap`/`row-gap`/`column-gap`
   declarations, values > 0. `base` MUST be 8 if ≥ 50% of occurrences (count-weighted) are multiples
-  of 8, else 4. `scalePx` = distinct values snapped to the nearest multiple of `base`, occurrence
-  count ≥ 2, ascending, max 12 entries.
+  of 8, else 4 when at least half align to 4, otherwise null. Empty evidence is null.
+  `scalePx` = repeated values snapped to a supported base, or repeated actual values above 1px
+  without a base; occurrence count ≥ 2, ascending, max 12 entries. Function operands are excluded.
 - `radii` = distinct border-radius px values ascending; any value ≥ 999px or ≥ 50% normalizes to the
   sentinel `9999`. `shadows` = distinct box-shadow strings, count descending, max 8.
 - `motion`: `durationsMs` = distinct transition/animation durations as integer ms, ascending;
@@ -56,7 +57,7 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
   `tokens.json` MUST contain the `#3347ff` cluster and the fixture's font family.
 - Interpretation: these are static CSS statistics. `count` measures declaration occurrences,
   not rendered area or element usage. Inactive/unused rules may contribute; relative lengths use
-  the documented 16px estimate and color hexes strip alpha. Palette/scale guesses are hypotheses.
+  the documented 16px estimate; RGB hex channels must be read with alpha, or use css/oklch. Palette/scale guesses are hypotheses.
   Design analysis MUST corroborate them with screenshots and viewport-specific computed evidence,
   never infer painted proportions, actual applied dimensions or contrast from these stats alone.
 
@@ -85,12 +86,12 @@ directory (`.design-lens/<slug>/`, see specs/03-clone-format.md) and never touch
 - `--details` enriches only the selected inventory with resolved style measurements and page
   metadata; default output retains the exact legacy schema below. Measurements are observations
   of the current clone at the recorded viewport, not claims about original designer intent.
-- `--id dl-N` implies details and selects exactly one stamped light-DOM element, including hidden
-  and boxless containers. It bypasses role caps and visibility filtering. Existing classified
+- `--id dl-N` implies details and selects a stamped element, including document roots, open
+  shadow descendants, hidden and boxless containers. Repeat IDs for ordered, deduplicated lookup. It bypasses role caps and visibility filtering. Existing classified
   roles retain their confidence; unclassified elements have `role: null, confidence: null`.
   Missing/duplicate IDs, invalid positive-integer IDs and `--id` with `--kind` MUST exit 1 with
-  empty stdout and a useful stderr error. Shadow descendants are unsupported; errors/help MUST
-  state the light-DOM boundary. `--kind` with no match remains exit 0.
+  empty stdout and a useful stderr error. `--all` includes the complete stamped inventory and
+  excludes both --id and --kind; closed shadow trees and iframe child semantics remain unavailable. `--kind` with no match remains exit 0.
 - Inspection and bare screenshot rendering MUST also bound initial font requests to 5000ms before
   the load event, aborting stalled font requests so fallback can render. Preserve normal load
   readiness for CSS/images/frames and browser redirect/CORS behavior. A font-request timeout
@@ -117,26 +118,30 @@ Command lines (skills invoke via the launcher `~/.design-lens/bin/design-lens`):
 
 ```
 design-lens tokens <projectDir> [--stdout]
-design-lens inspect <projectDir> [--kind logo|nav-link|hero-heading|hero-image|cta|footer|section | --id dl-N] [--viewport WxH] [--details] [--pretty]
+design-lens inspect <projectDir> [--all | --kind logo|nav-link|hero-heading|hero-image|cta|footer|section | --id dl-N ...] [--viewport WxH] [--details] [--pretty]
 ```
 
-`tokens.json` schema (exact shape; all arrays may be empty, never absent):
+`tokens.json` schema 2 (exact shape; all arrays may be empty, never absent):
 
 ```json
 {
-  "colors": [ { "hex": "#635bff", "oklch": "oklch(58% 0.23 275)", "count": 41, "roles": ["background","border"], "clusterOf": ["#635bff","#645cfe"] } ],
+  "schemaVersion": 2,
+  "colors": [ { "hex": "#635bff", "alpha": 1, "css": "#635bff", "oklch": "oklch(58% 0.23 275)", "count": 41, "roles": ["background","border"], "clusterOf": ["#635bff","#645cfe"] } ],
   "palette": { "primaryGuess": "#635bff", "neutrals": ["…"], "accents": ["…"] },
   "typography": { "families": [ { "name": "Inter", "usage": "body", "faces": ["assets/…/inter-400.woff2"] } ],
                   "sizesPx": [16, 18, 24, 40, 64], "scaleRatioGuess": 1.33, "weights": [400, 500, 700], "lineHeights": [1.2, 1.5] },
   "spacing": { "base": 8, "scalePx": [8, 16, 24, 32, 48, 64, 96] },
   "radii": [0, 8, 16, 9999], "shadows": ["…"],
-  "motion": { "durationsMs": [150, 300, 600], "easings": ["cubic-bezier(.4,0,.2,1)"], "keyframes": ["fadeUp"] }
+  "motion": { "durationsMs": [150, 300, 600], "easings": ["cubic-bezier(.4,0,.2,1)"], "keyframes": ["fadeUp"] },
+  "provenance": { "kind": "css-declaration-census", "source": "clone", "rendered": false, "sources": [], "assumptions": [], "unresolved": [], "warnings": [] }
 }
 ```
 
-Field formats: `hex` = 6-digit lowercase (alpha stripped); `oklch` = `oklch(<L>% <C> <H>)` with L
-whole percent, C 2 decimals, H whole degrees; `count` = summed occurrences of all cluster members;
-`clusterOf` = member hexes, count descending; `usage` ∈ `"body" | "heading" | "both"`.
+Field formats: `hex` = 6-digit RGB channels with separate `alpha`; `css` retains alpha; `oklch` = `oklch(<L>% <C> <H>)` with L
+whole percent, C 2 decimals, H whole degrees and a slash alpha when translucent; `count` = summed occurrences of all cluster members;
+`clusterOf` = alpha-preserving member colors, count descending; `usage` ∈ `"body" | "heading" | "both" | "unknown"`.
+Sources carry path/kind/sha256. Unresolved records carry selector/property/value/reason. Fully
+transparent values are excluded; clusters never merge differing alpha values.
 
 Per-role heuristics (deterministic layer; the agent adds judgment on top):
 
@@ -191,9 +196,9 @@ stamp. The default top-level and element shapes above remain unchanged without t
   gridTemplateColumns/Rows, flexDirection/Wrap, alignItems, justifyContent, overflowX/Y.
 
 CSS values remain browser-returned strings, including `normal`, `auto`, CSS colors and alpha.
-Rects remain rounded CSS pixels. Page metadata describes the actual viewport and DSF, not a
-guessed device. Only selected elements and body are enriched in one browser evaluation; no
-full-DOM detailed export or persistent inventory is created. Parent IDs allow targeted follow-up
+Default role rectangles remain rounded CSS pixels; detailed observations preserve fractional CSS pixels. Page metadata describes the actual viewport and DSF, not a
+guessed device. Selected elements and body are enriched from the same browser observation; --all opts into a
+full stamped-element export, but no persistent inventory is created. Parent IDs allow targeted follow-up
 queries for layout containers not covered by semantic roles.
 
 ## Out of scope
@@ -232,6 +237,6 @@ root scope, parent/child relationships, semantic text/control/container roles, p
 backgrounds/gradients, image fit/crop and font readiness. Use a shared browser probe for source
 evidence and current-clone inspection; source and clone observations remain distinguishable.
 Token schema 2 preserves alpha, excludes fully transparent brand candidates, parses font
-shorthand and selector subjects, and never treats calc operands as actual spacing. Empty spacing
-base is null. Unresolved functions and assumed relative-unit conversions carry diagnostics.
+shorthand and selector subjects, and never treats calc operands as actual spacing. An unsupported spacing
+base is null, including empty, hairline-only and unaligned evidence. Unresolved functions and assumed relative-unit conversions carry diagnostics.
 CSS occurrence counts remain declaration statistics, not painted shares or semantic design truth.

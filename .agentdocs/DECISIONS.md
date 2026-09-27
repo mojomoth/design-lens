@@ -447,3 +447,20 @@ before parsing, audits recursive active content, and retains browser instrumenta
 Node-side readiness deadline. No captured source program executes. Navigation's native timeout
 replaces an uncancelled Promise.race timer; both viewport and full-page pixel budgets are checked.
 Minimal clarifications update specs/02-clone-engine.md and specs/03-clone-format.md.
+
+## ADR-025 — Precise observation and blueprint interfaces (2026-09-27)
+
+T39 implements the approved breaking token schema 2: alpha-preserving CSS/OKLCH and cluster
+values, unknown font usage when the selector subject does not establish a role, nullable spacing
+bases without alignment evidence, and explicit declaration provenance, assumptions and unresolved
+values. Repeated direct values remain useful when no 4/8 grid is supported. Existing meaningful
+regressions remain, with hairline/schema assertions updated to the newly approved contract.
+
+Inspect retains the default role inventory and extends detailed/batch/all measurements through
+one shared observation. Source body measurements are optional for old evidence compatibility.
+An explicit ID still addresses document roots and hidden nodes as well as open shadow descendants.
+The design validator checks required recipes and a capture-scoped observation table, with units
+and decimal precision declared per row. Valid source measurements remain usable when a clone
+report is absent or stale; only clone claims depend on that current render. Prose interpretation
+and implementation sufficiency require independent evaluation. Exact field and table contracts
+replace obsolete wording in specs/04-design-analysis.md and specs/05-element-inventory.md.
