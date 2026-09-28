@@ -99,6 +99,7 @@ export interface LocalizeResult {
   assets: LocalizedAsset[];
   /** References intentionally left remote, deduplicated by URL. */
   remote: ManifestRemote[];
+  warnings: string[];
   /** Rollup counters for the manifest/report. */
   stats: { images: number; fonts: number; cssFiles: number };
 }
@@ -116,6 +117,7 @@ export function localizeDocument(
 ): LocalizeResult {
   const assets = new Map<string, LocalizedAsset>();
   const remote = new Map<string, ManifestRemote>();
+  const warnings: string[] = [];
   const captureIdentity = options.contentAddressed ? store.fingerprint() : '';
 
   const recordRemote = (url: string, reason: RemoteReason, referencedBy: string): void => {
@@ -141,6 +143,7 @@ export function localizeDocument(
     absoluteUrl: string,
     kind: DocumentRefKind,
     referencedBy: string,
+    paragraphAlias?: string,
   ): string | null => {
     const stored = store.get(absoluteUrl);
     if (
@@ -172,6 +175,12 @@ export function localizeDocument(
         .digest('hex').slice(0, 16);
       assetPath = `${assetPath.slice(0, -ext.length)}__c-${hash}${ext}`;
     }
+    // A sheet shared with an unnormalized frame must keep its native selectors there. Never
+    // overwrite that sheet or mutate captured source bytes when emitting an aliased derivative.
+    if (paragraphAlias && (kind === 'stylesheet' || isCssResource(stored.contentType, assetPath))) {
+      const ext = path.posix.extname(assetPath);
+      assetPath = `${assetPath.slice(0, -ext.length)}__p-${paragraphAlias}${ext}`;
+    }
     // A URL fragment selects an SVG symbol/filter and never belongs in the disk filename.
     const fragment = new URL(absoluteUrl).hash;
     const referencePath = assetPath + fragment;
@@ -191,20 +200,21 @@ export function localizeDocument(
 
     if (kind === 'stylesheet' || isCssResource(stored.contentType, assetPath)) {
       const resolveInCss = (refUrl: string, refKind: CssRefKind): string | null => {
-        const target = localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', responseUrl);
+        const target = localizeAsset(refUrl, refKind === 'import' ? 'stylesheet' : 'leaf', responseUrl, paragraphAlias);
         if (target === null) return null;
         // A reference inside a CSS file is relative to THAT file's directory, not the page root.
         return path.posix.relative(path.posix.dirname(assetPath), target);
       };
-      const { css } = rewriteCss(stored.body.toString('utf8'), responseUrl, resolveInCss);
+      const { css, warnings: cssWarnings } = rewriteCss(stored.body.toString('utf8'), responseUrl, resolveInCss, { paragraphAlias });
+      warnings.push(...cssWarnings ?? []);
       entry.body = Buffer.from(css, 'utf8');
     } else if (/^(?:text\/html|application\/xhtml\+xml|image\/svg\+xml)(?:;|$)/i.test(stored.contentType)) {
       const xml = /^image\/svg\+xml/i.test(stored.contentType);
       const inert = sanitizeHtml(stored.body.toString('utf8'), { xml });
       entry.body = Buffer.from(rewriteDocumentReferences(inert, responseUrl, (ref) => {
-        const target = localizeAsset(ref.url, ref.kind, ref.referencedBy);
+        const target = localizeAsset(ref.url, ref.kind, ref.referencedBy, ref.paragraphAlias);
         return target === null ? null : path.posix.relative(path.posix.dirname(assetPath), target);
-      }, { xml }), 'utf8');
+      }, { xml, warnings }), 'utf8');
     } else {
       entry.body = stored.body;
     }
@@ -212,7 +222,8 @@ export function localizeDocument(
   };
 
   const rewritten = rewriteDocumentReferences(html, pageUrl, (ref) =>
-    localizeAsset(ref.url, ref.kind, ref.referencedBy),
+    localizeAsset(ref.url, ref.kind, ref.referencedBy, ref.paragraphAlias),
+    { warnings },
   );
   const $ = cheerio.load(rewritten);
 
@@ -225,6 +236,7 @@ export function localizeDocument(
     html: $.html(),
     assets: assetList,
     remote: [...remote.values()],
+    warnings,
     stats: {
       images: assetList.filter((a) => isImageResource(a.contentType, a.assetPath)).length,
       fonts: assetList.filter((a) => isFontResource(a.contentType, a.assetPath)).length,

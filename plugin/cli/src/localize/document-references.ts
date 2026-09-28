@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 
 import { rewriteCss } from './css-rewrite.js';
 import { rewriteSrcset } from './srcset.js';
+import { isParagraphAlias } from './paragraph-selectors.js';
 
 export type DocumentRefKind = 'stylesheet' | 'leaf' | 'document';
 export interface DocumentReference {
@@ -10,6 +11,8 @@ export interface DocumentReference {
   kind: DocumentRefKind;
   via: 'refetch' | 'css-fetch';
   referencedBy: string;
+  /** Identity of the owning document's paragraph normalization, including srcdoc boundaries. */
+  paragraphAlias?: string;
 }
 export type DocumentResolver = (reference: DocumentReference) => string | null;
 
@@ -40,6 +43,7 @@ export function documentBaseUrl($: ReturnType<typeof cheerio.load>, pageUrl: str
 export interface DocumentRewriteOptions {
   xml?: boolean;
   depth?: number;
+  warnings?: string[];
 }
 
 /** Return rewritten markup; a resolver returning null makes this a pure resource discovery pass. */
@@ -53,6 +57,8 @@ export function rewriteDocumentReferences(
   if (depth > MAX_DOCUMENT_DEPTH) throw new Error(`embedded document depth exceeds ${MAX_DOCUMENT_DEPTH}`);
   const $ = cheerio.load(html, options.xml ? { xml: true } : undefined);
   const baseUrl = documentBaseUrl($, pageUrl);
+  const marker = $('html').attr('data-dl-paragraph-alias');
+  const paragraphAlias = isParagraphAlias(marker) ? marker : undefined;
 
   $('*').each((_, el) => {
     if (!('attribs' in el)) return;
@@ -64,17 +70,17 @@ export function rewriteDocumentReferences(
       if (raw === undefined) return;
       const url = resourceUrl(raw, baseUrl);
       if (url === null) return;
-      const value = resolve({ url, kind, via: 'refetch', referencedBy });
+      const value = resolve({ url, kind, via: 'refetch', referencedBy, ...(paragraphAlias ? { paragraphAlias } : {}) });
       if (value !== null) $el.attr(name, value);
     };
-    const css = (text: string, inline: boolean): string => rewriteCss(
-      text,
-      baseUrl,
-      (url, kind) => resolve({
+    const css = (text: string, inline: boolean): string => {
+      const result = rewriteCss(text, baseUrl, (url, kind) => resolve({
         url, kind: kind === 'import' ? 'stylesheet' : 'leaf', via: 'css-fetch', referencedBy,
-      }),
-      inline ? { context: 'declarationList' } : {},
-    ).css;
+        ...(paragraphAlias ? { paragraphAlias } : {}),
+      }), inline ? { context: 'declarationList' } : { paragraphAlias });
+      options.warnings?.push(...result.warnings ?? []);
+      return result.css;
+    };
     const srcset = (name: string): void => {
       const raw = $el.attr(name);
       if (raw === undefined) return;
@@ -111,7 +117,7 @@ export function rewriteDocumentReferences(
     if (tag === 'iframe') {
       const srcdoc = $el.attr('srcdoc');
       if (srcdoc !== undefined) {
-        $el.attr('srcdoc', rewriteDocumentReferences(srcdoc, baseUrl, resolve, { depth: depth + 1 }));
+        $el.attr('srcdoc', rewriteDocumentReferences(srcdoc, baseUrl, resolve, { depth: depth + 1, warnings: options.warnings }));
         // srcdoc wins over src in Chromium; retaining src would be a spurious remote resource.
         $el.removeAttr('src');
       } else attr('src', 'document');

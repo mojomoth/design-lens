@@ -22,6 +22,8 @@ import type { Frame, Page } from 'playwright';
 
 import { PERCY_DOM_SRC } from './percy-dom-src.js';
 import { restorePercyDom, type PercySerialized } from './percy-restore.js';
+import { serializeWithParagraphNormalization } from './paragraphs.js';
+import { normalizeParagraphStyles } from '../localize/paragraph-selectors.js';
 
 /** The serialized document plus counters for the manifest/report. */
 export interface SerializeResult {
@@ -61,7 +63,7 @@ function countStyleRules(page: Page | Frame): Promise<number> {
  * payload, or `null` if percy did not define its global or produced empty output (→ caller falls
  * back). Throwing propagates to the caller's try/catch, which also falls back.
  */
-async function serializePercy(page: Page | Frame): Promise<PercySerialized | null> {
+async function serializePercy(page: Page | Frame): Promise<(PercySerialized & { warnings: string[] }) | null> {
   await page.evaluate(() => {
     const roots: Array<Document | ShadowRoot> = [document];
     for (let index = 0; index < roots.length; index++) {
@@ -76,16 +78,9 @@ async function serializePercy(page: Page | Frame): Promise<PercySerialized | nul
     }
   });
   await page.addScriptTag({ content: PERCY_DOM_SRC });
-  const raw = await page.evaluate((): { html: string; resources: unknown[]; warnings: string[] } | null => {
-    const percy = (window as unknown as {
-      PercyDOM?: { serialize: (options: object) => { html: string; resources: unknown[]; warnings?: string[] } };
-    }).PercyDOM;
-    if (!percy || typeof percy.serialize !== 'function') return null;
-    const out = percy.serialize({ dom: document });
-    return { html: out.html, resources: out.resources, warnings: out.warnings ?? [] };
-  });
+  const raw = await page.evaluate(serializeWithParagraphNormalization);
   if (!raw || typeof raw.html !== 'string' || raw.html.trim() === '') return null;
-  return { html: raw.html, resources: raw.resources as PercySerialized['resources'], warnings: raw.warnings };
+  return raw;
 }
 
 /**
@@ -146,9 +141,10 @@ export async function serializeDom(page: Page | Frame): Promise<SerializeResult>
       // adopted sheets as <style>, but the count reflects what the page actually carried).
       const styleRules = await countStyleRules(page);
       const restored = restorePercyDom(raw);
-      warnings.push(...restored.warnings);
+      const normalized = normalizeParagraphStyles(restored.html);
+      warnings.push(...restored.warnings, ...normalized.warnings);
       return {
-        html: restored.html,
+        html: normalized.html,
         styleRules,
         serializer: 'percy',
         canvasConverted: restored.canvasConverted,

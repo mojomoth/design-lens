@@ -18,6 +18,7 @@
  */
 
 import * as csstree from 'css-tree';
+import { normalizeParagraphSelectors } from './paragraph-selectors.js';
 
 /** Which construct a reference came from: an `@import` (another stylesheet, recurse) or a leaf. */
 export type CssRefKind = 'import' | 'url';
@@ -44,12 +45,16 @@ export type CssResolver = (url: string, kind: CssRefKind) => string | null;
 export interface RewriteCssResult {
   css: string;
   refs: CssRef[];
+  /** A selector conversion failed; bytes remain usable but fidelity cannot be certified. */
+  warnings?: string[];
 }
 
 /** Parse context: a full stylesheet (default) or the declaration list of an inline `style=""`. */
 export interface RewriteCssOptions {
   /** `'declarationList'` parses a bare `prop: url(x)` run (inline `style`); default `'stylesheet'`. */
   context?: 'stylesheet' | 'declarationList';
+  /** Capture-local paragraph alias; separate documents may need different stylesheet derivatives. */
+  paragraphAlias?: string;
 }
 
 /** A `url()` value that can never be localised: an inline payload or a same-document fragment. */
@@ -71,7 +76,13 @@ export function rewriteCss(
   resolve: CssResolver,
   options: RewriteCssOptions = {},
 ): RewriteCssResult {
-  const ast = csstree.parse(css, {
+  let normalized = css;
+  const warnings: string[] = [];
+  if (options.paragraphAlias && options.context !== 'declarationList') {
+    try { normalized = normalizeParagraphSelectors(css, options.paragraphAlias); }
+    catch (error) { warnings.push(error instanceof Error ? error.message : String(error)); }
+  }
+  const ast = csstree.parse(normalized, {
     context: options.context ?? 'stylesheet',
     parseCustomProperty: true,
   });
@@ -120,5 +131,5 @@ export function rewriteCss(
     return undefined;
   });
 
-  return { css: csstree.generate(ast), refs };
+  return { css: csstree.generate(ast), refs, ...(warnings.length ? { warnings } : {}) };
 }

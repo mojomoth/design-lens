@@ -382,6 +382,7 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     includeMedia: opts.includeMedia,
     contentAddressed: opts.viewports !== undefined,
   });
+  capture.warnings.push(...localized.warnings);
 
   // Pretty-print every localized stylesheet BEFORE hashing, so the manifest sha256/bytes describe
   // the exact bytes written to disk (fonts/images stay byte-identical to the captured body).

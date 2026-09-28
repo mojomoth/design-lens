@@ -609,3 +609,15 @@ mutation warnings, and three source captures despite slow optional downloads.
 The main-tree default gate passed, including the sealed fixture spine. An earlier run was
 interrupted by a shared dependency reinstall; isolated dependency trees removed that environment
 conflict before the successful rerun.
+
+## T44 — Detached paragraph preservation (2026-09-28)
+
+Malformed script-created paragraph trees are normalized only in Percy's detached clone. Every HTML
+paragraph in an affected root shares a safe alias, preserving sibling/type relationships; CSS AST
+rewrites retain specificity, pseudo selectors, namespaces and cascade order. External stylesheets
+receive capture-local derivatives so independent frame documents keep their own semantics. Unsupported
+CSS transformations are reported instead of silently discarded.
+
+The isolated default gate passed, including all unit/E2E checks and the sealed spine. After merging
+with T43, typecheck/build and eight capture/paragraph browser regressions passed together. Original
+DOM and source screenshots remain unchanged by normalization.
