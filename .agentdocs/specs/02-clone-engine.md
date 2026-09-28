@@ -253,8 +253,8 @@ Dev: `typescript`, `tsup`, `vitest`, `eslint` + `typescript-eslint`, `@types/nod
   with harness-provisioned Chromium are settled — ADR-001, ADR-005, ADR-008.
 
 ### Responsive evidence and fidelity (ADR-023)
-`clone --viewports WxH,...` captures each viewport from a fresh navigation, using the first for
-the canonical clone. Explicit --viewport and --viewports conflict. Skills request
+`clone --viewports WxH,...` captures each viewport from a fresh navigation, composing the available
+snapshots into one canonical editable clone (ADR-028). Explicit --viewport and --viewports conflict. Skills request
 1440x900,768x1024,390x844. Preserve source images, inert DOM, independent asset bytes, computed
 observations, timestamps, browser/DSF/media/removal policy and hashes outside clone/. IDs are
 capture-scoped. Never merge differing response bodies by URL across viewport captures.
@@ -275,3 +275,32 @@ available, a capture containing an iframe is incomplete for fidelity, even when 
 match. Record this limitation rather than certifying a tiny missing frame element by aggregate
 image tolerance. Apply the pixel budget before both viewport and full-page screenshots. Offline
 rendering blocks page scripts before parsing without disabling the measurement runner's timers.
+
+### Sampled responsive composition and capture repairs (ADR-028)
+Multi-viewport output uses CSS-selected declarative open shadow trees, one complete static DOM per
+available capture. Sort distinct widths; adjacent arithmetic midpoints select the nearer width,
+with ties selecting the larger. Within equal-width groups apply the same rule to height. These
+are generated sample-selection ranges, not recovered source breakpoints. Exact fidelity applies
+only to captured viewport pairs; intermediate widths retain authored CSS but have no source-match
+guarantee. Missing captures remain explicitly unverified and never become fabricated variants.
+
+Generated root/body proxies preserve source attributes and selector specificity. Bridge active
+root font size and document canvas/scroll properties; hoist font-face declarations under mutually
+exclusive variant media conditions. Preserve native IDs within shadow trees, assign globally
+unique numeric data-dl-id values, and record capture-qualified source correspondence. Only
+generated composition wrappers may be transparent to source comparison. Unsupported root or CSS
+transformations are reported as limitations rather than silently certified. The shared override
+sheet is linked last in the document and every generated shadow tree.
+
+Before navigation, preserve WebGL drawing buffers and install a native-preserving RAF gate. Freeze
+source RAF callbacks after lazy loading and readiness, before observations/serialization/images;
+other continuing mutations still prevent complete evidence. Restore generated Percy video posters
+from serializer resource bytes. Normalize HTML paragraphs that cannot survive HTML parsing only
+in Percy's detached tree, with equivalent CSS type selectors/defaults and logical source tags.
+
+Reserve the remaining whole-run capture budget fairly among remaining viewports. Missing-resource
+requests use at most four concurrent workers; permanent 4xx responses (except transient 408/429)
+are not retried. Capture source observations/markup/images consecutively before optional refetch;
+defer clone rerendering until all source viewports have been attempted. Preserve all warning and
+timeout outcomes. Available incomplete evidence may produce explicitly diagnostic comparisons,
+but never a fidelity pass; unchanged integrity checks and numerical tolerances still apply.

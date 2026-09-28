@@ -503,3 +503,29 @@ The bundle must reproduce from committed sources; package contents, matching not
 plugin versions are checked locally, followed by the complete strict sealed gate. Runtime setup,
 remote publication and changing the user's installed plugin are separate actions from preparing
 this release.
+
+## ADR-028 — Preserve sampled responsive DOM and repair capture losses (2026-09-28)
+
+The user approved direct Tenity reproduction and engine fixes, including responsive structure
+preservation. A fresh 0.3.0 run produced a fully transparent WebGL hero, an unrestored Percy video
+poster, ongoing RAF mutations, mobile navigation with a 1ms budget, and no diagnostic comparisons.
+Tenity also deletes inactive device DOM and creates block children inside paragraphs that HTML
+parsing reparents. These are reproducible capture/serialization gaps, not clone customization.
+
+Whole captured DOM variants in declarative open shadow roots avoid guessing correspondence among
+deleted nodes and text animation wrappers. CSS midpoint ranges select sampled states; they are
+not claims about original breakpoints. Root/body proxies, media-gated document fonts, shared
+overrides, globally unique canonical IDs and explicit capture provenance preserve the existing
+inspection/editing contract. Detached paragraph normalization uses selector-aware aliases rather
+than altering the original evidence or copying all computed styles into fixed dimensions.
+
+This updates specs/02-clone-engine.md and specs/03-clone-format.md: the first capture is no longer
+the sole canonical DOM for explicit multi-viewport requests, and canonical resources include all
+composed variants. Source files and their hashes remain immutable. Incomplete but intact evidence
+may generate diagnostic comparisons without earning a pass. Existing numerical thresholds and
+negative controls remain unchanged. No dependency addition or source JavaScript replay is needed.
+
+Implementation is split into T42–T47, with local-only regression fixtures and a separate manual
+live-web validation. Unsupported transformations and original server failures remain disclosed;
+completion does not mean every source page can be certified. No publishing or installed-runtime
+replacement is part of this change.

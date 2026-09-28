@@ -85,6 +85,15 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T40 (P1) Connect portable skills to bounded responsive repair and implementation-ready blueprints with independent local evaluation | AC: independent local skill evaluations preserve evidence and reject false completion; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 06-customization.md, 07-skills.md, 08-testing.md
 - [x] T41 (P2) Prepare the verified 0.3.0 dual-plugin release bundle and coherent usage documentation | AC: `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` exit 0; versions and bundle are coherent | Spec: 00-product.md, 01-packaging.md, 10-ethics.md
 
+## Milestone 9 — Tenity capture and responsive structure preservation (approved 2026-09-28)
+
+- [x] T42 (P1) Record sampled responsive composition and capture repair contracts through ADR-028 | AC: `bash .harness/verify.sh --plan` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
+- [ ] T43 (P1) Preserve WebGL and generated posters, freeze RAF, and fairly budget responsive capture and resource fetching | AC: capture and timeout regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 08-testing.md
+- [ ] T44 (P1) Preserve invalid live paragraph structure through detached normalization and selector-aware CSS | AC: paragraph hierarchy, cascade and pixel regressions pass without source edits; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
+- [ ] T45 (P1) Compose independent responsive source DOM variants into one inert editable clone | AC: sampled viewport composition, asset identity, root layout and override regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
+- [ ] T46 (P1) Integrate composed inspection and diagnostic fidelity with capture-qualified source identity | AC: default inspect, source mapping, incomplete diagnostics and negative controls pass; `bash .harness/verify.sh` exits 0 | Spec: 03-clone-format.md, 05-element-inventory.md, 08-testing.md
+- [ ] T47 (P2) Verify the complete bundle and fresh Tenity captures with documented fidelity limits | AC: `npm run verify`, `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` pass; fresh Tenity all-viewport comparison is recorded | Spec: 01-packaging.md, 02-clone-engine.md, 08-testing.md
+
 ## Deferred / Optional (does NOT block completion)
 
 - (none) — every task above is load-bearing for `verify.sh --strict`; speculative flags

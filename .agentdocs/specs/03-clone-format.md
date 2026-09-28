@@ -150,9 +150,20 @@ content, not literal text.
 files and checksummed. Legacy projects may lack this artifact and remain structurally valid.
 `fidelity.json` and versioned comparison images record findings, source/clone hashes and measured
 clone observations. Old results cannot be reused after edits. Preserve the primary capture's
-existing image paths and format contracts. Additional viewport assets stay separate from primary
-resources; source origin URLs remain outside clone/. inspect does not write inventory state.
+existing image paths and format contracts. Immutable viewport assets remain separate in evidence;
+the composed canonical clone includes independent copies of every selected variant's assets and
+lists them in the root manifest (ADR-028). Source origin URLs remain outside clone/.
+inspect does not write inventory state.
 
 The optional root manifest `evidenceHash` anchors the original evidence document. Later fidelity
 runs retain this baseline, reject conflicting prior report hashes, and never silently establish
 a new baseline after source edits. Older manifests without it remain readable.
+
+The optional manifest `composition` object has schemaVersion 1 and records variants (capture ID,
+source viewport, generated media condition, host/root/body IDs), source-to-canonical element
+correspondence, and transformation warnings. It describes generated output, not edit history.
+Canonical nodes retain numeric data-dl-id values and carry data-dl-source-capture and
+data-dl-source-id provenance; generated proxies carry data-dl-generated markers. Existing evidence
+and manifest versions remain readable. Capture comparisons may include diagnosticOnly: true;
+these may contain screenshots and measurements but retain status unverified. Integrity failures
+or absent images are never used as a source for diagnostic image comparisons.
