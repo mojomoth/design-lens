@@ -74,11 +74,31 @@ export interface ManifestStats {
   warnings: number;
 }
 
+/** A sampled DOM selected by generated CSS, not an inferred source breakpoint. */
+export interface ResponsiveVariant {
+  captureId: string;
+  viewport: { width: number; height: number };
+  media: string;
+  hostId: string;
+  rootId: string;
+  bodyId: string;
+}
+
+/** Explicit correspondence survives canonical ID allocation without changing source evidence. */
+export interface ResponsiveComposition {
+  schemaVersion: 1;
+  boundaryPolicy: 'nearest-width-then-height';
+  variants: ResponsiveVariant[];
+  elements: Array<{ dlId: string; captureId: string; sourceId: string }>;
+  warnings: string[];
+}
+
 /** The full manifest document written to `<projectDir>/manifest.json`. */
 export interface Manifest {
   version: number;
   /** Immutable source evidence digest; absent on captures made before evidence support. */
   evidenceHash?: string;
+  composition?: ResponsiveComposition;
   tool: { name: string; version: string; playwright: string };
   source: ManifestSource;
   resources: ManifestResource[];

@@ -621,3 +621,17 @@ CSS transformations are reported instead of silently discarded.
 The isolated default gate passed, including all unit/E2E checks and the sealed spine. After merging
 with T43, typecheck/build and eight capture/paragraph browser regressions passed together. Original
 DOM and source screenshots remain unchanged by normalization.
+
+## T45 — Sampled responsive composition (2026-09-28)
+
+The composer preserves complete capture DOMs in declarative open shadow roots, with midpoint
+width/height selection, root/body proxies and document-level font/root bridges. Source IDs, native
+SVG/ARIA references and nested shadow boundaries survive; canonical IDs and recorded correspondence
+are global. Each capture's assets receive an independent content-qualified namespace, including
+different bytes from the same URL. Shared overrides are linked last inside every generated root.
+
+The isolated default gate passed. Followup browser regressions passed for all nine composer cases,
+including layered universal resets, percent-height roots, short bordered roots, responsive fonts,
+rem, fixed elements, native shadow content, unique IDs, independent assets and evidence immutability.
+Root selector aliases also retain namespace qualification. Unsupported document-background coordinate
+transforms remain explicit warnings. CLI orchestration is connected in T46.
