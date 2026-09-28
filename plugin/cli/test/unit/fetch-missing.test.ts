@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_RETRIES,
+  MAX_REFETCH_WORKERS,
   MAX_CSS_IMPORT_DEPTH,
   collectCssUrls,
   collectSrcsetUrls,
@@ -116,6 +117,53 @@ describe('collectSrcsetUrls', () => {
   // `src` values or an empty-string candidate.
   it('returns nothing when the document has no srcset', () => {
     expect(collectSrcsetUrls('<img src="a.png"><p>text</p>', PAGE)).toEqual([]);
+  });
+});
+
+describe('bounded resource fetching', () => {
+  it('never retries permanent 4xx failures, but retries transient 408/429 responses', async () => {
+    const gone = 'https://example.com/gone';
+    const busy = 'https://example.com/busy';
+    const timeout = 'https://example.com/timeout';
+    const client = fakeClient({
+      [gone]: [response(404, 'text/plain', 'gone')],
+      [busy]: [response(429, 'text/plain', 'busy'), response(200, 'text/plain', 'ok')],
+      [timeout]: [response(408, 'text/plain', 'timeout'), response(200, 'text/plain', 'ok')],
+    });
+    const outcome = await fetchMissing(client, [gone, busy, timeout], new ResourceStore());
+    expect(client.requests.filter((url) => url === gone)).toHaveLength(1);
+    expect(client.requests.filter((url) => url === busy)).toHaveLength(2);
+    expect(client.requests.filter((url) => url === timeout)).toHaveLength(2);
+    expect(outcome.failed).toEqual([{ url: gone, detail: 'HTTP 404' }]);
+    expect(outcome.fetched).toEqual([busy, timeout]);
+  });
+
+  it('bounds concurrency, deduplicates input, and preserves discovery order', async () => {
+    let active = 0;
+    let peak = 0;
+    const urls = Array.from({ length: 9 }, (_, index) => `https://example.com/${index}`);
+    const requested: string[] = [];
+    const client: RefetchClient = { async get(url) {
+      requested.push(url);
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, url.endsWith('/0') ? 30 : 5));
+      active--;
+      return response(200, 'text/plain', url);
+    } };
+    const outcome = await fetchMissing(client, [...urls, urls[0]], new ResourceStore());
+    expect(peak).toBe(MAX_REFETCH_WORKERS);
+    expect(requested).toHaveLength(urls.length);
+    expect(outcome.fetched).toEqual(urls);
+    expect(outcome.failed).toEqual([]);
+  });
+
+  it('does not start queued requests after the deadline expires', async () => {
+    const client = fakeClient({});
+    const urls = ['https://example.com/a', 'https://example.com/b'];
+    const outcome = await fetchMissing(client, urls, new ResourceStore(), { deadline: Date.now() - 1 });
+    expect(client.requests).toEqual([]);
+    expect(outcome.failed).toEqual(urls.map((url) => ({ url, detail: 'capture deadline exhausted' })));
   });
 });
 

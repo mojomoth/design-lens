@@ -88,7 +88,7 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 ## Milestone 9 — Tenity capture and responsive structure preservation (approved 2026-09-28)
 
 - [x] T42 (P1) Record sampled responsive composition and capture repair contracts through ADR-028 | AC: `bash .harness/verify.sh --plan` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
-- [ ] T43 (P1) Preserve WebGL and generated posters, freeze RAF, and fairly budget responsive capture and resource fetching | AC: capture and timeout regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 08-testing.md
+- [x] T43 (P1) Preserve WebGL and generated posters, freeze RAF, and fairly budget responsive capture and resource fetching | AC: capture and timeout regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 08-testing.md
 - [ ] T44 (P1) Preserve invalid live paragraph structure through detached normalization and selector-aware CSS | AC: paragraph hierarchy, cascade and pixel regressions pass without source edits; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
 - [ ] T45 (P1) Compose independent responsive source DOM variants into one inert editable clone | AC: sampled viewport composition, asset identity, root layout and override regressions pass; `bash .harness/verify.sh` exits 0 | Spec: 02-clone-engine.md, 03-clone-format.md
 - [ ] T46 (P1) Integrate composed inspection and diagnostic fidelity with capture-qualified source identity | AC: default inspect, source mapping, incomplete diagnostics and negative controls pass; `bash .harness/verify.sh` exits 0 | Spec: 03-clone-format.md, 05-element-inventory.md, 08-testing.md

@@ -49,6 +49,8 @@ export const DEFAULT_RETRIES = 2;
 
 /** Per-request budget when the caller supplies none. */
 export const DEFAULT_TIMEOUT_MS = 15_000;
+/** Bound pressure on the source while allowing unrelated slow resources to make progress. */
+export const MAX_REFETCH_WORKERS = 4;
 
 /**
  * How deep {@link collectCssUrls} follows an `@import` chain within one call, and (as the caller's
@@ -317,12 +319,14 @@ async function fetchWithRetries(
 ): Promise<RefetchResponse> {
   let lastDetail = 'no attempt was made';
   for (let attempt = 0; attempt < attempts; attempt++) {
+    const remaining = deadline === undefined ? timeoutMs : deadline - Date.now();
+    if (remaining <= 0) throw new Error('capture deadline exhausted');
     try {
-      const remaining = deadline === undefined ? timeoutMs : deadline - Date.now();
-      if (remaining <= 0) throw new Error('capture deadline exhausted');
       const response = await client.get(url, { timeout: Math.max(1, Math.min(timeoutMs, remaining)) });
       if (response.ok()) return response;
-      lastDetail = `HTTP ${response.status()}`;
+      const status = response.status();
+      lastDetail = `HTTP ${status}`;
+      if (status >= 400 && status < 500 && status !== 408 && status !== 429) break;
     } catch (err) {
       lastDetail = err instanceof Error ? err.message : String(err);
     }
@@ -335,8 +339,8 @@ async function fetchWithRetries(
  * store with `options.via` (default `'refetch'`) so the localize pass treats it exactly like a
  * render-captured resource — the only surviving difference is the manifest's provenance field.
  *
- * Requests run SEQUENTIALLY: the refetch list is short (unused srcset variants, CSS-discovered fonts)
- * and a capture must not fan out a burst of requests at a site it is merely studying.
+ * At most four workers make progress concurrently. Results retain discovery order regardless of
+ * response timing, duplicates are fetched once, and no new request starts after the deadline.
  *
  * The response is recorded under the REQUESTED url, not the response's final url — the localize pass
  * looks the resource up by the reference it found in the markup, so a redirect must not hide it.
@@ -353,28 +357,34 @@ export async function fetchMissing(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const via: RefetchVia = options.via ?? 'refetch';
 
-  const fetched: string[] = [];
-  const failed: RefetchFailure[] = [];
-
-  for (const url of urls) {
-    if (store.has(url)) continue; // already captured during render — nothing to refetch
-    try {
-      const response = await fetchWithRetries(client, url, attempts, timeoutMs, options.deadline);
-      const responseUrl = response.url?.() ?? url;
-      store.record({
-        url,
-        responseUrl,
-        status: response.status(),
-        contentType: (response.headers()['content-type'] ?? '').trim(),
-        body: await response.body(),
-        via,
-      });
-      store.recordAlias(responseUrl, url);
-      fetched.push(url);
-    } catch (err) {
-      failed.push({ url, detail: err instanceof Error ? err.message : String(err) });
+  const pending = [...new Set(urls)].filter((url) => !store.has(url));
+  const results: Array<{ url: string; failure?: RefetchFailure }> = new Array(pending.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < pending.length) {
+      const index = next++;
+      const url = pending[index];
+      try {
+        const response = await fetchWithRetries(client, url, attempts, timeoutMs, options.deadline);
+        const responseUrl = response.url?.() ?? url;
+        store.record({
+          url,
+          responseUrl,
+          status: response.status(),
+          contentType: (response.headers()['content-type'] ?? '').trim(),
+          body: await response.body(),
+          via,
+        });
+        store.recordAlias(responseUrl, url);
+        results[index] = { url };
+      } catch (err) {
+        results[index] = { url, failure: { url, detail: err instanceof Error ? err.message : String(err) } };
+      }
     }
   }
-
-  return { fetched, failed };
+  await Promise.all(Array.from({ length: Math.min(MAX_REFETCH_WORKERS, pending.length) }, () => worker()));
+  return {
+    fetched: results.filter((result) => !result.failure).map((result) => result.url),
+    failed: results.flatMap((result) => result.failure ? [result.failure] : []),
+  };
 }

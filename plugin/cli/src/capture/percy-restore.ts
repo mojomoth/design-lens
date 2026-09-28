@@ -34,11 +34,13 @@ export interface PercyResource {
 export interface PercySerialized {
   html: string;
   resources: PercyResource[];
+  warnings?: string[];
 }
 
 /** Restored HTML plus fidelity counters for the manifest/REPORT (spec 03). */
 export interface PercyRestoreResult {
   html: string;
+  warnings: string[];
   /** `<canvas>` elements turned into `data:` `<img>` (report fidelity). */
   canvasConverted: number;
   /** Externalized stylesheets (adopted + blob) inlined as `<style>`. */
@@ -57,6 +59,7 @@ const PERCY_ATTR_PREFIX = 'data-percy-serialized-attribute-';
  */
 export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
   const $ = cheerio.load(input.html);
+  const warnings: string[] = (input.warnings ?? []).map((warning) => `@percy/dom: ${warning}`);
   const byUrl = new Map(input.resources.map((resource) => [resource.url, resource]));
 
   // 1. Restore `data-percy-serialized-attribute-<name>` → real `<name>` on every element. This
@@ -85,6 +88,19 @@ export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
       const canvasStyle = $(el).attr('data-dl-canvas-style');
       if (canvasStyle) $(el).attr('style', canvasStyle).removeAttr('data-dl-canvas-style');
       canvasConverted += 1;
+    } else {
+      warnings.push(`serialized canvas resource is missing: ${src ?? '(no source)'}`);
+    }
+  });
+
+  // Video frames use the same generated image resources, but Percy stores them as posters.
+  $('video[poster]').each((_, el) => {
+    const poster = el.attribs.poster;
+    const resource = byUrl.get(poster);
+    if (resource && /^image\//i.test(resource.mimetype)) {
+      $(el).attr('poster', `data:${resource.mimetype};base64,${resource.content}`);
+    } else if (/^https?:\/\/render\.percy\.local\//i.test(poster)) {
+      warnings.push(`serialized video poster resource is missing: ${poster}`);
     }
   });
 
@@ -104,6 +120,7 @@ export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
         $(el).replaceWith(style);
         adoptedInlined += 1;
       } else {
+        warnings.push(`serialized stylesheet resource is missing: ${href ?? '(no source)'}`);
         $(el).remove();
       }
     },
@@ -128,5 +145,5 @@ export function restorePercyDom(input: PercySerialized): PercyRestoreResult {
     }
   });
 
-  return { html: $.html(), canvasConverted, adoptedInlined, shadowRootsSerialized };
+  return { html: $.html(), warnings, canvasConverted, adoptedInlined, shadowRootsSerialized };
 }

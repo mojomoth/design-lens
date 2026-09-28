@@ -142,3 +142,29 @@ describe('restorePercyDom — shadow root count', () => {
     expect(html).toContain('<span>b</span>');
   });
 });
+
+describe('restorePercyDom — generated video posters', () => {
+  it('retains serializer warnings alongside restoration diagnostics', () => {
+    const result = restorePercyDom({ html: '<body></body>', resources: [], warnings: ['unsupported canvas context'] });
+    expect(result.warnings).toEqual(['@percy/dom: unsupported canvas context']);
+  });
+
+  it('inlines a generated poster while retaining authored posters and media attributes', () => {
+    const { $ } = restore(`<video data-dl-id="dl-1" muted loop data-percy-serialized-attribute-poster="${PNG_RES.url}"></video>
+      <video poster="assets/authored.jpg"></video>`, [PNG_RES]);
+    expect($('video').first().attr('poster')).toBe(`data:image/png;base64,${PNG_RES.content}`);
+    expect($('video').first().attr('data-dl-id')).toBe('dl-1');
+    expect($('video').first().attr('loop')).toBeDefined();
+    expect($('video').last().attr('poster')).toBe('assets/authored.jpg');
+  });
+
+  it('reports missing generated resources instead of silently losing visual content', () => {
+    const result = restorePercyDom({ html: `<video poster="${PNG_RES.url}"></video>
+      <img data-percy-canvas-serialized src="${PNG_RES.url}">
+      <link data-percy-adopted-stylesheets-serialized href="${CSS_RES.url}">`, resources: [] });
+    expect(result.warnings).toHaveLength(3);
+    expect(result.warnings.join(' ')).toContain('video poster resource is missing');
+    expect(result.warnings.join(' ')).toContain('canvas resource is missing');
+    expect(result.warnings.join(' ')).toContain('stylesheet resource is missing');
+  });
+});

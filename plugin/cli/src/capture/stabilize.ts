@@ -58,6 +58,10 @@ export async function stabilize(page: Page | Frame, deadline: number): Promise<S
     };
     if (imageResult.pending > 0) warnings.push(`${imageResult.pending} image loads exceeded capture readiness budget`);
     if (imageResult.failed > 0) warnings.push(`${imageResult.failed} images failed to load`);
+    // Lazy content and resource readiness must run with native RAF first. Timers stay live so
+    // measurement/serialization can finish and continuing non-RAF mutations remain observable.
+    (window as unknown as { __designLensCaptureRuntime?: { freezeRaf(): void } })
+      .__designLensCaptureRuntime?.freezeRaf();
     for (const element of elements) {
       if (element instanceof HTMLMediaElement) {
         element.pause();

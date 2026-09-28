@@ -71,6 +71,47 @@ export interface LaunchOptions {
   userAgent?: string;
 }
 
+/** Runs in every new document before source scripts create their drawing contexts or RAF loops. */
+function initializeCaptureRuntime(): void {
+  const getContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, kind: string, options?: object) {
+    const attributes = /^(webgl2?|experimental-webgl)$/.test(kind)
+      ? { ...options, preserveDrawingBuffer: true } : options;
+    return getContext.call(this, kind, attributes);
+  } as typeof getContext;
+
+  const request = window.requestAnimationFrame.bind(window);
+  const cancel = window.cancelAnimationFrame.bind(window);
+  const pending = new Set<number>();
+  let frozen = false;
+  window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+    if (typeof callback !== 'function') return request(callback);
+    // Native validation and IDs are retained even after freezing; no callback may restart a loop.
+    if (frozen) {
+      const id = request(callback);
+      cancel(id);
+      return id;
+    }
+    const id = request((timestamp) => {
+      pending.delete(id);
+      if (!frozen) callback.call(window, timestamp);
+    });
+    pending.add(id);
+    return id;
+  };
+  window.cancelAnimationFrame = (id: number): void => {
+    pending.delete(id);
+    cancel(id);
+  };
+  Object.defineProperty(window, '__designLensCaptureRuntime', {
+    value: { freezeRaf(): void {
+      frozen = true;
+      for (const id of pending) cancel(id);
+      pending.clear();
+    } },
+  });
+}
+
 /** Launch Chromium, open a page with capture wired, and set reduced-motion before any navigation. */
 export async function launchCapture(options: LaunchOptions): Promise<Capture> {
   const { chromium } = loadRuntimeDep<PlaywrightModule>('playwright');
@@ -84,6 +125,7 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
     bypassCSP: true,
     ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
   });
+  await context.addInitScript(initializeCaptureRuntime);
   const page = await context.newPage();
   await guardFontRequests(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });

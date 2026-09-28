@@ -76,16 +76,16 @@ async function serializePercy(page: Page | Frame): Promise<PercySerialized | nul
     }
   });
   await page.addScriptTag({ content: PERCY_DOM_SRC });
-  const raw = await page.evaluate((): { html: string; resources: unknown[] } | null => {
+  const raw = await page.evaluate((): { html: string; resources: unknown[]; warnings: string[] } | null => {
     const percy = (window as unknown as {
-      PercyDOM?: { serialize: (options: object) => { html: string; resources: unknown[] } };
+      PercyDOM?: { serialize: (options: object) => { html: string; resources: unknown[]; warnings?: string[] } };
     }).PercyDOM;
     if (!percy || typeof percy.serialize !== 'function') return null;
     const out = percy.serialize({ dom: document });
-    return { html: out.html, resources: out.resources };
+    return { html: out.html, resources: out.resources, warnings: out.warnings ?? [] };
   });
   if (!raw || typeof raw.html !== 'string' || raw.html.trim() === '') return null;
-  return { html: raw.html, resources: raw.resources as PercySerialized['resources'] };
+  return { html: raw.html, resources: raw.resources as PercySerialized['resources'], warnings: raw.warnings };
 }
 
 /**
@@ -146,6 +146,7 @@ export async function serializeDom(page: Page | Frame): Promise<SerializeResult>
       // adopted sheets as <style>, but the count reflects what the page actually carried).
       const styleRules = await countStyleRules(page);
       const restored = restorePercyDom(raw);
+      warnings.push(...restored.warnings);
       return {
         html: restored.html,
         styleRules,

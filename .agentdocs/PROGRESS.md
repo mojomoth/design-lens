@@ -592,3 +592,20 @@ Final strict gate passed: 530 unit tests, 165 E2E tests, all 18 sealed assertion
 validation, five-skill portability, exact 0.3.0 version lock and reproducible bundle. All 41
 plan tasks are complete; .harness remains sealed. The rebuilt final bundle still matches the
 packed artifact byte-for-byte. No remote publication or installed plugin update was performed.
+
+## T42–T43 — Capture repair contract and source stabilization (2026-09-28)
+
+ADR-028 records sampled responsive composition and source integrity requirements. The capture
+runtime preserves WebGL buffers before navigation and freezes RAF only after readiness. Generated
+video posters are restored from Percy resource bytes; serializer warnings remain visible. Source
+measurements, serialization and screenshots precede optional downloads. Four bounded download
+workers and fair per-viewport deadlines reserve time for all requested source states; local clone
+renders run after source collection. Permanent client errors are not retried.
+
+The implementation worktree passed typecheck, build, all 538 unit tests and 169 browser E2Es.
+New local fixtures verify actual canvas/poster pixels, lazy RAF content, continuing native timers,
+mutation warnings, and three source captures despite slow optional downloads.
+
+The main-tree default gate passed, including the sealed fixture spine. An earlier run was
+interrupted by a shared dependency reinstall; isolated dependency trees removed that environment
+conflict before the successful rerun.

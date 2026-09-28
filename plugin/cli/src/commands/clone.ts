@@ -9,19 +9,18 @@
  *   3. stamp `data-dl-id` incl. open shadow roots, apply `--remove-selector` + the consent
  *      engine's cosmetic selectors (capture/stamp)
  *   4. serialize (@percy/dom, own CSSOM walk as fallback) (capture/serialize)
- *   5. refetch references the render never requested — unused srcset variants and CSS-discovered
+ *   5. shoot `original-viewport.png` + `original-full.png` from the serialized LIVE state
+ *   5b. refetch references the render never requested — unused srcset variants and CSS-discovered
  *      assets such as unused `@font-face` faces (localize/fetch-missing) — the last stage that
  *      needs the browser (its request client carries the real Chromium UA)
- *   5b. shoot `original-viewport.png` + `original-full.png` off the LIVE page — the last thing the
- *       browser is used for, since the page dies with it (spec 02 §M3)
  *   6. sanitize to an inert document (localize/html-rewrite)
  *   7. localize every captured reference to `assets/…` (localize/localize)
  *   8. beautify HTML + every localized stylesheet (output/beautify)
  *   9. write `clone/` + empty `dl-overrides.css` (output/writer)
- *   9b. re-render the WRITTEN clone from disk → `screenshots/clone-full.png` (the fidelity check)
+ *   9b. after all source attempts, re-render the clone from disk → `screenshots/clone-full.png`
  *   9c. verify the written clone against the format invariants (commands/verify) — warnings, never
  *       fatal (spec 02 §M3); its summary is what REPORT.md renders under `## Verify`
- *   10. write `manifest.json` + `REPORT.md` — LAST, because `stats.warnings` must count 9b's failures
+ *   10. write `manifest.json` + `REPORT.md`; append deferred render diagnostics to canonical output
  *
  * I/O discipline (guardrails / spec 02): human progress → stderr, the single result JSON → stdout.
  * The browser is ALWAYS closed (a `finally`), so a fatal navigation error still lets the process
@@ -92,6 +91,31 @@ import { PLAYWRIGHT_PIN } from '../lib/pins.js';
  * of local files on loopback, so anything slower than this is a real failure, not a slow network.
  */
 const CLONE_RERENDER_TIMEOUT_MS = 30_000;
+
+/** Each pending viewport gets a fair share; unused time remains available to later captures. */
+export function viewportCaptureDeadline(deadline: number, remainingViewports: number, now = Date.now()): number {
+  if (deadline <= now) throw new Error('whole-run capture deadline exhausted before source viewport');
+  return now + Math.max(1, Math.floor((deadline - now) / remainingViewports));
+}
+
+/** Capture evidence is already sealed when this optional local render starts. */
+async function renderCanonicalClone(projectDir: string, options: CloneRunOptions): Promise<string[]> {
+  const warnings: string[] = [];
+  try {
+    const bytes = await renderScreenshotOfDir(path.join(projectDir, 'clone'), {
+      viewport: options.viewport,
+      deviceScaleFactor: options.dsf,
+      fullPage: true,
+      navigationTimeoutMs: CLONE_RERENDER_TIMEOUT_MS,
+      settleMs: options.settleMs,
+      onWarning: (warning) => warnings.push(`clone render: ${warning}`),
+    });
+    writePng(screenshotPath(projectDir, 'clone-full.png'), bytes);
+  } catch (error) {
+    warnings.push(`clone re-render screenshot failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return warnings;
+}
 
 /** Fully-parsed, defaulted clone options (strings from commander are already converted here). */
 export interface CloneRunOptions {
@@ -285,8 +309,32 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     shadowRootsSerialized = serialized.shadowRootsSerialized;
     // Surface a percy-fallback (or any serializer) warning into the run's warning count.
     capture.warnings.push(...serialized.warnings);
-    // Ensure every captured response body has landed in the store before we ask what is MISSING.
+    // Photograph the same source state immediately after serialization, before optional refetch.
+    try {
+      if (opts.viewport.width * opts.viewport.height * opts.dsf * opts.dsf > 40_000_000) {
+        capture.warnings.push('viewport screenshot pixel limit exceeded; coverage is incomplete');
+        sourceComplete = false;
+      } else if (observations.width * observations.height * opts.dsf * opts.dsf > 40_000_000) {
+        capture.warnings.push('full-page screenshot pixel limit exceeded; coverage is incomplete');
+        sourceComplete = false;
+        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
+      } else if (stabilization.fonts.status !== 'ready') {
+        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
+        originalFullPng = await capturePngWithUnreadyFonts(capture.page, true, opts.dsf);
+      } else {
+        originalViewportPng = await capturePng(capture.page, false);
+        originalFullPng = await capturePng(capture.page, true);
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      capture.warnings.push(`original screenshots failed: ${detail}`);
+    }
+    // Screenshot expansion can start resource requests; settle those before missing-asset discovery.
     await capture.drainResponses(deadline);
+    const afterScreenshots = await observePage(capture.page, { deadline });
+    if (JSON.stringify(afterScreenshots) !== JSON.stringify(observations)) {
+      capture.warnings.push('source state changed before screenshots completed; coverage is inconsistent');
+    }
     // Refetch uncaptured references (optional stage, spec 02 §M2), through the browser context's
     // request client so every request carries the real Chromium UA — load-bearing for webfont CDNs,
     // which serve a lone TTF to an unknown UA but woff2 to Chrome. Individual URL failures come back
@@ -323,39 +371,6 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
       const detail = err instanceof Error ? err.message : String(err);
       capture.warnings.push(`refetch of uncaptured resources failed: ${detail}`);
     }
-
-    // Screenshots of the LIVE page (spec 02 §M3, spec 03 §Directory tree). This is the last use of
-    // the browser: the page dies in the `finally` below, so the bytes are held in memory and written
-    // after the clone tree lands. A shot failure degrades to a warning — every byte of the clone is
-    // already captured, and a missing PNG must not throw away a good clone (degradation ladder).
-    //
-    // Taken AFTER the refetch stage so a full-page shot (Chromium expands the viewport to take it)
-    // cannot race the `store.has()` checks that decide what is missing. Any responses the expansion
-    // does trigger are drained below, before the browser closes and the store is read.
-    try {
-      if (opts.viewport.width * opts.viewport.height * opts.dsf * opts.dsf > 40_000_000) {
-        capture.warnings.push('viewport screenshot pixel limit exceeded; coverage is incomplete');
-        sourceComplete = false;
-      } else if (observations.width * observations.height * opts.dsf * opts.dsf > 40_000_000) {
-        capture.warnings.push('full-page screenshot pixel limit exceeded; coverage is incomplete');
-        sourceComplete = false;
-        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
-      } else if (stabilization.fonts.status !== 'ready') {
-        originalViewportPng = await capturePngWithUnreadyFonts(capture.page, false, opts.dsf);
-        originalFullPng = await capturePngWithUnreadyFonts(capture.page, true, opts.dsf);
-      } else {
-        originalViewportPng = await capturePng(capture.page, false);
-        originalFullPng = await capturePng(capture.page, true);
-      }
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      capture.warnings.push(`original screenshots failed: ${detail}`);
-    }
-    await capture.drainResponses(deadline);
-    const afterScreenshots = await observePage(capture.page, { deadline });
-    if (JSON.stringify(afterScreenshots) !== JSON.stringify(observations)) {
-      capture.warnings.push('source state changed before screenshots completed; coverage is inconsistent');
-    }
   } finally {
     await capture.browser.close();
   }
@@ -389,10 +404,7 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     }),
   );
 
-  // --- Write, then photograph what was written, THEN record. ------------------------------------
-  // `manifest.json`/`REPORT.md` carry `stats.warnings`, and the clone re-render below can add one,
-  // so the provenance documents are rendered last. Otherwise a failed re-render would be announced
-  // on stdout but absent from the manifest that claims to describe this capture.
+  // Persist source evidence now; clone rendering is deferred until all source attempts finish.
   writeCloneTree({ projectDir, html, assets: localized.assets });
 
   // Write failures here are fatal (an output-write failure, spec 02 §Error handling); a MISSING
@@ -403,27 +415,6 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
   if (originalFullPng !== undefined) {
     writePng(screenshotPath(projectDir, 'original-full.png'), originalFullPng);
   }
-
-  // The fidelity check: re-render the clone FROM DISK, exactly as a browser sees it, so a broken
-  // asset path shows up as a hole in the picture. Spec 03 is explicit that a failure here is a
-  // `warnings[]` entry, never fatal — the clone itself is already on disk and valid.
-  try {
-    const cloneFullPng = await renderScreenshotOfDir(path.join(projectDir, 'clone'), {
-      viewport: opts.viewport,
-      deviceScaleFactor: opts.dsf,
-      fullPage: true,
-      navigationTimeoutMs: CLONE_RERENDER_TIMEOUT_MS,
-      settleMs: opts.settleMs,
-      onWarning: (warning) => {
-        capture.warnings.push(`clone render: ${warning}`);
-      },
-    });
-    writePng(screenshotPath(projectDir, 'clone-full.png'), cloneFullPng);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    capture.warnings.push(`clone re-render screenshot failed: ${detail}`);
-  }
-
   const warnings = capture.warnings.length;
 
   const stats: ManifestStats = {
@@ -517,7 +508,8 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
 export async function runClone(url: string, opts: CloneRunOptions): Promise<CloneResult> {
   const viewports = opts.viewports ?? [opts.viewport];
   const deadline = Date.now() + opts.timeoutMs;
-  const primary = await runSingleClone(url, { ...opts, viewport: viewports[0] }, deadline);
+  const primary = await runSingleClone(url, { ...opts, viewport: viewports[0] },
+    viewportCaptureDeadline(deadline, viewports.length));
   const evidenceRoot = path.join(primary.projectDir, 'evidence');
   const captures: SourceCapture[] = [];
   let warnings = primary.warnings;
@@ -533,7 +525,8 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
       }
     } else {
       try {
-        captured = await runSingleClone(url, { ...opts, viewport, out: evidenceRoot, project: id }, deadline);
+        captured = await runSingleClone(url, { ...opts, viewport, out: evidenceRoot, project: id },
+          viewportCaptureDeadline(deadline, viewports.length - index));
         warnings += captured.warnings;
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -560,10 +553,17 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
   manifest.evidenceHash = evidenceHash(evidence);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  // Local rendering cannot consume time reserved for a later live source viewport.
+  const renderWarnings = await renderCanonicalClone(primary.projectDir, opts);
+  warnings += renderWarnings.length;
+  if (renderWarnings.length > 0) {
+    manifest.stats.warnings += renderWarnings.length;
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
   const fidelity = await runFidelity(primary.projectDir);
   const reportPath = path.join(primary.projectDir, 'REPORT.md');
   const report = fs.readFileSync(reportPath, 'utf8').replace('## Fidelity notes\n',
-    `## Fidelity notes\n- Measured responsive fidelity: ${fidelity.report.status}; see fidelity.json (${captures.length} source viewport(s)).\n`);
+    `## Fidelity notes\n${renderWarnings.map((warning) => `- Warning: ${warning.replace(/\s+/g, ' ').trim()}\n`).join('')}- Measured responsive fidelity: ${fidelity.report.status}; see fidelity.json (${captures.length} source viewport(s)).\n`);
   fs.writeFileSync(reportPath, report);
   process.stderr.write(`${COMPLETION_NOTICE}\n`);
   return { projectDir: primary.projectDir, warnings, fidelity: fidelity.report.status };
