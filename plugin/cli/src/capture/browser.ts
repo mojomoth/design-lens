@@ -19,7 +19,7 @@
  * Spec: specs/02-clone-engine.md §1 (Launch), §M3 (Screenshots).
  */
 
-import type { APIResponse, Browser, BrowserContext, Page, Response, Route } from 'playwright';
+import type { APIResponse, Browser, BrowserContext, CDPSession, Page, Response, Route } from 'playwright';
 
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { startStaticServer } from '../lib/static-server.js';
@@ -350,30 +350,66 @@ async function waitForPaint(page: Page, settleMs: number, requests: FontRequestG
  */
 export async function capturePng(page: Page, fullPage: boolean): Promise<Buffer> {
   await page.evaluate(() => window.scrollTo(0, 0));
-  return page.screenshot({ fullPage, type: 'png', timeout: 10_000 });
+  return withPausedScreenshotScripts(page, () => page.screenshot({ fullPage, type: 'png', timeout: 10_000 }));
+}
+
+/** Chromium's full-page capture emits resize events even without changing the layout viewport.
+ * Pause callbacks only while photographing, so source resize handlers cannot clear a frozen canvas.
+ * Restore execution before the caller's consistency check; subsequent timer mutations stay visible.
+ */
+const screenshotSessions = new WeakMap<Page, Promise<CDPSession>>();
+
+async function withPausedScreenshotScripts<T>(page: Page, capture: (session: CDPSession) => Promise<T>): Promise<T> {
+  let pending = screenshotSessions.get(page);
+  if (!pending) {
+    pending = page.context().newCDPSession(page);
+    screenshotSessions.set(page, pending);
+  }
+  const session = await pending;
+  try {
+    await session.send('Emulation.setScriptExecutionDisabled', { value: true });
+    return await capture(session);
+  } finally {
+    await session.send('Emulation.setScriptExecutionDisabled', { value: false });
+    // Detaching an Emulation session also resets unrelated device metrics (including DPR).
+    // Keep it with this internally JS-enabled page; closing the page/browser releases the target.
+  }
 }
 
 /** Capture current pixels after a readiness failure without Playwright waiting for fonts again. */
 export async function capturePngWithUnreadyFonts(page: Page, fullPage: boolean, deviceScaleFactor: number): Promise<Buffer> {
   await page.evaluate(() => window.scrollTo(0, 0));
-  const session = await page.context().newCDPSession(page);
-  try {
+  const metrics = await page.evaluate(() => ({
+    width: window.innerWidth, height: window.innerHeight,
+    screenWidth: screen.width, screenHeight: screen.height,
+    deviceScaleFactor: window.devicePixelRatio,
+    screenOrientation: {
+      angle: screen.orientation.angle,
+      type: ({
+        'landscape-primary': 'landscapePrimary', 'landscape-secondary': 'landscapeSecondary',
+        'portrait-primary': 'portraitPrimary', 'portrait-secondary': 'portraitSecondary',
+      } as const)[screen.orientation.type],
+    },
+  }));
+  return withPausedScreenshotScripts(page, async (session) => {
+    // Native capture restores this CDP agent's own metrics. Seed them with the unchanged source
+    // viewport first; otherwise a fresh agent restores DPR 1 even when the context requested DPR 2.
+    // All internal callers use desktop emulation (including narrow responsive viewports).
+    await session.send('Emulation.setDeviceMetricsOverride', { ...metrics, mobile: false });
     const { cssContentSize, cssLayoutViewport } = await session.send('Page.getLayoutMetrics');
     const size = fullPage ? cssContentSize : {
       width: cssLayoutViewport.clientWidth, height: cssLayoutViewport.clientHeight,
     };
     const clip = {
       x: 0, y: 0,
-      width: Math.ceil(size.width), height: Math.ceil(size.height), scale: deviceScaleFactor,
+      width: Math.ceil(size.width), height: Math.ceil(size.height), scale: deviceScaleFactor / metrics.deviceScaleFactor,
     };
     const shot = await session.send('Page.captureScreenshot', {
       format: 'png', captureBeyondViewport: fullPage, clip,
     });
-    // A fresh CDP session captures CSS pixels; scale explicitly to match the requested PNG density.
+    // Keep the source's emulation unchanged while honoring the requested PNG density.
     return Buffer.from(shot.data, 'base64');
-  } finally {
-    await session.detach();
-  }
+  });
 }
 
 /**

@@ -27,6 +27,12 @@ location, and repeated `--remove-selector <css>` for requested exclusions. Conse
 on by default; report any limitations. A clone captures editable static appearance, including
 responsive layout, rather than reproducing the source application's JavaScript behavior.
 
+Explicit multi-viewport captures compose each available sample's full static DOM in a separate
+declarative open shadow tree. CSS selects the nearest captured width, choosing the larger at a
+midpoint; equal widths use the same rule for height. These generated ranges are not original
+breakpoints. Verify exact matches at recorded viewport pairs only. Intermediate sizes can be
+inspected, but do not claim their original appearance was captured. Missing samples stay unverified.
+
 Read `projectDir` from stdout JSON and use that returned path for every later command. Repeated
 captures may create suffixed directories. Substitute the actual path for `.design-lens/<slug>`
 below. A failed capture command requires inspection of its error and partial output before any
@@ -37,7 +43,9 @@ retry; its exit code alone is not a visual fidelity result.
 Read `manifest.json`, `REPORT.md`, `evidence.json` and `fidelity.json`. Record capture IDs,
 viewports, device scale factors, source URLs, capture times, completeness and warnings. Each
 capture's observation IDs are scoped to that capture: `dl-N` in two captures does not prove
-that the nodes represent the same element. Match semantics, ancestry, text and measurements.
+that the nodes represent the same element. In a composed clone, canonical numeric IDs are unique
+across all variants. Use `data-dl-source-capture` and `data-dl-source-id`, plus manifest composition
+correspondence, to find the original observation. Do not substitute a source ID for a clone ID.
 
 Use the paths recorded in `evidence.json` to view each source viewport/full image and inspect
 its saved markup and resources with targeted reads. View the current clone and difference
@@ -63,6 +71,8 @@ A legacy clone without usable source evidence cannot earn a visual pass. If fres
 is needed for this request, capture into a new project; preserve the earlier clone and its edits.
 Incomplete source evidence, source font failures, inaccessible frames or capture limits remain
 unverified. Repairing the clone cannot manufacture the missing original observation.
+Intact but incomplete source captures may have `diagnosticOnly` images and measurements. Use those
+to diagnose visible defects while retaining `unverified`; they cannot support a complete pass.
 
 ## Repair visual differences
 
@@ -72,8 +82,14 @@ Use targeted searches and small reads; never load the entire cloned HTML into co
 
 - Restore missing local assets and correct references, font faces, CSS rules and element geometry.
   Preserve editable HTML/CSS and local resources. Never hotlink a missing asset.
-- Rebuild missing mobile-only structure from that viewport's source evidence and use media queries
-  so one clone document works at every captured size. Preserve all existing `data-dl-id` values.
+- For a composed clone, edit the sampled variant identified by source provenance and the intended
+  viewport. Preserve its shadow boundary and all existing `data-dl-id` values. Append ID-scoped
+  styling rules to `clone/assets/dl-overrides.css`, shared by the document and every generated
+  shadow tree. Do not overwrite captured styles or source files. Repair missing structure only
+  from that sample's available evidence, and recheck every recorded size.
+  For source root/body styling, target the generated proxy IDs; newly appended `html`, `body`
+  or `:root` rules do not select them. Unsupported root overrides remain a disclosed limitation
+  and cannot earn a verified pass.
   New elements receive unused numeric IDs above the highest ID in the clone and all captures;
   record these as clone-only repair IDs, without assigning them a source identity.
 - Never replace the page with a screenshot, hide differences with comparison masks, remove failing

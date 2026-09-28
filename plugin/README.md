@@ -66,7 +66,12 @@ design-lens verify <projectDir>    # clone-format integrity; exit 1 on violation
 
 The clone skill requests `--viewports 1440x900,768x1024,390x844` by default. Direct CLI calls
 retain the single `--viewport 1440x900` default; explicit `--viewport` and `--viewports` cannot
-be combined. Each requested size reloads the original; the first size supplies the editable clone.
+be combined. Each requested size reloads the original. With `--viewports`, one editable document
+contains the complete static DOM of every available sample in separate declarative open shadow
+trees. CSS selects the nearest captured width, with midpoint ties choosing the larger; equal-width
+samples use the same rule for height. These ranges select captured states, not recovered source
+breakpoints. Only the recorded viewport pairs can earn an exact source comparison; intermediate
+sizes retain captured CSS without a source-match guarantee. Missing samples remain unverified.
 Useful clone flags also include `--timeout <seconds>`, `--settle <ms>`,
 `--remove-selector <css>` (repeatable), `--filter-list <file>`, `--no-scroll`, and `--no-block-cookies`.
 
@@ -74,6 +79,9 @@ Useful clone flags also include `--timeout <seconds>`, `--settle <ms>`,
 compares viewport, full-page and major-region images plus element geometry. `pass` exits 0;
 `fail` and `unverified` exit 1. Missing evidence, fonts, images, required elements or incomplete
 captures prevent a full pass. A pass covers the recorded static states, not application behavior.
+Intact but incomplete evidence may produce comparisons marked `diagnosticOnly`; those captures
+remain `unverified` even if their available pixels match. Missing images or integrity failures
+cannot serve as diagnostic source images.
 The CLI measures and diagnoses; the agent repairs assets, HTML or CSS using the source evidence,
 rechecks all sizes after every round, and stops after three rounds or no improvement. It restores
 the best candidate and reports any remaining differences. Authorized customization may create
@@ -103,6 +111,16 @@ roots remain unavailable. Details include pseudo-elements, backgrounds, gradient
 and parent/child relationships. Follow `parentDlId` to inspect an actual layout parent; use page body metadata
 when the parent has no stamped ID. Measurements reflect current edits and are not saved as an inventory.
 
+Composed clones give every editable element a globally unique numeric `data-dl-id` and retain its
+capture-qualified origin in `data-dl-source-capture` and `data-dl-source-id`. Native HTML IDs stay
+inside their own shadow trees. Use the canonical IDs returned by inspection for edits; a source
+`dl-N` alone does not identify a canonical element. The shared `clone/assets/dl-overrides.css` is
+linked last in the document and every generated shadow tree. Append ID-scoped rules there;
+inspect the relevant variant at each intended size and rerun `fidelity` after edits.
+Use the generated root/body proxy IDs for root styling. The composer transforms captured source
+root selectors, but newly appended `html`, `body` or `:root` overrides do not select those proxies;
+unsupported root overrides are reported and prevent a fidelity pass.
+
 An initial font request that stalls before the load event is aborted after five seconds so fallback can
 render; normal stylesheet/image loading still waits for completion. Redirected font hops retain normal
 browser navigation/CORS behavior and the after-load readiness check; if navigation itself fails,
@@ -128,9 +146,9 @@ or whether a new implementation reproduces the design; those require independent
 ```text
 .design-lens/<slug>/
 ├── clone/
-│   ├── index.html              # captured rendered DOM with stable element IDs
+│   ├── index.html              # editable static DOM; sampled shadow trees with --viewports
 │   ├── assets/<host>/<path>    # captured assets that could be localized
-│   └── assets/dl-overrides.css # appended study edits; CSS specificity still applies
+│   └── assets/dl-overrides.css # shared appended edits; CSS specificity still applies
 ├── manifest.json              # capture context, resource provenance and remote references
 ├── evidence.json              # source observations, capture conditions and file hashes
 ├── evidence/                  # separate DOM, assets and screenshots for each source size

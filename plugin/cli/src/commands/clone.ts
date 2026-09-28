@@ -68,7 +68,7 @@ import {
   DEFAULT_MAX_ASSET_MB,
   type LocalizedAsset,
 } from '../localize/localize.js';
-import { isCssResource, isFontResource, isImageResource } from '../localize/media-type.js';
+import { isBulkMediaResource, isCssResource, isFontResource, isImageResource } from '../localize/media-type.js';
 import type { ResourceStore } from '../localize/resource-store.js';
 import { beautifyHtml, beautifyCss } from '../output/beautify.js';
 import {
@@ -367,7 +367,9 @@ async function collectSingleSource(url: string, opts: CloneRunOptions, deadline:
       const attempted = new Set<string>();
       for (let round = 0; round < MAX_CSS_IMPORT_DEPTH; round++) {
         const missing = collectResourceReferences(serializedHtml, finalUrl, capture.store)
-          .filter((ref) => !capture.store.has(ref.url) && !attempted.has(ref.url));
+          .filter((ref) => !capture.store.has(ref.url) && !attempted.has(ref.url))
+          // Media left remote by policy must not consume the optional design-asset capture budget.
+          .filter((ref) => opts.includeMedia || !isBulkMediaResource('', new URL(ref.url).pathname));
         if (missing.length === 0) break;
         if (Date.now() >= deadline) {
           capture.warnings.push('resource capture deadline reached; coverage is incomplete');

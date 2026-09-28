@@ -58,7 +58,11 @@ requires a separate explicit request. See the [five skills and CLI options](./pl
 
 Use the actual `projectDir` returned by `clone`. The clone skill requests the three sizes by
 default; bare CLI `clone` retains its single 1440×900 capture. `--viewports` and explicit
-`--viewport` are mutually exclusive. The first size supplies the editable clone.
+`--viewport` are mutually exclusive. With `--viewports`, the editable clone contains a complete
+static DOM for each available sample, isolated in an open shadow tree. CSS selects the nearest
+captured width, with midpoint ties choosing the larger; equal widths use the same rule for height.
+These generated ranges preserve sampled states and do not recover the site's original breakpoints.
+Exact comparison covers the recorded viewport pairs; intermediate sizes have no source-match guarantee.
 
 `fidelity` checks source/clone pixels, regions, geometry and required assets with external clone
 requests blocked. Its result is **pass**, **fail**, or **unverified**; only pass exits 0.
@@ -66,6 +70,15 @@ requests blocked. Its result is **pass**, **fail**, or **unverified**; only pass
 source evidence hash to the current clone hash. Legacy clones without this evidence remain
 unverified; any required recapture uses a new project. The CLI measures differences; the agent
 performs the bounded repair loop. Intentional customization remains an expected source difference.
+Intact but incomplete evidence can produce diagnostic images and measurements while remaining
+**unverified**. Missing or altered source evidence cannot be made complete by repairing the clone.
+
+Editable element IDs are unique across the composed clone; source provenance records the original
+capture and element ID. Inspect at the intended size before editing. The shared
+`clone/assets/dl-overrides.css` is linked last in the document and each generated shadow tree;
+append rules targeting the inspected IDs and rerun comparisons after changes.
+For captured root/body styles, target their generated proxy IDs; newly appended `html`, `body`
+or `:root` rules do not select those proxies.
 
 Reverse engineering produces implementation recipes and a measured-observation table, alongside
 the existing twelve sections and three design directions. `validate-design` checks references,

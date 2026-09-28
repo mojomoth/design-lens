@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-/** Preserve script-created paragraphs that HTML's tree builder would otherwise split apart. */
+/** Preserve script-created paragraphs and remembered skipped-content sizes in detached snapshots. */
 import type { PercySerialized } from './percy-restore.js';
 
 /**
@@ -15,11 +15,40 @@ export function serializeWithParagraphNormalization(): (PercySerialized & { warn
   const htmlNamespace = 'http://www.w3.org/1999/xhtml';
   const roots: Array<Document | ShadowRoot | DocumentFragment> = [document];
   const paragraphs: Element[] = [];
+  type IntrinsicSize = { width?: string; height?: string };
+  const autoVisibilityIds = new Map<string, IntrinsicSize>();
+  const documentIntrinsicSizes = new Map<string, IntrinsicSize>();
+  const warnings: string[] = [];
   for (let index = 0; index < roots.length; index++) {
     for (const element of Array.from(roots[index].querySelectorAll('*'))) {
       if (element.shadowRoot) roots.push(element.shadowRoot);
       if (element instanceof HTMLTemplateElement) roots.push(element.content);
       if (element.localName === 'p' && element.namespaceURI === htmlNamespace) paragraphs.push(element);
+      // A fresh renderer has no remembered size for offscreen auto content. Copy only its
+      // fallback intrinsic content-box size; actual visible content still lays out and reflows.
+      const style = getComputedStyle(element);
+      if (style.contentVisibility === 'auto') {
+        const intrinsic: IntrinsicSize = {};
+        for (const axis of ['width', 'height'] as const) {
+          const property = axis === 'width' ? 'containIntrinsicWidth' : 'containIntrinsicHeight';
+          if (!style[property].startsWith('auto')) continue;
+          const used = style[axis];
+          if (!/^\d+(?:\.\d+)?px$/.test(used)) {
+            warnings.push(`content-visibility:auto ${axis} is unavailable; intrinsic-size preservation is incomplete`);
+            continue;
+          }
+          const sides = axis === 'width' ? ['Left', 'Right'] : ['Top', 'Bottom'];
+          const edges = style.boxSizing === 'border-box' ? sides.reduce((total, side) =>
+            total + (parseFloat(style.getPropertyValue(`padding-${side.toLowerCase()}`)) || 0)
+              + (parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) || 0), 0) : 0;
+          intrinsic[axis] = `auto ${Math.max(0, parseFloat(used) - edges)}px`;
+        }
+        if (Object.keys(intrinsic).length === 0) continue;
+        const id = element.getAttribute('data-dl-id');
+        if (id) autoVisibilityIds.set(id, intrinsic);
+        else if (element === document.documentElement || element === document.body) documentIntrinsicSizes.set(element.localName, intrinsic);
+        else warnings.push('content-visibility:auto element has no stable capture ID; intrinsic-size preservation is incomplete');
+      }
     }
   }
   // These HTML start tags close an open paragraph even when scripts inserted them under an inline
@@ -28,7 +57,6 @@ export function serializeWithParagraphNormalization(): (PercySerialized & { warn
   const affected = paragraphs.some((paragraph) => Array.from(paragraph.querySelectorAll('*'))
     .some((child) => child.namespaceURI === htmlNamespace && closingTags.has(child.localName)));
   let alias = 'dl-static-p';
-  const warnings: string[] = [];
   if (affected) {
     let suffix = 1;
     while (customElements.get(alias) || roots.some((root) => root.querySelector(alias))) alias = `dl-static-p-${++suffix}`;
@@ -62,15 +90,27 @@ export function serializeWithParagraphNormalization(): (PercySerialized & { warn
   }
   const out = percy.serialize({
     dom: document,
-    ...(affected ? { domTransformation(root: Element): void {
-      root.setAttribute('data-dl-paragraph-alias', alias);
+    ...(affected || autoVisibilityIds.size > 0 || documentIntrinsicSizes.size > 0 ? { domTransformation(root: Element): void {
+      if (affected) root.setAttribute('data-dl-paragraph-alias', alias);
       const scopes: Array<Element | ShadowRoot | DocumentFragment> = [root];
       for (let index = 0; index < scopes.length; index++) {
         const scope = scopes[index];
-        for (const element of Array.from(scope.querySelectorAll('*'))) {
+        const elements = [...(scope === root ? [root] : []), ...Array.from(scope.querySelectorAll('*'))];
+        for (const element of elements) {
           if (element.shadowRoot) scopes.push(element.shadowRoot);
           if (element instanceof HTMLTemplateElement) scopes.push(element.content);
-          if (element.localName !== 'p' || element.namespaceURI !== htmlNamespace) continue;
+          const id = element.getAttribute('data-dl-id');
+          const intrinsic = (id ? autoVisibilityIds.get(id) : undefined)
+            ?? ((element === root || element === root.querySelector('body')) ? documentIntrinsicSizes.get(element.localName) : undefined);
+          if (intrinsic) {
+            const style = (element as HTMLElement).style;
+            if (style) {
+              if (intrinsic.width) style.setProperty('contain-intrinsic-width', intrinsic.width, 'important');
+              if (intrinsic.height) style.setProperty('contain-intrinsic-height', intrinsic.height, 'important');
+              element.setAttribute('data-dl-content-visibility', 'auto');
+            } else warnings.push('content-visibility:auto element cannot carry a static style; intrinsic-size preservation is incomplete');
+          }
+          if (!affected || element.localName !== 'p' || element.namespaceURI !== htmlNamespace) continue;
           const replacement = document.createElement(alias);
           for (const attribute of Array.from(element.attributes)) replacement.setAttribute(attribute.name, attribute.value);
           replacement.setAttribute('data-dl-original-tag', 'p');
@@ -78,6 +118,7 @@ export function serializeWithParagraphNormalization(): (PercySerialized & { warn
           while (element.firstChild) replacement.append(element.firstChild);
           element.replaceWith(replacement);
         }
+        if (!affected) continue;
         // Native paragraph defaults belong below all author layers, including zero-specificity
         // rules. An anonymous layer cannot merge with or reorder any named source layer.
         const sheet = document.createElement('style');

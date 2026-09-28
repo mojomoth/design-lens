@@ -657,3 +657,24 @@ The rebuilt bundle includes the anonymous-layer followup, whose six paragraph br
 Fresh Tenity now captures all three requested sizes with exactly matching first-viewport diagnostics.
 Full-page inspection found offscreen intrinsic-size and source screenshot side effects; these remain
 under investigation in the final T47 validation, and the live result remains unverified.
+
+## T47 — Final Tenity evaluation and capture-state repairs (2026-09-28)
+
+Full-page capture now pauses scripts only during the native screenshot, avoiding Chromium's
+synthetic resize callbacks erasing WebGL. CDP capture preserves viewport, screen and device scale,
+and scripts resume on success and failure. Detached serialization preserves observed automatic
+intrinsic sizes for content-visibility without changing source DOM or native hidden behavior.
+Optional refetch respects the existing media exclusion. ADR-029 records the capture-state changes.
+
+The final bundle captured Tenity at 1440×900, 768×1024 and 390×844. All first-viewport diagnostic
+images match exactly; full heights match at 9663, 12641 and 10873px. Desktop full-page difference
+is 0.074691%, confined to the globe video; tablet/mobile full-page differences are zero. All 509
+evidence and 690 clone hashes match. Default inspect resolves active desktop/mobile samples.
+Eleven intermediate/boundary smoke sizes were checked. The 1103px menu/background approximation,
+regional video differences, off-image regions and real source failures remain documented; fidelity
+correctly remains unverified. See `plugin/cli/test/evaluations/tenity-2026-09-28/RESULTS.md`.
+
+Final npm verify passed 561 unit tests and 210 browser E2Es. All 18 sealed assertions passed.
+The final strict gate passed every check, including the completed 47-task plan, all 18 sealed
+assertions, plugin validation, portable skills and fresh bundle. The evaluated bundle SHA-256 is
+`26cdeb801d13867baae66177dd1b9f724bab8051ce95d317b953300fc9368409`.

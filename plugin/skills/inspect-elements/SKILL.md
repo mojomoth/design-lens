@@ -23,6 +23,11 @@ with `npx -y design-lens setup` instead, then retry.
    including overrides. Its `page.source` is `clone`, so do not present these measurements as
    original-source facts. A missing or stale fidelity report does not prove a match.
 
+   In a composed multi-viewport clone, canonical numeric IDs are unique across every sampled
+   shadow tree. `data-dl-source-capture` and `data-dl-source-id` retain the capture-qualified
+   source identity; the manifest composition maps it to the canonical element. Use the inspected
+   clone ID for edits and that provenance for source lookup.
+
    Use the capture dimensions for a focused question. For a complete inventory, measure all
    stamped elements instead of limiting the result to the original role heuristics:
 
@@ -69,6 +74,19 @@ with `npx -y design-lens setup` instead, then retry.
    and `page.fonts`, including hidden state, missing assets and failed families. A role's confidence
    is a heuristic label score; `semantic` and measured values do not prove design intent. Every
    edit anchors to its actual `data-dl-id` within the recorded document or shadow root.
+
+   Composed samples are chosen by nearest captured width, with midpoint ties choosing the larger;
+   equal widths use the same rule for height. These are generated selection ranges, not observed
+   source breakpoints. Exact fidelity applies only to captured viewport pairs. Identify the
+   selected sample when reporting another size. Diagnostic comparisons from intact but incomplete
+   evidence stay unverified, even when their available images match.
+
+   The shared `clone/assets/dl-overrides.css` is linked last in the document and each generated
+   shadow tree. Append rules using the intended variant's canonical IDs and re-inspect after edits.
+   Use generated root/body proxy IDs for root styles; newly appended `html`, `body` or `:root`
+   selectors do not select them. Keep unsupported root override warnings and unverified status.
+   This does not cross additional shadow boundaries created by the original page; those still
+   need an observed host property/part or an override inside their own root.
 
 5. Use `tokens.json` for captured color/font candidates; generate it if missing:
 

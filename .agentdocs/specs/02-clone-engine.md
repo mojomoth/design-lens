@@ -304,3 +304,15 @@ are not retried. Capture source observations/markup/images consecutively before 
 defer clone rerendering until all source viewports have been attempted. Preserve all warning and
 timeout outcomes. Available incomplete evidence may produce explicitly diagnostic comparisons,
 but never a fidelity pass; unchanged integrity checks and numerical tolerances still apply.
+
+### Capture-state preservation found during final validation (ADR-029)
+Pause page script execution only during screenshot photography, then restore it before subsequent
+source checks. Chromium's whole-page capture can dispatch resize events even without a CSS viewport
+change; those handlers must not invalidate the frozen canvas being photographed. Continuing changes
+outside photography still prevent complete evidence. Never repair a source image after capture.
+
+For captured content-visibility:auto elements, copy observed content-box dimensions into detached
+auto contain-intrinsic-width/height fallbacks. This transfers the browser's remembered skipped-content
+size without fixing the element's actual width or height. Keep explicit hidden content unchanged;
+rendering or editing visible content can recalculate layout and update the remembered size. Source
+DOM and immutable evidence are not rewritten during replay.

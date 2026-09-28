@@ -71,9 +71,15 @@ to stderr, without writing an inventory file.
 
 The clone skill requests these three sizes by default. A direct `clone` command without viewport
 flags still captures only 1440×900. `--viewports WxH,...` and an explicit `--viewport WxH` are
-mutually exclusive. The source reloads at each size; the first capture supplies the editable
-`clone/`. One clone must render correctly at all captured sizes. The default source capture budget
-is 90 seconds per requested size; `--timeout` sets the total source capture budget in seconds.
+mutually exclusive. The source reloads at each size. An explicit `--viewports` request builds one
+editable `clone/` with each available sample's complete static DOM in a separate declarative open
+shadow tree. CSS selects the nearest recorded width; arithmetic midpoint ties choose the larger.
+Samples with the same width use the same rule for height. These generated ranges are sample
+selection rules, not recovered source breakpoints. Exact fidelity applies only to the recorded
+viewport pairs; intermediate sizes retain authored CSS without a source-match guarantee.
+Unavailable captures remain unverified and do not produce invented variants. The default source
+capture budget is 90 seconds per requested size; `--timeout` sets the total source capture budget
+in seconds, with the remaining budget shared among remaining sizes.
 
 Source records live in `evidence.json` and `evidence/`: viewport-specific observations, DOM,
 assets, images, capture conditions and file hashes. IDs are scoped to their capture; a `dl-17`
@@ -83,12 +89,20 @@ and `srcdoc` are made static recursively. Even accessible frame snapshots remain
 until frame-scoped child measurements are available; preserving their pixels alone cannot certify
 small embedded elements. Unavailable frames or closed shadow roots remain limits.
 
+The composed clone has globally unique numeric `data-dl-id` values. Each source-derived element
+records `data-dl-source-capture` and `data-dl-source-id`; use both to trace it back to the immutable
+source observation. Native HTML IDs stay local to their shadow tree. The manifest's optional
+`composition` records variants, generated media conditions, element correspondence and limitations.
+
 `fidelity` blocks external requests while rendering the current clone. It compares full-page,
 first-viewport and major-region images, and matches major element positions and sizes. The fixed
 policy uses pixelmatch threshold `0.1`, excludes antialiasing differences, allows at most 0.5%
 image mismatch and 1% major-region mismatch, and allows at most 1 CSS px geometry difference.
 Image-size differences, missing required elements/fonts/images, incomplete captures or insufficient
 evidence cannot be averaged away.
+When source files are intact but capture completeness is missing, available comparisons may carry
+`diagnosticOnly: true`. They can help locate defects but retain `unverified` status. Missing images
+and source integrity failures are never treated as usable diagnostic image evidence.
 
 | Result | Meaning | Exit code |
 | --- | --- | --- |
@@ -126,6 +140,17 @@ Bare `inspect` keeps the original `{elements, colors}` shape, 1440×900 viewport
 Roles now exclude hidden candidates. `--viewport` alone keeps that JSON shape; `--details` and
 `--id` add `page` and per-element `details`. Inspection always describes the current local clone,
 including custom overrides; repeat it after edits.
+
+For a composed clone, inspect at the intended size to identify its active sample. Use the returned
+canonical IDs for edits and the source provenance for evidence lookup. Append styling changes to
+`clone/assets/dl-overrides.css`, which is linked last in the document and each generated shadow
+tree. An ID-scoped rule reaches that element in its own tree; changing another sampled state may
+require its own ID. Preserve captured styles and source records, and rerun all recorded sizes after
+changes. Original page shadow roots still require their own host/part or scoped override handling.
+For root/body changes, use the generated proxy IDs returned by inspection or listed in manifest
+composition. Captured source root selectors are transformed during composition; newly appended
+`html`, `body` or `:root` rules do not select those proxies. Unsupported root overrides are reported
+as a limitation, and any diagnostic comparison remains unverified.
 
 `--all`, direct ID lookup and `--kind` are mutually exclusive selection modes.
 An unclassified target has `role: null` and `confidence: null`; a hidden or `display: contents`

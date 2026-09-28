@@ -537,3 +537,16 @@ validated before they affect fidelity; raw DOM attributes cannot grant exemption
 variants do not consume ordinary active-page measurement limits. Static shadow isolation cannot
 retarget future shared html/body/:root override selectors, so that limitation is diagnosed and
 proxy IDs remain the supported root-edit address. No source evidence or numerical policy changes.
+
+## ADR-029 — Preserve screenshot state and remembered offscreen layout (2026-09-28)
+
+T47's live evaluation found exact first-viewport pixels at all three Tenity sizes but two remaining
+full-page defects. Chromium's screenshot operation dispatches resize events that can clear a frozen
+WebGL buffer. Separately, a fresh static renderer loses content-visibility:auto's remembered footer
+size, although the captured child layout is intact. Local fixtures reproduce both independently.
+
+Update specs/02-clone-engine.md with a temporary screenshot-only script pause and detached intrinsic
+size fallbacks. Restore script execution in all completion/failure paths and retain later source
+consistency checks. Intrinsic fallbacks retain auto skipping and normal editable layout rather than
+forcing hidden content to paint or setting fixed element dimensions. The live DOM, saved evidence,
+comparison thresholds and intermediate-viewport guarantee remain unchanged.
