@@ -84,6 +84,7 @@ export interface DetailedInspectDocument {
     fonts: FontReadiness;
     source: 'clone';
     fontFaces: ObservationDocument['fontFaces'];
+    activeCaptureId?: string;
     complete: boolean;
     warnings: string[];
   };
@@ -168,7 +169,7 @@ export async function runInspect(
     warnings.push(...fontWarnings(fonts, fontRequests));
     let projected: InspectDocument | CompleteInspectDocument | DetailedInspectDocument = kind === null ? document : filterByRole(document, kind);
     if (options.details === true || ids !== undefined || options.all === true) {
-      const observations = await observePage(tab, { includeDocumentElements: options.all === true || ids !== undefined });
+      const observations = await observePage(tab, { includeDocumentElements: options.all === true || ids !== undefined, includeInactiveVariants: options.all === true || ids !== undefined });
       warnings.push(...observations.warnings);
       const byId = new Map<string, ElementObservation[]>();
       for (const element of observations.elements) {
@@ -197,6 +198,7 @@ export async function runInspect(
             rootFontSize: observations.rootFontSize,
             body: { rect: body.rect, styles: bodyInventory.styles, details: detailsFromObservation(body, server.origin) },
             fonts, source: 'clone', fontFaces: observations.fontFaces,
+            ...(observations.activeCaptureId ? { activeCaptureId: observations.activeCaptureId } : {}),
             complete: observations.complete && fonts.status === 'ready' && fonts.failedFamilies.length === 0,
             warnings: [...new Set(warnings)] },
         };

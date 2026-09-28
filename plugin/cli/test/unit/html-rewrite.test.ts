@@ -155,6 +155,41 @@ describe('sanitizeHtml — IE conditional comments', () => {
     );
     expect(out).toContain('<!-- Cloned by design-lens -->');
   });
+
+  it('scrubs a wide SVG without dropping nested geometry or ordinary comments', () => {
+    const groups = Array.from({ length: 4096 }, (_, index) =>
+      `<g id="g-${index}" onclick="evil()"><!--[if IE]><script>evil()</script><![endif]-->` +
+      `<g><path d="M${index} 0L${index} 1"></path><!-- geometry ${index} --></g></g>`,
+    ).join('');
+    const out = sanitizeHtml(`<svg xmlns="http://www.w3.org/2000/svg">${groups}</svg>`, { xml: true });
+    const $ = cheerio.load(out, { xml: true });
+    expect(out).not.toContain('[if IE]');
+    expect(out).not.toContain('evil()');
+    expect($('svg > g')).toHaveLength(4096);
+    expect($('svg > g > g > path')).toHaveLength(4096);
+    expect($('path').last().attr('d')).toBe('M4095 0L4095 1');
+    expect(out.match(/<!-- geometry \d+ -->/g)).toHaveLength(4096);
+  });
+
+  it('reaches conditional comments and active content inside nested shadow templates', () => {
+    const out = sanitizeHtml('<!doctype html><!-- ordinary document comment --><html><head></head><body>' +
+      '<section><template shadowrootmode="open">' +
+      '<!--[if IE]><script>hidden()</script><![endif]--><!-- ordinary shadow comment -->' +
+      '<script>active()</script><svg onload="active()"><g><path d="M0 0L1 1"></path></g></svg>' +
+      '<article><template shadowrootmode="open"><!--[if IE]>nested<![endif]-->' +
+      '<a href="javascript:active()">Keep nested text</a></template></article>' +
+      '</template></section></body></html>');
+    expect(out).not.toContain('[if IE]');
+    expect(out).not.toContain('<script');
+    expect(out).not.toContain('active()');
+    expect(out).toContain('<!-- ordinary document comment -->');
+    expect(out).toContain('<!-- ordinary shadow comment -->');
+    const $ = cheerio.load(out);
+    expect($('template[shadowrootmode="open"]')).toHaveLength(2);
+    expect($('svg g path').attr('d')).toBe('M0 0L1 1');
+    expect($('a').attr('href')).toBe('#');
+    expect($('a').text()).toBe('Keep nested text');
+  });
 });
 
 // why: the written clone is UTF-8 bytes; without a `<meta charset="utf-8">` browsers may mis-decode

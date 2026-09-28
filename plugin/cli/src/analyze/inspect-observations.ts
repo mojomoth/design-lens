@@ -10,6 +10,8 @@ export interface ComprehensiveDetails extends ElementDetails {
   pseudo: ElementObservation['pseudo'];
   image: ElementObservation['image'] | null;
   visual: Record<string, string>;
+  source?: ElementObservation['source'];
+  generated?: string;
 }
 
 /** All grouped values come from one observation, without a second browser measurement. */
@@ -40,6 +42,8 @@ export function detailsFromObservation(element: ElementObservation, origin: stri
       'justifyContent', 'overflowX', 'overflowY',
     ]),
     semantic: element.semantic, domPath: element.domPath, rootPath: element.rootPath,
+    ...(element.source ? { source: element.source } : {}),
+    ...(element.generated ? { generated: element.generated } : {}),
     pseudo: { before: pseudo(element.pseudo.before), after: pseudo(element.pseudo.after) },
     image: element.image ?? null,
     visual: pick([

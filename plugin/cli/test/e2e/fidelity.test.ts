@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from 'playwright';
 
-import type { FidelityReport } from '../../src/analyze/fidelity.js';
+import type { FidelityComposition, FidelityReport } from '../../src/analyze/fidelity.js';
 import type { SourceCapture } from '../../src/capture/evidence.js';
 import type { PlaywrightModule } from '../../src/capture/browser.js';
 import { loadRuntimeDep } from '../../src/lib/runtime-deps.js';
@@ -148,6 +148,32 @@ describe('offline fidelity against an independently rendered fixture', () => {
     return directory;
   }
 
+  async function composedProject(name: string, warnings: string[] = []): Promise<string> {
+    const directory = await project(name);
+    const evidence = JSON.parse(await fs.readFile(path.join(directory, 'evidence.json'), 'utf8')) as { captures: SourceCapture[] };
+    const composition: FidelityComposition = { schemaVersion: 1, boundaryPolicy: 'nearest-width-then-height', variants: [], elements: [], warnings };
+    let ordinal = 0;
+    const id = (): string => `dl-${++ordinal}`;
+    const selection: string[] = [];
+    const variants: string[] = [];
+    for (const capture of evidence.captures) {
+      const hostId = id(); const rootId = id(); const bodyId = id();
+      const media = capture.viewport.width === 1440 ? '(min-width:1104px)' : capture.viewport.width === 768 ? '(min-width:579px) and (max-width:1103.999px)' : '(max-width:578.999px)';
+      composition.variants.push({ captureId: capture.id, viewport: capture.viewport, media, hostId, rootId, bodyId });
+      selection.push(`@media ${media}{[data-dl-id="${hostId}"]{display:contents}}`);
+      const body = HTML.match(/<body>([\s\S]*)<\/body>/)![1].replace(/data-dl-id="(dl-[0-9]+)"/g, (_, sourceId: string) => {
+        const dlId = id();
+        composition.elements.push({ dlId, captureId: capture.id, sourceId });
+        return `data-dl-id="${dlId}" data-dl-source-capture="${capture.id}" data-dl-source-id="${sourceId}"`;
+      });
+      const css = HTML.match(/<style>([\s\S]*)<\/style>/)![1].replace(/body\{/g, 'dl-body{');
+      variants.push(`<dl-variant data-dl-id="${hostId}" data-dl-generated="host" data-dl-source-capture="${capture.id}"><template shadowrootmode="open"><style>dl-root,dl-body{display:block}${css}</style><dl-root data-dl-id="${rootId}" data-dl-generated="root" data-dl-original-tag="html" data-dl-source-capture="${capture.id}"><dl-body data-dl-id="${bodyId}" data-dl-generated="body" data-dl-original-tag="body" data-dl-source-capture="${capture.id}">${body}</dl-body></dl-root></template></dl-variant>`);
+    }
+    await fs.writeFile(path.join(directory, 'clone/index.html'), `<!doctype html><html><head><style>body{margin:0}dl-variant{display:none}${selection.join('')}</style></head><body>${variants.join('')}</body></html>`);
+    await fs.writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ composition }));
+    return directory;
+  }
+
   // why: proves the bundled comparator can render offline and bind a pass to three viewport captures.
   it('passes identical responsive layouts and preserves previous comparison PNGs', async () => {
     const directory = await project('identical');
@@ -164,6 +190,158 @@ describe('offline fidelity against an independently rendered fixture', () => {
     expect(refreshed.evidenceHash).toBe(report.evidenceHash);
     expect(refreshed.captures[0].screenshots?.full).not.toBe(report.captures[0].screenshots?.full);
     await expect(fs.access(path.join(directory, report.captures[0].screenshots!.full))).resolves.toBeUndefined();
+  });
+
+  // why: incomplete captures used to return no useful measurements; diagnostics must never bless them.
+  it('renders intact incomplete evidence diagnostically without allowing a pass', async () => {
+    const directory = await project('incomplete-diagnostics', (html) => html.replace(/<img[^>]+>/, ''));
+    const evidencePath = path.join(directory, 'evidence.json');
+    const evidence = JSON.parse(await fs.readFile(evidencePath, 'utf8')) as { captures: SourceCapture[] };
+    evidence.captures[0].complete = false;
+    evidence.captures[0].warnings.push('fixture source had a continuing timer');
+    await fs.writeFile(evidencePath, JSON.stringify(evidence));
+    const original = await fs.readFile(evidencePath, 'utf8');
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('unverified');
+    expect(report.captures[0]).toMatchObject({ status: 'unverified', diagnosticOnly: true });
+    expect(report.captures[0].screenshots?.viewport).toBeTruthy();
+    expect(report.captures[0].viewportImage).toBeDefined();
+    expect(report.captures[0].elements.some((element) => element.sourceId === 'dl-2' && element.status === 'fail')).toBe(true);
+    expect(await fs.readFile(evidencePath, 'utf8')).toBe(original);
+  });
+
+  // why: unsupported composition transforms stay uncertified even when current raster samples match.
+  it('propagates composition limitations into diagnostic capture results', async () => {
+    const directory = await composedProject('composition-limitation', ['unsupported root writing mode']);
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('unverified');
+    expect(report.captures).toHaveLength(3);
+    expect(report.captures.every((capture) => capture.status === 'unverified' && capture.diagnosticOnly)).toBe(true);
+    expect(report.captures[0].viewportImage?.status).toBe('pass');
+    expect(report.issues).toContain('responsive composition: unsupported root writing mode');
+  });
+
+  // why: DOM source markers are optional hints; removing them must retain manifest-qualified matches.
+  it('verifies a recorded composition with and without DOM source attributes', async () => {
+    const directory = await composedProject('composition-provenance');
+    const baseline = await runCli(['fidelity', directory, '--json']);
+    expect(baseline.code, baseline.stdout).toBe(0);
+    const metadata = JSON.parse(await fs.readFile(path.join(directory, 'manifest.json'), 'utf8')) as { composition: FidelityComposition };
+    expect((JSON.parse(baseline.stdout) as FidelityReport).compositionHash).toBe(hash(JSON.stringify(metadata.composition)));
+    const html = await fs.readFile(path.join(directory, 'clone/index.html'), 'utf8');
+    await fs.writeFile(path.join(directory, 'clone/index.html'), html.replace(/ data-dl-source-(?:capture|id)="[^"]*"/g, ''));
+    const stripped = await runCli(['fidelity', directory, '--json']);
+    expect(stripped.code, stripped.stdout).toBe(0);
+    const report = JSON.parse(stripped.stdout) as FidelityReport;
+    for (const capture of report.captures) {
+      expect(capture.observations?.activeCaptureId).toBe(capture.captureId);
+      for (const element of capture.elements) expect(metadata.composition.elements).toContainEqual({
+        dlId: element.cloneId, captureId: capture.captureId, sourceId: element.sourceId,
+      });
+    }
+  });
+
+  // why: source-looking markers and generated flags cannot grant correspondence or exclusions alone.
+  it('rejects partial source claims and forged generated exemptions in a legacy clone', async () => {
+    const directory = await project('legacy-provenance-spoof', (html) => html.replace('<h1 ', '<h1 data-dl-source-id="dl-5" data-dl-generated="root" '));
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('unverified');
+    expect(report.captures[0].viewportImage?.status).toBe('pass');
+    expect(report.captures[0].issues).toContain('unrecorded DOM provenance claim: dl-5');
+  });
+
+  // why: matching semantic content and pixels must not excuse invalid canonical or shadow provenance.
+  it.each(['source-claim', 'canonical-id', 'recorded-map', 'host-path', 'generated-role'] as const)('rejects a composed provenance defect: %s', async (defect) => {
+    const directory = await composedProject(`composition-${defect}`);
+    const file = path.join(directory, 'clone/index.html');
+    const manifestPath = path.join(directory, 'manifest.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as { composition: FidelityComposition };
+    const target = manifest.composition.elements.find((entry) => entry.captureId === 'v390' && entry.sourceId === 'dl-5')!;
+    let html = await fs.readFile(file, 'utf8');
+    const marker = `data-dl-id="${target.dlId}"`;
+    if (defect === 'source-claim') html = html.replace(`${marker} data-dl-source-capture="v390"`, `${marker} data-dl-source-capture="v1440"`);
+    if (defect === 'canonical-id') html = html.replace(marker, 'data-dl-id="dl-99999"');
+    if (defect === 'generated-role') html = html.replace(marker, `${marker} data-dl-generated="root"`);
+    if (defect === 'host-path') {
+      const targetElement = html.match(new RegExp(`<h1 ${marker}[^>]*>[^<]*</h1>`))![0];
+      html = html.replace(targetElement, '').replace('</body>', `${targetElement}</body>`);
+    }
+    if (defect === 'recorded-map') {
+      manifest.composition.elements = manifest.composition.elements.filter((entry) => entry.dlId !== target.dlId);
+      await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    }
+    await fs.writeFile(file, html);
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).not.toBe('pass');
+    expect(report.captures.find((entry) => entry.captureId === 'v390')?.elements.find((entry) => entry.sourceId === 'dl-5')?.status).toBe('fail');
+  });
+
+  // why: a failed source capture has no variant, but intact siblings still need honest diagnostics.
+  it('validates available variants and retains diagnostics when another source snapshot is missing', async () => {
+    const directory = await composedProject('composition-partial', ['v390: source snapshot is unavailable']);
+    const manifestPath = path.join(directory, 'manifest.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as { composition: FidelityComposition };
+    const unavailable = manifest.composition.variants.find((entry) => entry.captureId === 'v390')!;
+    manifest.composition.variants = manifest.composition.variants.filter((entry) => entry.captureId !== 'v390');
+    manifest.composition.elements = manifest.composition.elements.filter((entry) => entry.captureId !== 'v390');
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const htmlPath = path.join(directory, 'clone/index.html');
+    const html = await fs.readFile(htmlPath, 'utf8');
+    await fs.writeFile(htmlPath, html.replace(new RegExp(`<dl-variant data-dl-id="${unavailable.hostId}"[\\s\\S]*?</dl-variant>`), ''));
+    const evidencePath = path.join(directory, 'evidence.json');
+    const evidence = JSON.parse(await fs.readFile(evidencePath, 'utf8')) as { captures: SourceCapture[] };
+    const missing = evidence.captures.find((capture) => capture.id === 'v390')!;
+    missing.snapshot = ''; missing.viewportScreenshot = ''; missing.fullScreenshot = ''; missing.complete = false;
+    missing.observations.complete = false;
+    missing.warnings.push('source capture did not finish');
+    await fs.writeFile(evidencePath, JSON.stringify(evidence));
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('unverified');
+    expect(report.captures).toHaveLength(3);
+    expect(report.captures[0].viewportImage?.status).toBe('pass');
+    expect(report.captures[0].diagnosticOnly).toBe(true);
+    expect(report.captures[2].viewportImage).toBeUndefined();
+    expect(report.captures[2].issues).toContain('source images are unavailable; no image comparison was performed');
+    expect(report.issues).not.toContain('invalid responsive composition metadata');
+  });
+
+  // why: warnings-only metadata must not silently activate trusted responsive matching.
+  it('keeps malformed composition metadata unverified', async () => {
+    const directory = await project('composition-invalid');
+    await fs.writeFile(path.join(directory, 'manifest.json'), JSON.stringify({ composition: { schemaVersion: 1, warnings: [] } }));
+    const result = await runCli(['fidelity', directory, '--json']);
+    const report = JSON.parse(result.stdout) as FidelityReport;
+    expect(result.code).toBe(1);
+    expect(report.status).toBe('unverified');
+    expect(report.issues).toContain('invalid responsive composition metadata');
+  });
+
+  // why: no reference image is not a blank reference; do not manufacture comparisons or a pass.
+  it('keeps missing source captures explicitly unavailable', async () => {
+    const directory = await project('unavailable-source');
+    const evidencePath = path.join(directory, 'evidence.json');
+    const evidence = JSON.parse(await fs.readFile(evidencePath, 'utf8')) as { captures: SourceCapture[] };
+    evidence.captures[0].complete = false;
+    evidence.captures[0].viewportScreenshot = '';
+    evidence.captures[0].fullScreenshot = '';
+    await fs.writeFile(evidencePath, JSON.stringify(evidence));
+    const result = await runCli(['fidelity', directory, '--json']);
+    const capture = (JSON.parse(result.stdout) as FidelityReport).captures[0];
+    expect(result.code).toBe(1);
+    expect(capture.status).toBe('unverified');
+    expect(capture.viewportImage).toBeUndefined();
+    expect(capture.screenshots).toBeUndefined();
+    expect(capture.issues).toContain('source images are unavailable; no image comparison was performed');
   });
 
   // why: a small missing brand mark must fail even when total changed pixels meet the global threshold.

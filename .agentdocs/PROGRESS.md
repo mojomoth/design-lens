@@ -635,3 +635,25 @@ including layered universal resets, percent-height roots, short bordered roots, 
 rem, fixed elements, native shadow content, unique IDs, independent assets and evidence immutability.
 Root selector aliases also retain namespace qualification. Unsupported document-background coordinate
 transforms remain explicit warnings. CLI orchestration is connected in T46.
+
+## T46 — Inspection, source identity and diagnostic integration (2026-09-28)
+
+Explicit multi-viewport runs now compose the sealed source snapshots, refresh the aggregate report,
+and compare the resulting canonical clone. Ordinary inspection and role selection traverse the
+active sample, while explicit inventory can address inactive samples. Fidelity validates manifest
+correspondence, semantic identity, nested shadow paths and generated wrappers; a composition hash
+invalidates stale design claims after metadata edits. Intact incomplete evidence produces diagnostic
+images without earning a verified pass. Negative controls still reject removed content, false source
+markers, changed evidence and forged generated wrappers.
+
+Live Tenity verification exposed two additional capture-pipeline costs: materialization between
+source attempts spent the next viewport's budget, and global SVG child-array concatenation was
+quadratic. All source attempts now precede materialization, and comment sanitization visits each
+node once. Valid paragraph selectors survive unrelated unsupported CSS, preserving other bytes and
+warnings. An anonymous paragraph UA layer avoids named source-layer collisions.
+
+The main default gate passed with 561 unit tests, 202 browser E2Es and the sealed fixture spine.
+The rebuilt bundle includes the anonymous-layer followup, whose six paragraph browser tests passed.
+Fresh Tenity now captures all three requested sizes with exactly matching first-viewport diagnostics.
+Full-page inspection found offscreen intrinsic-size and source screenshot side effects; these remain
+under investigation in the final T47 validation, and the live result remains unverified.

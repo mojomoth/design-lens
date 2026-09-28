@@ -376,6 +376,7 @@ export async function runValidateDesign(projectDir: string): Promise<DesignValid
   }
   let evidence: EvidenceDocument | null = null;
   let sourceProblem: string | undefined;
+  let compositionHash: string | null = null;
   let fidelity: unknown = null;
   let fidelityProblem: string | undefined;
   try {
@@ -386,6 +387,7 @@ export async function runValidateDesign(projectDir: string): Promise<DesignValid
     evidence = await readEvidence(root);
     const manifestText = await optionalFile(root, 'manifest.json');
     const manifest: unknown = manifestText ? JSON.parse(manifestText) : null;
+    compositionHash = record(manifest) && manifest.composition !== undefined ? sha256(JSON.stringify(manifest.composition)) : null;
     const manifestHash = baseline(manifest, 'manifest.json');
     const priorHash = baseline(fidelity, 'fidelity.json');
     const actualHash = evidenceHash(evidence);
@@ -400,6 +402,7 @@ export async function runValidateDesign(projectDir: string): Promise<DesignValid
     if (!record(fidelity) || fidelity.schemaVersion !== 1 || !Array.isArray(fidelity.captures)) throw new Error('run fidelity to record current clone observations before claiming observed-clone measurements');
     if (fidelity.evidenceHash !== evidenceHash(evidence)) throw new Error('saved clone observations use a different source baseline');
     if (fidelity.cloneHash !== sha256(JSON.stringify(await hashTree(path.join(root, 'clone'))))) throw new Error('clone changed since its last fidelity measurement; run fidelity again');
+    if ((fidelity.compositionHash ?? null) !== compositionHash) throw new Error('responsive composition changed since its last fidelity measurement; run fidelity again');
     for (const candidate of fidelity.captures) {
       const parsed = cloneCapture(candidate, evidence.captures);
       if (!parsed) continue;

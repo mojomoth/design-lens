@@ -69,6 +69,7 @@ import {
   type LocalizedAsset,
 } from '../localize/localize.js';
 import { isCssResource, isFontResource, isImageResource } from '../localize/media-type.js';
+import type { ResourceStore } from '../localize/resource-store.js';
 import { beautifyHtml, beautifyCss } from '../output/beautify.js';
 import {
   buildManifest,
@@ -79,7 +80,8 @@ import {
   type ManifestStats,
 } from '../output/manifest.js';
 import { COMPLETION_NOTICE, provenanceComment } from '../output/provenance.js';
-import { buildReport, fontFilesFrom, type CaptureRow } from '../output/report.js';
+import { buildReport, fontFilesFrom, type CaptureRow, type ReportInput } from '../output/report.js';
+import { composeResponsiveClone } from '../output/responsive.js';
 import { screenshotPath, writeCloneTree, writePng, writeProjectDocs } from '../output/writer.js';
 import { summarizeVerify, verifyClone } from './verify.js';
 import { baseSlug, nextFreeSlug } from '../lib/slug.js';
@@ -125,7 +127,7 @@ export interface CloneRunOptions {
   out: string;
   /** Render viewport (`--viewport WxH`). */
   viewport: { width: number; height: number };
-  /** Independently loaded source states; the first is the editable canonical clone. */
+  /** Independently loaded source states; multiple explicit samples compose the editable canonical clone. */
   viewports?: Viewport[];
   /** Device scale factor (`--dsf`). */
   dsf: number;
@@ -183,9 +185,25 @@ function captureRow(assets: LocalizedAsset[], pred: (a: LocalizedAsset) => boole
  * failure or a write failure; every optional degradation is folded into the warning count.
  */
 type CaptureMetadata = Omit<SourceCapture, 'id' | 'files' | 'snapshot' | 'viewportScreenshot' | 'fullScreenshot'>;
-interface SingleCloneResult extends CloneResult { source: CaptureMetadata }
+interface SingleCloneResult extends CloneResult { source: CaptureMetadata; report: ReportInput }
+/** Captured bytes survive browser teardown; disk processing starts after every live source attempt. */
+interface CollectedSource {
+  projectDir: string;
+  source: CaptureMetadata;
+  serializedHtml: string;
+  store: ResourceStore;
+  styleRules: number;
+  canvasConverted: number;
+  shadowRootsSerialized: number;
+  elementsStamped: number;
+  title: string;
+  robotsDisallowed: boolean;
+  consentBlocking: ConsentBlockingStatus;
+  originalViewportPng?: Buffer;
+  originalFullPng?: Buffer;
+}
 
-async function runSingleClone(url: string, opts: CloneRunOptions, deadline: number): Promise<SingleCloneResult> {
+async function collectSingleSource(url: string, opts: CloneRunOptions, deadline: number): Promise<CollectedSource> {
   const capturedAt = new Date().toISOString();
 
   // Resolve a fresh project dir up front — the writer refuses to overwrite, and computing this
@@ -375,7 +393,29 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     await capture.browser.close();
   }
 
-  // --- Post-processing (stages 5–8): pure over the captured bytes, no browser needed. ----------
+  if (!observations) throw new Error('source observation capture did not complete');
+  return {
+    projectDir, serializedHtml, store: capture.store, styleRules, canvasConverted,
+    shadowRootsSerialized, elementsStamped, title, robotsDisallowed, consentBlocking,
+    originalViewportPng, originalFullPng,
+    source: {
+      viewport: opts.viewport, deviceScaleFactor: opts.dsf, capturedAt, browserVersion,
+      userAgent, sourceUrl: url, finalUrl,
+      policy: { reducedMotion: 'reduce', colorScheme: 'light', removeSelectors: [...opts.removeSelectors, ...cosmeticSelectors()] },
+      observations,
+      complete: sourceComplete && observations.complete && !!originalViewportPng && !!originalFullPng
+        && capture.warnings.length === 0,
+      warnings: [...capture.warnings],
+    },
+  };
+}
+
+/** Materialize only captured bytes: CPU work and disk writes cannot spend another source's budget. */
+function materializeSingleSource(url: string, opts: CloneRunOptions, collected: CollectedSource): SingleCloneResult {
+  const { projectDir, serializedHtml, styleRules, canvasConverted, shadowRootsSerialized,
+    elementsStamped, title, robotsDisallowed, consentBlocking, originalViewportPng, originalFullPng } = collected;
+  const { capturedAt, finalUrl, userAgent } = collected.source;
+  const capture = { store: collected.store, warnings: [...collected.source.warnings] };
   const inertHtml = sanitizeHtml(serializedHtml);
   const localized = localizeDocument(inertHtml, finalUrl, capture.store, {
     maxAssetBytes: opts.maxAssetBytes,
@@ -462,7 +502,7 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     if (!check.ok) process.stderr.write(`design-lens: warning: verify: ${check.id}: ${check.detail}\n`);
   }
 
-  const reportMarkdown = buildReport({
+  const report: ReportInput = {
     title,
     source: { url, finalUrl, capturedAt, viewport: opts.viewport, robotsDisallowed },
     capture: {
@@ -483,7 +523,8 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     fidelity: { canvasConverted, shadowRootsSerialized, crossOriginIframes: localized.remote.filter((ref) => ref.reason === 'cross-origin-iframe').length },
     warnings: capture.warnings,
     verify: summarizeVerify(verifyReport),
-  });
+  };
+  const reportMarkdown = buildReport(report);
 
   // The exact bytes `verifyClone` just parsed — never re-serialize, or the check described one
   // document and the disk holds another.
@@ -493,14 +534,9 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
     `design-lens: wrote ${resources.length} asset(s) to ${projectDir} (${warnings} warning(s))\n`,
   );
 
-  if (!observations) throw new Error('source observation capture did not complete');
-  return { projectDir, warnings, source: {
-    viewport: opts.viewport, deviceScaleFactor: opts.dsf, capturedAt, browserVersion,
-    userAgent, sourceUrl: url, finalUrl,
-    policy: { reducedMotion: 'reduce', colorScheme: 'light', removeSelectors: [...opts.removeSelectors, ...cosmeticSelectors()] },
-    observations,
-    complete: sourceComplete && observations.complete && !!originalViewportPng && !!originalFullPng
-      && capture.warnings.length === 0 && localized.remote.length === 0,
+  return { projectDir, warnings, report, source: {
+    ...collected.source,
+    complete: collected.source.complete && capture.warnings.length === 0 && localized.remote.length === 0,
     warnings: [...capture.warnings, ...localized.remote.map((remote) => `remote ${remote.reason}: ${remote.url}`)],
   } };
 }
@@ -509,10 +545,28 @@ async function runSingleClone(url: string, opts: CloneRunOptions, deadline: numb
 export async function runClone(url: string, opts: CloneRunOptions): Promise<CloneResult> {
   const viewports = opts.viewports ?? [opts.viewport];
   const deadline = Date.now() + opts.timeoutMs;
-  const primary = await runSingleClone(url, { ...opts, viewport: viewports[0] },
+  const first = await collectSingleSource(url, { ...opts, viewport: viewports[0] },
     viewportCaptureDeadline(deadline, viewports.length));
-  const evidenceRoot = path.join(primary.projectDir, 'evidence');
+  const evidenceRoot = path.join(first.projectDir, 'evidence');
+  const collected: Array<{ source: CollectedSource } | { error: string; capturedAt: string }> = [{ source: first }];
+  // Collect every live state before localization, formatting, writing, or hashing can use CPU time.
+  // Optional network refetch remains inside each fair share of the one live-capture deadline.
+  for (let index = 1; index < viewports.length; index++) {
+    const viewport = viewports[index];
+    const id = `viewport-${viewport.width}x${viewport.height}`;
+    try {
+      collected.push({ source: await collectSingleSource(url, { ...opts, viewport, out: evidenceRoot, project: id },
+        viewportCaptureDeadline(deadline, viewports.length - index)) });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`design-lens: warning: source viewport ${id} unavailable: ${detail}\n`);
+      collected.push({ error: detail, capturedAt: new Date().toISOString() });
+    }
+  }
+  const primary = materializeSingleSource(url, { ...opts, viewport: viewports[0] }, first);
   const captures: SourceCapture[] = [];
+  const captureReports: ReportInput[] = [];
+  const captureWarnings: string[] = [];
   let warnings = primary.warnings;
   for (const [index, viewport] of viewports.entries()) {
     const id = `viewport-${viewport.width}x${viewport.height}`;
@@ -525,23 +579,24 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
         if (fs.existsSync(source)) fs.cpSync(source, path.join(captureDir, entry), { recursive: true, errorOnExist: true });
       }
     } else {
-      try {
-        captured = await runSingleClone(url, { ...opts, viewport, out: evidenceRoot, project: id },
-          viewportCaptureDeadline(deadline, viewports.length - index));
-        warnings += captured.warnings;
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        process.stderr.write(`design-lens: warning: source viewport ${id} unavailable: ${detail}\n`);
+      const attempt = collected[index];
+      if ('error' in attempt) {
+        const detail = attempt.error;
         captures.push({ ...primary.source, id, viewport, complete: false,
-          warnings: [`source viewport unavailable: ${detail}`], capturedAt: new Date().toISOString(),
+          warnings: [`source viewport unavailable: ${detail}`], capturedAt: attempt.capturedAt,
           observations: { viewport, deviceScaleFactor: opts.dsf, width: viewport.width, height: viewport.height,
             rootFontSize: 'unknown', fonts: { status: 'unavailable', failedFamilies: [] }, elements: [],
             complete: false, warnings: [`source viewport unavailable: ${detail}`] },
           snapshot: '', viewportScreenshot: '', fullScreenshot: '', files: [] });
         warnings++;
+        captureWarnings.push(`${id}: source viewport unavailable: ${detail}`);
         continue;
       }
+      captured = materializeSingleSource(url, { ...opts, viewport }, attempt.source);
+      warnings += captured.warnings;
     }
+    captureReports.push(captured.report);
+    captureWarnings.push(...(captured.report.warnings ?? []).map((warning) => viewports.length > 1 ? `${id}: ${warning}` : warning));
     const prefix = path.relative(primary.projectDir, captureDir).split(path.sep).join('/');
     const files = (await hashTree(captureDir)).map((file) => ({ ...file, path: `${prefix}/${file.path}` }));
     const available = (relative: string): string => files.some((file) => file.path === `${prefix}/${relative}`) ? `${prefix}/${relative}` : '';
@@ -551,21 +606,72 @@ export async function runClone(url: string, opts: CloneRunOptions): Promise<Clon
   const evidence: EvidenceDocument = { schemaVersion: 1, captures };
   fs.writeFileSync(path.join(primary.projectDir, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`);
   const manifestPath = path.join(primary.projectDir, 'manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
+  let manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
   manifest.evidenceHash = evidenceHash(evidence);
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(manifestPath, manifestJson(manifest));
+  const compositionWarnings: string[] = [];
+  if (opts.viewports && opts.viewports.length > 1) {
+    // Every source snapshot and hash is sealed before the canonical document is replaced.
+    const composed = await composeResponsiveClone(primary.projectDir, captures);
+    compositionWarnings.push(...composed.warnings.map((warning) => `responsive composition: ${warning}`));
+    for (const warning of compositionWarnings) process.stderr.write(`design-lens: warning: ${warning}\n`);
+    process.stderr.write(`design-lens: composed ${composed.composition?.variants.length ?? 0} sampled responsive variant(s) (${compositionWarnings.length} warning(s))\n`);
+    // The composer adds namespaced resources and updates counters; keep that final manifest.
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as Manifest;
+  }
   // Local rendering cannot consume time reserved for a later live source viewport.
-  const renderWarnings = await renderCanonicalClone(primary.projectDir, opts);
-  warnings += renderWarnings.length;
-  if (renderWarnings.length > 0) {
-    manifest.stats.warnings += renderWarnings.length;
-    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const renderWarnings = await renderCanonicalClone(primary.projectDir, { ...opts, viewport: viewports[0] });
+  warnings += compositionWarnings.length + renderWarnings.length;
+  // Format findings remain outside this counter, as in each individual capture's manifest.
+  manifest.stats.warnings = warnings;
+  const manifestText = manifestJson(manifest);
+  fs.writeFileSync(manifestPath, manifestText);
+  const verifyReport = verifyClone({
+    html: fs.readFileSync(path.join(primary.projectDir, 'clone', 'index.html'), 'utf8'),
+    manifestText,
+    overridesExists: fs.existsSync(path.join(primary.projectDir, OVERRIDES_LOCAL_PATH)),
+    resourceExists: (localPath) => fs.existsSync(path.join(primary.projectDir, localPath)),
+  });
+  for (const check of verifyReport.checks) {
+    if (!check.ok) process.stderr.write(`design-lens: warning: verify: ${check.id}: ${check.detail}\n`);
   }
   const fidelity = await runFidelity(primary.projectDir);
-  const reportPath = path.join(primary.projectDir, 'REPORT.md');
-  const report = fs.readFileSync(reportPath, 'utf8').replace('## Fidelity notes\n',
-    `## Fidelity notes\n${renderWarnings.map((warning) => `- Warning: ${warning.replace(/\s+/g, ' ').trim()}\n`).join('')}- Measured responsive fidelity: ${fidelity.report.status}; see fidelity.json (${captures.length} source viewport(s)).\n`);
-  fs.writeFileSync(reportPath, report);
+  const resourceRow = (matches: (resource: ManifestResource) => boolean): CaptureRow => {
+    const resources = manifest.resources.filter(matches);
+    return { count: resources.length, bytes: resources.reduce((total, resource) => total + resource.bytes, 0) };
+  };
+  const imageResource = (resource: ManifestResource): boolean => isImageResource(resource.contentType, resource.localPath);
+  const fontResource = (resource: ManifestResource): boolean => isFontResource(resource.contentType, resource.localPath);
+  const cssResource = (resource: ManifestResource): boolean => isCssResource(resource.contentType, resource.localPath);
+  const sourceReports = manifest.composition ? captureReports : [primary.report];
+  const reportInput: ReportInput = {
+    ...primary.report,
+    capture: {
+      ...primary.report.capture,
+      images: resourceRow(imageResource),
+      fonts: resourceRow(fontResource),
+      css: resourceRow(cssResource),
+      other: resourceRow((resource) => !imageResource(resource) && !fontResource(resource) && !cssResource(resource)),
+      fontFiles: fontFilesFrom(manifest.resources),
+    },
+    remote: manifest.remote,
+    fidelity: {
+      canvasConverted: sourceReports.reduce((total, report) => total + report.fidelity.canvasConverted, 0),
+      shadowRootsSerialized: sourceReports.reduce((total, report) => total + report.fidelity.shadowRootsSerialized, 0),
+      crossOriginIframes: manifest.remote.filter((remote) => remote.reason === 'cross-origin-iframe').length,
+    },
+    warnings: [...captureWarnings, ...compositionWarnings, ...renderWarnings],
+    verify: summarizeVerify(verifyReport),
+  };
+  const responsiveNote = manifest.composition
+    ? `- Responsive sampling warning: ${manifest.composition.variants.length} sampled DOM variant(s); CSS selects the nearest captured width, then height for equal widths, with midpoint ties choosing the larger sample. Intermediate sizes use sampled selection; fidelity verifies only the exact captured viewport sizes.\n`
+    : '';
+  const diagnosticNote = fidelity.report.status === 'unverified'
+    ? '- Diagnostic only: this unverified result does not certify a match, even where individual image or element comparisons pass.\n'
+    : '';
+  const report = buildReport(reportInput).replace('## Fidelity notes\n',
+    `## Fidelity notes\n- Measured responsive fidelity: ${fidelity.report.status}; see fidelity.json (${captures.length} source viewport(s)).\n${responsiveNote}${diagnosticNote}`);
+  fs.writeFileSync(path.join(primary.projectDir, 'REPORT.md'), report);
   process.stderr.write(`${COMPLETION_NOTICE}\n`);
   return { projectDir: primary.projectDir, warnings, fidelity: fidelity.report.status };
 }

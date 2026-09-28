@@ -16,6 +16,8 @@ import { serializeDom } from '../../src/capture/serialize.js';
 import { stabilize } from '../../src/capture/stabilize.js';
 import { stampDom } from '../../src/capture/stamp.js';
 import { runClone } from '../../src/commands/clone.js';
+import * as beautify from '../../src/output/beautify.js';
+import * as writer from '../../src/output/writer.js';
 
 let server: http.Server;
 let origin: string;
@@ -39,6 +41,12 @@ beforeAll(async () => {
       return;
     }
     response.setHeader('content-type', 'text/html');
+    if (url.pathname === '/materialize') {
+      response.end(`<!doctype html><body><h1>Materialization ordering</h1><script>
+        const image = new Image(); image.src = '/visit?width=' + innerWidth; document.body.append(image);
+      </script></body>`);
+      return;
+    }
     if (url.pathname === '/budget') {
       response.end(`<!doctype html><body><h1>Budget evidence</h1><script>
         const image = new Image(); image.src = '/visit?width=' + innerWidth; document.body.append(image);
@@ -187,6 +195,51 @@ it('captures all source sizes before local rerender and photographs each before 
     expect(events.indexOf('rerender')).toBeGreaterThan(events.indexOf('visit:300'));
   } finally {
     screenshotSpy.mockRestore(); renderSpy.mockRestore();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+
+it('finishes every live source capture before slow formatting or the first clone write', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dl-materialize-budget-'));
+  events.length = 0;
+  const formatHtml = beautify.beautifyHtml;
+  const writeCloneTree = writer.writeCloneTree;
+  let delayed = false;
+  const formattingSpy = vi.spyOn(beautify, 'beautifyHtml').mockImplementation((html) => {
+    events.push('materialize');
+    if (!delayed) {
+      delayed = true;
+      // A slow local CPU stage must run after all source attempts, outside their shared deadline.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2_000);
+    }
+    return formatHtml(html);
+  });
+  const writerSpy = vi.spyOn(writer, 'writeCloneTree').mockImplementation((input) => {
+    events.push('write-clone');
+    return writeCloneTree(input);
+  });
+  try {
+    const viewports = [{ width: 900, height: 600 }, { width: 600, height: 600 }, { width: 300, height: 600 }];
+    const result = await runClone(`${origin}/materialize`, {
+      out: directory, project: 'materialize', viewport: viewports[0], viewports, dsf: 1,
+      timeoutMs: 12_000, settleMs: 0, removeSelectors: [], noScroll: true,
+      blockCookies: false, maxAssetBytes: 25 * 1024 * 1024, includeMedia: false,
+    });
+    const evidence = await readEvidence(result.projectDir);
+    expect(evidence.captures).toHaveLength(3);
+    expect(events.indexOf('materialize')).toBeGreaterThanOrEqual(0);
+    expect(events.indexOf('write-clone')).toBeGreaterThan(events.indexOf('materialize'));
+    for (const capture of evidence.captures) {
+      expect(capture.complete, capture.warnings.join('\n')).toBe(true);
+      expect(capture.snapshot).not.toBe('');
+      const visit = events.indexOf(`visit:${capture.viewport.width}`);
+      expect(visit).toBeGreaterThanOrEqual(0);
+      expect(visit).toBeLessThan(events.indexOf('materialize'));
+      expect(visit).toBeLessThan(events.indexOf('write-clone'));
+    }
+  } finally {
+    formattingSpy.mockRestore(); writerSpy.mockRestore();
     await fs.rm(directory, { recursive: true, force: true });
   }
 });

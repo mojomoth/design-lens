@@ -79,7 +79,7 @@ export function rewriteCss(
   let normalized = css;
   const warnings: string[] = [];
   if (options.paragraphAlias && options.context !== 'declarationList') {
-    try { normalized = normalizeParagraphSelectors(css, options.paragraphAlias); }
+    try { normalized = normalizeParagraphSelectors(css, options.paragraphAlias, warnings); }
     catch (error) { warnings.push(error instanceof Error ? error.message : String(error)); }
   }
   const ast = csstree.parse(normalized, {

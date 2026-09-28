@@ -15,8 +15,10 @@ export interface StabilizationResult {
  * Fix the capture state before both serialization and screenshots. Animated values are persisted
  * in ordinary styles, because paused browser animation objects do not survive inert HTML replay.
  */
-export async function stabilize(page: Page | Frame, deadline: number): Promise<StabilizationResult> {
-  return page.evaluate(async (deadline): Promise<StabilizationResult> => {
+export async function stabilize(
+  page: Page | Frame, deadline: number, options: { activeResponsiveOnly?: boolean } = {},
+): Promise<StabilizationResult> {
+  return page.evaluate(async ({ deadline, activeResponsiveOnly }): Promise<StabilizationResult> => {
     const warnings: string[] = [];
     const roots: Array<Document | ShadowRoot> = [document];
     const elements: Element[] = [];
@@ -27,6 +29,8 @@ export async function stabilize(page: Page | Frame, deadline: number): Promise<S
         break;
       }
       const element = stack.pop()!;
+      if (activeResponsiveOnly && element.getAttribute('data-dl-generated') === 'host'
+          && element.shadowRoot && getComputedStyle(element).display === 'none') continue;
       elements.push(element);
       stack.push(...Array.from(element.children));
       if (element.shadowRoot) {
@@ -149,7 +153,7 @@ export async function stabilize(page: Page | Frame, deadline: number): Promise<S
     if (mutations > 0) warnings.push(`page still changed after animation freeze (${mutations} DOM mutations)`);
     if (Date.now() >= deadline) warnings.push('capture stabilization deadline reached');
     return { complete: warnings.length === 0, warnings, fonts, images: imageResult, animations: animationResult };
-  }, deadline);
+  }, { deadline, activeResponsiveOnly: options.activeResponsiveOnly === true });
 }
 
 export const stabilizePage = stabilize;

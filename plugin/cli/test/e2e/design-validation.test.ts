@@ -86,6 +86,29 @@ describe('read-only design evidence validation', () => {
     expect(stale.stdout).toContain('clone changed');
   });
 
+  // why: source correspondence edits change comparison meaning even when clone bytes stay intact.
+  it('rejects stale clone claims after composition metadata changes', async () => {
+    const directory = await project('stale-composition');
+    const manifestPath = path.join(directory, 'manifest.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    manifest.composition = { schemaVersion: 1, warnings: [] };
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const fidelityPath = path.join(directory, 'fidelity.json');
+    const saved = JSON.parse(await fs.readFile(fidelityPath, 'utf8'));
+    saved.compositionHash = sha256(JSON.stringify(manifest.composition));
+    await fs.writeFile(fidelityPath, JSON.stringify(saved));
+    await fs.writeFile(path.join(directory, 'DESIGN.md'), design([...DEFAULT_ROWS,
+      '| observed-clone | desktop | 1440x900 | dl-1 | styles.fontWeight | 700 | unitless | 0 |']));
+    const before = await runCli(['validate-design', directory, '--json']);
+    expect(before.code, before.stdout).toBe(0);
+    manifest.composition.warnings.push('root style transformation incomplete');
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const stale = await runCli(['validate-design', directory, '--json']);
+    expect(stale.code, stale.stdout).toBe(1);
+    expect(JSON.parse(stale.stdout).status).toBe('unverified');
+    expect(stale.stdout).toContain('responsive composition changed');
+  });
+
   // why: a cached source ID and plausible number cannot legitimize a modified source snapshot.
   it('marks modified source assets unverified', async () => {
     const directory = await project('source-file');

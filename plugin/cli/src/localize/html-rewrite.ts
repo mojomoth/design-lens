@@ -105,11 +105,14 @@ export function sanitizeHtml(html: string, options: { xml?: boolean; depth?: num
 
   // 6. IE conditional comments — remove only these (a script-smuggling channel), never ordinary
   //    comments (the writer's provenance comment must survive).
-  $('*')
-    .contents()
-    .each((_, node) => {
-      if (node.type === 'comment' && isIeConditionalComment(node.data)) $(node).remove();
-    });
+  // Gathering every element's contents at once repeatedly concatenates the growing child list.
+  // Walk each child once instead, including the document fragments inside native templates.
+  const pending = $.root().contents().toArray();
+  while (pending.length > 0) {
+    const node = pending.pop()!;
+    if (node.type === 'comment' && isIeConditionalComment(node.data)) $(node).remove();
+    else if ('children' in node) for (const child of node.children) pending.push(child);
+  }
 
   // 7. Guarantee a charset declaration so the written UTF-8 bytes render correctly.
   if (!options.xml && $('meta[charset]').length === 0) {

@@ -8,6 +8,10 @@ export interface ObservationRect { x: number; y: number; width: number; height: 
 export interface PseudoObservation { content: string; styles: Record<string, string> }
 export interface ElementObservation {
   dlId: string;
+  /** Explicit correspondence emitted by responsive composition; IDs alone are capture-local. */
+  source?: { captureId: string; dlId: string };
+  /** Generated composition proxies remain inspectable but are not original source elements. */
+  generated?: string;
   tag: string;
   text: string;
   semantic: string;
@@ -33,6 +37,9 @@ export interface ObservationDocument {
   width: number;
   height: number;
   rootFontSize: string;
+  /** Root canvas/scroll styles for responsive document proxies; absent in older evidence. */
+  rootStyles?: Record<string, string>;
+  activeCaptureId?: string;
   fonts: FontReadiness;
   fontFaces?: Array<{ family: string; status: string; style: string; weight: string; stretch: string }>;
   elements: ElementObservation[];
@@ -47,6 +54,8 @@ export interface ObservationOptions {
   deadline?: number;
   /** Explicit inspection may address stamped document roots and nonvisual nodes as well. */
   includeDocumentElements?: boolean;
+  /** Explicit inventory can include hidden sampled alternatives; ordinary measurement skips them. */
+  includeInactiveVariants?: boolean;
 }
 
 /** Runs inside Chromium; all runtime values deliberately live inside the callback. */
@@ -56,7 +65,7 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   const deadline = Number.isFinite(options.deadline) ? options.deadline! : Date.now() + 10_000;
   const properties = [
     'color', 'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition',
-    'backgroundRepeat', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch',
+    'backgroundRepeat', 'backgroundAttachment', 'backgroundOrigin', 'backgroundClip', 'colorScheme', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontStretch',
     'fontFeatureSettings', 'fontVariationSettings', 'lineHeight', 'letterSpacing', 'wordSpacing',
     'textAlign', 'textTransform', 'textDecoration', 'whiteSpace', 'wordBreak', 'writingMode',
     'display', 'position', 'top', 'right', 'bottom', 'left', 'zIndex', 'width', 'height',
@@ -69,7 +78,7 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     'borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius',
     'boxShadow', 'textShadow', 'opacity', 'visibility', 'transform', 'transformOrigin',
     'filter', 'backdropFilter', 'mixBlendMode', 'clipPath', 'objectFit', 'objectPosition',
-    'overflowX', 'overflowY', 'rowGap', 'columnGap', 'gridTemplateColumns', 'gridTemplateRows',
+    'overflowX', 'overflowY', 'scrollBehavior', 'scrollbarGutter', 'overscrollBehaviorX', 'overscrollBehaviorY', 'rowGap', 'columnGap', 'gridTemplateColumns', 'gridTemplateRows',
     'gridAutoFlow', 'gridColumn', 'gridRow', 'flexDirection', 'flexWrap', 'flexGrow', 'flexShrink',
     'flexBasis', 'alignItems', 'alignSelf', 'justifyContent', 'order', 'aspectRatio',
   ];
@@ -102,9 +111,19 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   }
   const elements: ElementObservation[] = [];
   function tagOf(element: Element): string {
-    return element.tagName.toLowerCase() === 'img' && element.getAttribute('data-dl-original-tag') === 'canvas'
-      ? 'canvas' : element.tagName.toLowerCase();
+    const tag = element.tagName.toLowerCase();
+    const original = element.getAttribute('data-dl-original-tag');
+    if (tag === 'img' && original === 'canvas') return 'canvas';
+    if (tag.includes('-') && original === 'p') return 'p';
+    if (element.getAttribute('data-dl-generated') === 'root' && original === 'html') return 'html';
+    if (element.getAttribute('data-dl-generated') === 'body' && original === 'body') return 'body';
+    return tag;
   }
+  const activeHosts = Array.from(document.querySelectorAll('[data-dl-generated="host"]'))
+    .filter((host) => host.shadowRoot && getComputedStyle(host).display !== 'none');
+  if (activeHosts.length > 1) warnings.push('multiple responsive variants are active');
+  const activeCaptureId = activeHosts[0]?.getAttribute('data-dl-source-capture') ?? undefined;
+  const activeBody = activeHosts[0]?.shadowRoot?.querySelector('[data-dl-generated="body"]') ?? document.body;
   const seenIds = new Set<string>();
   let unstamped = 0;
   let visited = 0;
@@ -128,6 +147,8 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     if (visited >= maxElements) { warnings.push(`observation element limit reached (${maxElements})`); break; }
     if (Date.now() >= deadline) { warnings.push('observation deadline reached'); break; }
     const { element, rootPath, domPath, parent } = stack.pop()!;
+    if (!options.includeInactiveVariants && element.getAttribute('data-dl-generated') === 'host'
+        && element.shadowRoot && getComputedStyle(element).display === 'none') continue;
     visited += 1;
     const tag = tagOf(element);
     const dlId = element.getAttribute('data-dl-id');
@@ -152,6 +173,9 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     const image = element instanceof HTMLImageElement ? element : undefined;
     return {
       tag: tagOf(element),
+      ...(element.hasAttribute('data-dl-source-capture') && element.hasAttribute('data-dl-source-id')
+        ? { source: { captureId: element.getAttribute('data-dl-source-capture')!, dlId: element.getAttribute('data-dl-source-id')! } } : {}),
+      ...(element.hasAttribute('data-dl-generated') ? { generated: element.getAttribute('data-dl-generated')! } : {}),
       text: ((element as HTMLElement).innerText ?? element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 500),
       semantic: semanticOf(element, style), domPath, rootPath,
       parentDlId: parent?.getAttribute('data-dl-id') ?? null,
@@ -178,7 +202,8 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   };
   if (fonts.status !== 'ready') warnings.push(`font readiness ${fonts.status}`);
   if (failed.size > 0) warnings.push(`failed font families: ${[...failed].sort().join(', ')}`);
-  const brokenImages = elements.filter((element) => element.image && element.currentSrc && (!element.image.complete || element.image.naturalWidth === 0));
+  const brokenImages = elements.filter((element) => (!activeCaptureId || !element.source || element.source.captureId === activeCaptureId)
+    && element.image && element.currentSrc && (!element.image.complete || element.image.naturalWidth === 0));
   if (brokenImages.length > 0) warnings.push(`unready or failed images: ${brokenImages.map((element) => element.dlId).join(', ')}`);
   const width = Math.max(window.innerWidth, document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
   const height = Math.max(window.innerHeight, document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
@@ -186,7 +211,15 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   return {
     viewport: { width: window.innerWidth, height: window.innerHeight }, deviceScaleFactor: window.devicePixelRatio,
     width, height, rootFontSize: getComputedStyle(document.documentElement).fontSize,
-    fonts, fontFaces, elements, ...(document.body ? { body: measure(document.body, [], 'body', document.body.parentElement) } : {}), complete: warnings.length === 0, warnings,
+    // Only canvas/viewport bridge properties belong here. Element/body typography is measured
+    // above; Chromium may resolve an unused root default-font alias during screenshot painting.
+    rootStyles: Object.fromEntries([
+      'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat',
+      'backgroundAttachment', 'backgroundOrigin', 'backgroundClip', 'colorScheme', 'overflowX', 'overflowY',
+      'scrollBehavior', 'scrollbarGutter', 'overscrollBehaviorX', 'overscrollBehaviorY',
+    ].map((property) => [property, String(Reflect.get(getComputedStyle(document.documentElement), property) ?? '')])),
+    ...(activeCaptureId ? { activeCaptureId } : {}),
+    fonts, fontFaces, elements, ...(activeBody ? { body: measure(activeBody, [], 'body', activeBody.parentElement) } : {}), complete: warnings.length === 0, warnings,
   };
 }
 

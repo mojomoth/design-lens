@@ -79,10 +79,10 @@ export function serializeWithParagraphNormalization(): (PercySerialized & { warn
           element.replaceWith(replacement);
         }
         // Native paragraph defaults belong below all author layers, including zero-specificity
-        // rules. A plain unlayered reset would incorrectly outrank layered source stylesheets.
+        // rules. An anonymous layer cannot merge with or reorder any named source layer.
         const sheet = document.createElement('style');
         sheet.setAttribute('data-dl-paragraph-defaults', alias);
-        sheet.textContent = `@layer ${alias}-ua{:where(${alias}){display:block;margin-block:1em;margin-inline:0;unicode-bidi:isolate}}`;
+        sheet.textContent = `@layer{:where(${alias}){display:block;margin-block:1em;margin-inline:0;unicode-bidi:isolate}}`;
         if (scope === root) (root.querySelector('head') ?? root).prepend(sheet);
         else scope.prepend(sheet);
       }

@@ -529,3 +529,11 @@ Implementation is split into T42–T47, with local-only regression fixtures and 
 live-web validation. Unsupported transformations and original server failures remain disclosed;
 completion does not mean every source page can be certified. No publishing or installed-runtime
 replacement is part of this change.
+
+ADR-028 implementation clarification (T46): specs/03-clone-format.md records a separate composition
+hash because source correspondence lives outside clone/. Saved clone measurements must become
+stale after metadata edits. Manifest-backed identities, shadow paths and generated wrappers are
+validated before they affect fidelity; raw DOM attributes cannot grant exemptions. Inactive
+variants do not consume ordinary active-page measurement limits. Static shadow isolation cannot
+retarget future shared html/body/:root override selectors, so that limitation is diagnosed and
+proxy IDs remain the supported root-edit address. No source evidence or numerical policy changes.

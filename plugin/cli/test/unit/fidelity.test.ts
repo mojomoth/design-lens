@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 
-import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, importantObservation, matchObservation, missingLoadedFonts, normalizeObservationUrls } from '../../src/analyze/fidelity.js';
+import { activeContentIssues, compareObservations, comparePng, FIDELITY_POLICY, importantObservation, matchObservation, missingLoadedFonts, normalizeObservationUrls, validateFidelityComposition, type FidelityComposition } from '../../src/analyze/fidelity.js';
 import type { ElementObservation, ObservationDocument } from '../../src/analyze/observations.js';
 
 function png(width: number, height: number, square = 0): Buffer {
@@ -35,6 +35,20 @@ function document(elements: ElementObservation[]): ObservationDocument {
   };
 }
 
+function composition(): FidelityComposition {
+  return {
+    schemaVersion: 1, boundaryPolicy: 'nearest-width-then-height', warnings: [],
+    variants: [
+      { captureId: 'desktop', viewport: { width: 1440, height: 900 }, media: '(min-width: 900px)', hostId: 'dl-10', rootId: 'dl-11', bodyId: 'dl-12' },
+      { captureId: 'mobile', viewport: { width: 390, height: 844 }, media: '(max-width: 899px)', hostId: 'dl-30', rootId: 'dl-31', bodyId: 'dl-32' },
+    ],
+    elements: [
+      { dlId: 'dl-20', captureId: 'desktop', sourceId: 'dl-1' },
+      { dlId: 'dl-40', captureId: 'mobile', sourceId: 'dl-1' },
+    ],
+  };
+}
+
 describe('fidelity pixel comparison', () => {
   // why: an identical renderer must pass while preserving an inspectable full-resolution diff.
   it('passes identical pixels with the fixed comparison policy', () => {
@@ -60,6 +74,65 @@ describe('fidelity pixel comparison', () => {
 });
 
 describe('capture-local semantic correspondence', () => {
+  // why: identical text and capture-local IDs cannot replace authoritative recorded correspondence.
+  it('uses recorded capture-qualified provenance while rejecting hidden or altered mapped elements', () => {
+    const source = element();
+    const metadata = composition();
+    const first = element({ dlId: 'dl-20', rootPath: ['dl-10'], source: { captureId: 'desktop', dlId: 'dl-1' } });
+    const second = element({ dlId: 'dl-40', rootPath: ['dl-30'], source: { captureId: 'mobile', dlId: 'dl-1' } });
+    expect(matchObservation(source, [source], [first, second], 'mobile', metadata).element?.dlId).toBe('dl-40');
+    expect(matchObservation(source, [source], [first, { ...second, text: 'Edited' }], 'mobile', metadata).reason).toContain('semantic');
+    expect(matchObservation(source, [source], [first, { ...second, visible: false }], 'mobile', metadata).element).toBeNull();
+    expect(matchObservation(source, [source], [first], 'mobile', metadata).reason).toContain('missing');
+    expect(matchObservation(source, [source], [second, { ...second }], 'mobile', metadata).reason).toContain('ambiguous');
+  });
+
+  // why: removing every DOM provenance attribute must not enable fallback to another sampled tree.
+  it('retains capture-qualified identity when DOM source attributes are stripped', () => {
+    const source = element();
+    const first = element({ dlId: 'dl-20', rootPath: ['dl-10'] });
+    const second = element({ dlId: 'dl-40', rootPath: ['dl-30'] });
+    expect(matchObservation(source, [source], [first, second], 'mobile', composition()).element?.dlId).toBe('dl-40');
+    expect(matchObservation(source, [source], [first], 'mobile', composition()).element).toBeNull();
+    expect(matchObservation(source, [source], [second], 'desktop', composition()).element).toBeNull();
+  });
+
+  // why: copying attributes, moving nodes, or forging a generated role must not bless an impostor.
+  it('requires the recorded canonical ID, shadow host, and consistent optional DOM provenance', () => {
+    const source = element();
+    const candidate = element({ dlId: 'dl-40', rootPath: ['dl-30'], source: { captureId: 'mobile', dlId: 'dl-1' } });
+    for (const changed of [
+      { ...candidate, dlId: 'dl-41' }, { ...candidate, rootPath: ['dl-10'] }, { ...candidate, rootPath: [] },
+      { ...candidate, generated: 'root' }, { ...candidate, source: { captureId: 'desktop', dlId: 'dl-1' } },
+      { ...candidate, source: { captureId: 'mobile', dlId: 'dl-2' } },
+    ]) expect(matchObservation(source, [source], [changed], 'mobile', composition()).element).toBeNull();
+    const missing = composition();
+    missing.elements = missing.elements.filter((entry) => entry.captureId !== 'mobile');
+    expect(matchObservation(source, [source], [candidate], 'mobile', missing).reason).toContain('mapping is missing');
+  });
+
+  // why: source shadow hosts also change IDs, and matching only the outer variant hides reparenting.
+  it('validates the complete translated path for nested source shadows', () => {
+    const metadata = composition();
+    metadata.elements.push({ dlId: 'dl-42', captureId: 'mobile', sourceId: 'dl-2' });
+    const source = element({ rootPath: ['dl-2'] });
+    const candidate = element({ dlId: 'dl-40', rootPath: ['dl-30', 'dl-42'] });
+    expect(matchObservation(source, [source], [candidate], 'mobile', metadata).element).toBe(candidate);
+    expect(matchObservation(source, [source], [{ ...candidate, rootPath: ['dl-30'] }], 'mobile', metadata).element).toBeNull();
+    metadata.elements.pop();
+    expect(matchObservation(source, [source], [candidate], 'mobile', metadata).element).toBeNull();
+  });
+
+  // why: generated proxy exemptions come from the manifest; source-provided attributes grant none.
+  it('never maps recorded proxies and ignores untrusted exemptions in legacy semantic matching', () => {
+    const source = element();
+    const proxy = element({ dlId: 'dl-31', generated: 'root', rootPath: ['dl-30'] });
+    expect(matchObservation(source, [source], [proxy], 'mobile', composition()).element).toBeNull();
+    expect(compareObservations(document([source]), document([proxy]), 'mobile', composition())[0].status).toBe('fail');
+    const legacy = element({ dlId: 'dl-80', generated: 'root', source: { captureId: 'spoof', dlId: 'dl-99' } });
+    expect(matchObservation(source, [source], [legacy], 'desktop').element).toBe(legacy);
+  });
+
   // why: a tiny pseudo-element logo can fit the page/header budgets but needs its own regional check.
   it('measures generated pseudo-element regions without adding every layout container', () => {
     const flex = element({ tag: 'div', semantic: 'flex', text: '' });
@@ -175,5 +248,33 @@ describe('inert clone audit', () => {
     const html = Buffer.from('<script>0</script>').toString('base64');
     expect(activeContentIssues(`<object data="data:image/svg+xml,${svg}"></object><iframe src="data:text/html;base64,${html}"></iframe>`)).toHaveLength(2);
     expect(activeContentIssues('<img src="data:image/png;base64,AAAA">')).toEqual([]);
+  });
+});
+
+
+describe('responsive composition metadata validation', () => {
+  // why: warnings alone are not proof that source IDs belong to a recorded sampled document.
+  it('requires complete variants and a globally unique, capture-qualified element map', () => {
+    expect(validateFidelityComposition(composition())).toEqual(composition());
+    const wrongVariants = composition();
+    wrongVariants.variants.push({ ...wrongVariants.variants[0] });
+    const wrongCanonical = composition();
+    wrongCanonical.elements[0].dlId = wrongCanonical.variants[0].hostId;
+    const wrongSource = composition();
+    wrongSource.elements.push({ ...wrongSource.elements[0], dlId: 'dl-90' });
+    const unknownCapture = composition();
+    unknownCapture.elements[0].captureId = 'absent';
+    for (const invalid of [null, {}, { schemaVersion: 1, warnings: [] }, wrongVariants, wrongCanonical, wrongSource, unknownCapture]) {
+      expect(() => validateFidelityComposition(invalid)).toThrow('invalid responsive composition metadata');
+    }
+  });
+
+  // why: an invented or omitted capture must not select convenient evidence through valid-looking IDs.
+  it('checks each variant viewport and capture identity against the evidence', () => {
+    const captures = composition().variants.map((entry) => ({ id: entry.captureId, viewport: entry.viewport }));
+    expect(validateFidelityComposition(composition(), captures)).toEqual(composition());
+    expect(() => validateFidelityComposition(composition(), captures.slice(0, 1))).toThrow();
+    captures[0].viewport.width -= 1;
+    expect(() => validateFidelityComposition(composition(), captures)).toThrow();
   });
 });

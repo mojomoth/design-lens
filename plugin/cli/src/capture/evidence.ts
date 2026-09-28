@@ -93,6 +93,7 @@ function validateObservations(value: unknown): asserts value is ObservationDocum
   assert(object(value), 'observations must be an object');
   assert(viewport(value.viewport) && positive(value.deviceScaleFactor) && positive(value.width) && positive(value.height), 'invalid observation geometry');
   assert(typeof value.rootFontSize === 'string' && typeof value.complete === 'boolean' && strings(value.warnings), 'invalid observation metadata');
+  if (value.rootStyles !== undefined) assert(object(value.rootStyles) && Object.values(value.rootStyles).every((item) => typeof item === 'string'), 'invalid root styles');
   assert(object(value.fonts) && ['ready', 'timeout', 'unavailable'].includes(String(value.fonts.status)) && strings(value.fonts.failedFamilies), 'invalid font readiness');
   if (value.fontFaces !== undefined) {
     assert(Array.isArray(value.fontFaces) && value.fontFaces.every((face) => object(face)

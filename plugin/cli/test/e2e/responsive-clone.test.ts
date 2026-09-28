@@ -31,7 +31,7 @@ function diagnostics(report: FidelityReport): string {
 }
 
 // why: single-viewport inspection cannot prove preservation of source CSS/JS responsive states.
-// These exercise the built capture pipeline, immutable evidence, and one repaired canonical HTML.
+// These exercise the built capture pipeline, immutable evidence, and one automatically composed editable HTML.
 describe('source-to-clone responsive fidelity', () => {
   let root: string; let server: StaticServer;
   beforeAll(async () => {
@@ -65,24 +65,40 @@ describe('source-to-clone responsive fidelity', () => {
     });
   }
 
-  it('detects missing JS mobile structure and validates a bounded static repair at every viewport', async () => {
+  it('preserves JS mobile structure automatically and rejects removed menu or image content', async () => {
     const dir = await clone('responsive');
     const originalEvidence = await fs.readFile(path.join(dir, 'evidence.json'), 'utf8');
+    const evidence = JSON.parse(originalEvidence) as EvidenceDocument;
+    const sourceFiles = await Promise.all(evidence.captures.map(async (capture) => ({
+      snapshot: capture.snapshot, bytes: await fs.readFile(path.join(dir, capture.snapshot)),
+    })));
     const before = JSON.parse(await fs.readFile(path.join(dir, 'fidelity.json'), 'utf8')) as FidelityReport;
-    expect(before.status).toBe('fail');
-    expect(before.captures.find((capture) => capture.viewport.width === 390)?.status).toBe('fail');
+    expect(before.status, diagnostics(before)).toBe('pass');
+    expect(before.captures.every((capture) => capture.status === 'pass')).toBe(true);
+    const mobileCapture = evidence.captures.find((capture) => capture.viewport.width === 390)!;
     const htmlPath = path.join(dir, 'clone/index.html');
-    const $ = cheerio.load(await fs.readFile(htmlPath, 'utf8'));
-    $('nav a').addClass('dl-desktop');
-    $('nav').append('<button class="dl-mobile" data-dl-id="dl-10001">Menu</button>');
-    await fs.writeFile(htmlPath, $.html());
-    await fs.appendFile(path.join(dir, 'clone/assets/dl-overrides.css'),
-      '\n.dl-mobile { display: none; } @media(max-width:599px) { .dl-mobile { display:block; } .dl-desktop { display:none; } }\n');
-    const after = await cli(['fidelity', dir, '--json']);
-    const report = JSON.parse(after.stdout) as FidelityReport;
-    expect(after.code, diagnostics(report)).toBe(0);
-    expect(report.captures.every((capture) => capture.status === 'pass')).toBe(true);
-    expect(await fs.readFile(path.join(dir, 'evidence.json'), 'utf8')).toBe(originalEvidence);
+    const intactHtml = await fs.readFile(htmlPath, 'utf8');
+    for (const selector of ['button', 'img.logo']) {
+      const $ = cheerio.load(intactHtml, { xml: { xmlMode: false } });
+      const host = $(`[data-dl-generated="host"][data-dl-source-capture="${mobileCapture.id}"]`);
+      const removed = host.find(selector);
+      expect(removed.length, selector).toBe(1);
+      removed.remove();
+      await fs.writeFile(htmlPath, $.html());
+      const after = await cli(['fidelity', dir, '--json']);
+      const report = JSON.parse(after.stdout) as FidelityReport;
+      expect(after.code, diagnostics(report)).toBe(1);
+      expect(report.status, diagnostics(report)).toBe('fail');
+      expect(report.captures.find((capture) => capture.viewport.width === 390)?.status).toBe('fail');
+      expect(report.captures.filter((capture) => capture.viewport.width !== 390).every((capture) => capture.status === 'pass'), diagnostics(report)).toBe(true);
+      expect(await fs.readFile(path.join(dir, 'evidence.json'), 'utf8')).toBe(originalEvidence);
+      for (const source of sourceFiles) {
+        expect(await fs.readFile(path.join(dir, source.snapshot))).toEqual(source.bytes);
+      }
+    }
+    await fs.writeFile(htmlPath, intactHtml);
+    const restored = await cli(['fidelity', dir, '--json']);
+    expect(restored.code, restored.stdout).toBe(0);
   });
 
   it('rejects ambiguous viewport options before navigating', async () => {

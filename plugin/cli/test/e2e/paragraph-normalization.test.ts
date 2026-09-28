@@ -94,6 +94,74 @@ describe('script-created paragraph structure survives inert HTML replay', () => 
     } finally { await page.close(); }
   });
 
+  it('preserves supported paragraph pixels beside opaque values, CSS nesting and an invalid selector', async () => {
+    const mixed = `${SHEET}
+      p { color: attr(data-tone type(<color>), rgb(2, 90, 140)); filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#000", endColorstr="#fff") }
+      main { .word { text-decoration: underline } }
+      p[=broken] { font-size: 99px }
+      p:defined { border-left: 4px solid rgb(150, 0, 0) }`;
+    await fs.writeFile(path.join(directory, 'mixed.css'), mixed);
+    await fs.writeFile(path.join(directory, 'mixed.html'), HTML.replace('style.css', 'mixed.css'));
+    const source = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    const clone = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    try {
+      await source.goto(server.url('/mixed.html'));
+      expect(await source.evaluate(() => CSS.supports('color', 'attr(data-tone type(<color>), blue)'))).toBe(true);
+      expect(await source.locator('#split').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(2, 90, 140)');
+      expect(await source.locator('.word').first().evaluate((element) => getComputedStyle(element).textDecorationLine)).toBe('underline');
+      await stampDom(source, []);
+      const before = await source.screenshot();
+      const serialized = await serializeDom(source);
+      const store = new ResourceStore();
+      store.record({ url: server.url('/mixed.css'), status: 200, contentType: 'text/css', body: Buffer.from(mixed), via: 'network' });
+      const localized = localizeDocument(sanitizeHtml(serialized.html), server.url('/mixed.html'), store);
+      expect(localized.warnings.join(' ')).toContain('paragraph selector parsing failed');
+      const stylesheet = localized.assets.find((asset) => asset.contentType === 'text/css')!.body.toString();
+      expect(stylesheet).toContain('p[=broken]');
+      expect(stylesheet).toContain('type(<color>)');
+      expect(stylesheet).toContain(':is(p,*|dl-static-p)');
+      const cloneDir = path.join(directory, 'mixed-clone');
+      await fs.mkdir(path.join(cloneDir, 'assets'), { recursive: true });
+      await fs.writeFile(path.join(cloneDir, 'index.html'), localized.html);
+      for (const asset of localized.assets) {
+        await fs.mkdir(path.dirname(path.join(cloneDir, asset.assetPath)), { recursive: true });
+        await fs.writeFile(path.join(cloneDir, asset.assetPath), asset.body);
+      }
+      await fs.writeFile(path.join(cloneDir, 'assets/dl-overrides.css'), '');
+      await clone.goto(server.url('/mixed-clone/index.html'));
+      expect(await clone.locator('#split').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(2, 90, 140)');
+      expect(await clone.screenshot()).toEqual(before);
+      expect(await source.screenshot()).toEqual(before);
+    } finally { await source.close(); await clone.close(); }
+  });
+
+  it('keeps source layer order when an author layer uses the paragraph default name', async () => {
+    const source = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    const clone = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    try {
+      await source.goto(server.url('/index.html'));
+      await source.setContent(`<!doctype html><style>
+        @layer earlier,dl-static-p-ua;
+        @layer earlier { p { color: red } }
+        @layer dl-static-p-ua { p { color: blue } }
+      </style><p id="split">Color</p>`);
+      await source.evaluate(() => {
+        const block = document.createElement('div');
+        block.textContent = 'Color';
+        document.querySelector('#split')!.replaceChildren(block);
+      });
+      await stampDom(source, []);
+      const before = await source.screenshot();
+      expect(await source.locator('#split').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 0, 255)');
+      const serialized = await serializeDom(source);
+      expect(serialized.warnings).toEqual([]);
+      await clone.setContent(sanitizeHtml(serialized.html));
+      expect(await clone.locator('#split').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 0, 255)');
+      expect(await clone.screenshot()).toEqual(before);
+      expect(await source.screenshot()).toEqual(before);
+    } finally { await source.close(); await clone.close(); }
+  });
+
   it('reports native-UA reversion instead of silently claiming a faithful normalization', async () => {
     const page = await browser.newPage();
     try {

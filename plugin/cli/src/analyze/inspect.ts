@@ -92,18 +92,30 @@ export interface PageProbe {
  * Measure every element under `<body>`. Runs in the page; `selectors` is passed in because a
  * serialized function cannot see this module's scope.
  *
- * The walk deliberately starts at `document.body.querySelectorAll('*')`, which is exactly the set
- * `capture/stamp.ts` stamped: `<body>` itself carries no `data-dl-id` and must never be reported as
- * a hero-image just because the page has a background. `<template>` content is not descended into
- * (querySelectorAll does not), so declarative shadow DOM stays out of the light-DOM inventory.
+ * Walk light DOM and open shadow trees. Generated responsive proxies are not role candidates;
+ * the active proxy body supplies the same context as the original body. Hidden alternatives are
+ * measured but cannot displace visible role candidates.
  */
 export function probeElements(selectors: readonly string[]): PageProbe {
-  const bodyStyle = getComputedStyle(document.body);
+  const activeHost = Array.from(document.querySelectorAll('[data-dl-generated="host"]'))
+    .find((host) => host.shadowRoot && getComputedStyle(host).display !== 'none');
+  const activeBody = activeHost?.shadowRoot?.querySelector('[data-dl-generated="body"]') ?? document.body;
+  const bodyStyle = getComputedStyle(activeBody);
   const probes: ElementProbe[] = [];
-  const elements = Array.from(document.body.querySelectorAll('*'));
+  const elements: Element[] = [];
+  const stack = Array.from(document.body.children).reverse();
+  while (stack.length > 0) {
+    const element = stack.pop()!;
+    if (element.getAttribute('data-dl-generated') === 'host' && element.shadowRoot
+        && getComputedStyle(element).display === 'none') continue;
+    elements.push(element);
+    stack.push(...Array.from(element.children).reverse());
+    if (element.shadowRoot) stack.push(...Array.from(element.shadowRoot.children).reverse());
+  }
 
   for (let docIndex = 0; docIndex < elements.length; docIndex += 1) {
     const element = elements[docIndex];
+    if (element.hasAttribute('data-dl-generated') || ['style', 'link', 'template'].includes(element.tagName.toLowerCase())) continue;
     const style = getComputedStyle(element);
     const box = element.getBoundingClientRect();
     const rect = {
@@ -150,11 +162,13 @@ export function probeElements(selectors: readonly string[]): PageProbe {
     }
 
     const parent = element.parentElement;
-    const parentTag = parent ? parent.tagName.toLowerCase() : '';
+    const parentTag = parent?.getAttribute('data-dl-generated') === 'body' ? 'body' : parent ? parent.tagName.toLowerCase() : '';
+    const physicalTag = element.tagName.toLowerCase();
+    const tag = physicalTag.includes('-') && element.getAttribute('data-dl-original-tag') === 'p' ? 'p' : physicalTag;
 
     probes.push({
       dlId: element.getAttribute('data-dl-id'),
-      tag: element.tagName.toLowerCase(),
+      tag,
       rawText,
       hasDirectText,
       src,

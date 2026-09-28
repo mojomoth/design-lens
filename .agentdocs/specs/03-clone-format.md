@@ -167,3 +167,14 @@ data-dl-source-id provenance; generated proxies carry data-dl-generated markers.
 and manifest versions remain readable. Capture comparisons may include diagnosticOnly: true;
 these may contain screenshots and measurements but retain status unverified. Integrity failures
 or absent images are never used as a source for diagnostic image comparisons.
+
+For composed output, fidelity admits correspondence and generated-proxy exemptions only from
+validated manifest entries at their recorded shadow paths; DOM provenance attributes alone are
+not authority. Its optional `compositionHash` records the SHA-256 of the composition JSON. Changes
+to that metadata invalidate saved clone measurements just as changes to clone files do. Ordinary
+fidelity measures the active variant; explicit complete inspection can include inactive variants.
+
+The shared override stylesheet is linked last in each generated shadow root. Canonical ID rules
+address its elements directly. Future `html`, `body`, or `:root` override selectors do not address
+shadow proxies; such rules receive an unverified diagnostic and should target recorded root/body
+IDs instead. Source root selectors are transformed during initial composition.
