@@ -12,7 +12,7 @@ M1 spine, M2 fidelity, M3 polish — the spine must stay green while fidelity la
 - The CLI MUST be a self-contained npm package at `plugin/cli/` (no npm workspaces), bundled by
   tsup to the committed `plugin/cli/dist/design-lens.cjs`. npm scripts MUST be exactly
   `typecheck`, `test`, `e2e`, `build`, `verify` (sealed gate calls these names). `--version` MUST
-  print `0.3.0`, identical to both plugin manifests (AC-10).
+  print `0.4.0`, identical to both plugin manifests (AC-10).
 - I/O discipline: human-readable progress → stderr; machine output (JSON) → stdout — nothing
   else ever goes to stdout; exit 0 on success (warnings allowed), exit 1 on fatal errors.
 - `playwright` and `@ghostery/adblocker-playwright` MUST be resolved via
@@ -84,7 +84,8 @@ Stages run in this order; each stage is one module with unit tests.
    remote and are recorded in `manifest.remote[]` (refetch lands in M2). Always left alone:
    `data:`, `mailto:`, fragments; `<a href>` page links stay absolute to the live web;
    cross-origin iframes stay remote (recorded). Bulk media (mp4/webm/mp3/pdf/zip) stays remote
-   unless `--include-media`; bodies over `--max-asset-mb` (default 25) stay remote and are
+   unless `--include-media`; in the default `--media poster` mode a painted video is instead
+   replaced by its captured frame or poster (ADR-030); bodies over `--max-asset-mb` (default 25) stay remote and are
    recorded with reason `oversize`.
 7. **Beautify** (`output/beautify.ts`) — js-beautify (`html-beautify` + `css-beautify`): indent 2,
    `unformatted: ['pre', 'textarea', 'code']`, wrap 0. Pretty-printing is a HARD requirement — it
@@ -157,7 +158,7 @@ Stages run in this order; each stage is one module with unit tests.
 ### Command surface (commander; `src/index.ts` is wiring only)
 | Command | Purpose | Flags (defaults) |
 |---|---|---|
-| `clone <url>` | full pipeline → `.design-lens/<slug>/` | `--project <name>` · `--out <dir>` (`./.design-lens`) · `--viewport <WxH>` (`1440x900`) · `--dsf <n>` (1) · `--timeout <s>` (90, SECONDS, whole run) · `--settle <ms>` (1500) · `--no-scroll` · `--no-block-cookies` · `--filter-list <file>` · `--remove-selector <css>` (repeatable) · `--max-asset-mb <n>` (25) · `--include-media` · `--user-agent <ua>` |
+| `clone <url>` | full pipeline → `.design-lens/<slug>/` | `--project <name>` · `--out <dir>` (`./.design-lens`) · `--viewport <WxH>` (`1440x900`) · `--dsf <n>` (1) · `--timeout <s>` (90, SECONDS, whole run) · `--settle <ms>` (1500) · `--no-scroll` · `--no-block-cookies` · `--filter-list <file>` · `--remove-selector <css>` (repeatable) · `--max-asset-mb <n>` (25) · `--include-media` (alias of `--media include`) · `--media <remote\|poster\|include>` (`poster`) · `--lazy-images <eager\|native>` (`eager`) · `--readiness-ms <ms>` (5000, ≥ 1000) · `--readiness-retries <n>` (2, 0–5) · `--freeze-timers` (off) · `--capture-attempts <n>` (2, 1–4) · `--user-agent <ua>` |
 | `tokens <projectDir>` | captured CSS → `tokens.json` | `--stdout` |
 | `inspect <projectDir>` | live element inventory → JSON on stdout | `--kind <role>` · `--pretty` |
 | `screenshot <projectDir\|--url U>` | PNG of clone or live URL | `--out <file>` · `--full-page` · `--width/--height` · `--dsf <n>` (2) |
@@ -316,3 +317,28 @@ auto contain-intrinsic-width/height fallbacks. This transfers the browser's reme
 size without fixing the element's actual width or height. Keep explicit hidden content unchanged;
 rendering or editing visible content can recalculate layout and update the remembered size. Source
 DOM and immutable evidence are not rewritten during replay.
+
+### Capture stabilization (ADR-030)
+Stabilization flags are validated with the other options before any browser starts; a
+`--media` value conflicting with `--include-media` is an error. Eager mode promotes `loading=lazy`
+images and frames before readiness. Readiness retries with a doubling window while reserving
+`max(15 s, 35%)` of the remaining capture budget, stops once nothing visible is pending, and treats
+hidden-only pending images as a disclosure rather than a warning; observations count only visible
+broken images. An unloaded image has a 0x0 box by construction, so a pending or failed image is
+hidden only when CSS hides it (`checkVisibility`) or it has an explicit zero width/height. `poster` media mode classifies each media element as `captured-frame`,
+`poster-attr`, `none` or `invisible`; painted substitutions move `src` (and child `<source src>`)
+verbatim to `data-dl-original-src`, keep the poster, IDs and structure, and are recorded in
+`manifest.substituted[]`; `none` keeps today's `media-skipped` warning. `--freeze-timers` installs
+timer wrappers only when set and suppresses callbacks after readiness. SMIL animations are paused
+and `<marquee>` elements stopped by default in capture and in the fidelity re-render, which also
+applies the capture's recorded `--media` policy. While screenshot scripts are paused, a constructed
+stylesheet keeps `<noscript>` unrendered (a style recalc with scripts disabled would otherwise
+render its fallback markup and keep it after scripts resume; the clone strips `<noscript>`). State
+consistency is retried up to `--capture-attempts`; a persistent difference keeps the existing
+warning prefix plus a diff summary, without a duplicate warning. Unread bodies whose bytes were
+stored anyway are reconciled; non-design resource types become disclosures. Late unstamped body
+elements receive unused IDs before observation (disclosed); `--remove-selector` and consent
+cosmetic matches that the page re-inserted after the first stamping are removed again first. Disclosures appear in evidence,
+REPORT.md and fidelity but never make evidence incomplete; motion is never verified. Iframes
+still make a capture incomplete, `renderScreenshot`/`screenshot` behavior is unchanged, and the
+ADR-028 fidelity thresholds and negative controls remain unchanged.

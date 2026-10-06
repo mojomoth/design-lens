@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 
 import { runValidateDesign } from '../analyze/design-validation.js';
+import { recordVerdict } from '../lib/runlog.js';
 
 export { runValidateDesign } from '../analyze/design-validation.js';
 
@@ -17,6 +18,7 @@ export function registerValidateDesignCommand(program: Command): void {
           process.stderr.write(`Design validation: ${result.report.status}\n`);
           for (const issue of result.report.issues) process.stderr.write(`${issue}\n`);
         }
+        recordVerdict(result.report.status);
         if (result.report.status !== 'pass') process.exitCode = 1;
       } catch (error) {
         process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);

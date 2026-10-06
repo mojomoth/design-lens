@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QA study — working interactions</title>
+  <!-- Every control here WORKS, in ways that change no DOM: a scroll-snap carousel button, a popover
+       button, hash routes, a scripted link into a shadow root. Icons sit under a fixed cookie bar and
+       one under an absolutely positioned cover. qa must report none of them as broken. -->
+  <style>
+    body { margin: 0; font: 16px/1.5 sans-serif; padding-bottom: 240px; }
+    nav, .carousel, .menu { padding: 12px 16px; }
+    nav a { margin-right: 12px; }
+    .track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; width: 300px; }
+    .slide { flex: 0 0 300px; height: 120px; scroll-snap-align: start; display: grid; place-items: center; background: #eef; }
+    .slide:nth-child(even) { background: #fde; }
+    .icons { list-style: none; margin: 0; padding: 16px; }
+    .icons li { height: 120px; }
+    .covered { position: relative; height: 120px; padding: 16px; }
+    .covered .cover { position: absolute; left: 0; top: 0; width: 120px; height: 120px; background: #fff; }
+    .cookie { position: fixed; left: 0; right: 0; bottom: 0; height: 220px; background: #fff; border-top: 1px solid #ccc; padding: 16px; }
+  </style>
+</head>
+<body>
+  <nav><a href="#/">Home</a><a href="#/about">About</a><a href="#/work">Work</a></nav>
+  <main id="view">Home view</main>
+  <section class="carousel">
+    <div class="track"><div class="slide">Slide one</div><div class="slide">Slide two</div><div class="slide">Slide three</div></div>
+    <button type="button" class="next">Next slide</button>
+  </section>
+  <section class="menu">
+    <button type="button" popovertarget="menu">Open menu</button>
+    <div id="menu" popover>Menu items</div>
+  </section>
+  <letter-panel></letter-panel>
+  <ul class="icons">
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+    <li><img src="check.svg" width="48" height="48" alt=""></li>
+  </ul>
+  <div class="covered"><img src="check.svg" width="48" height="48" alt=""><div class="cover"></div></div>
+  <div class="cookie">We use cookies only for this study page.</div>
+  <script>
+    const views = { '#/': 'Home view', '#/about': 'About view', '#/work': 'Work view' };
+    addEventListener('hashchange', () => { document.getElementById('view').textContent = views[location.hash] ?? 'Home view'; });
+    document.querySelector('.next').addEventListener('click', () => { document.querySelector('.track').scrollBy({ left: 300 }); });
+    customElements.define('letter-panel', class extends HTMLElement {
+      constructor() {
+        super();
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = '<a class="jump" href="#letter">Read the letter</a> <a class="dead" href="#notes">Notes</a><section id="letter" style="margin-top:1600px">Letter</section><section id="notes" style="margin-bottom:400px">Notes</section>';
+        root.querySelector('.jump').addEventListener('click', (event) => { event.preventDefault(); root.getElementById('letter').scrollIntoView(); });
+      }
+    });
+  </script>
+</body>
+</html>

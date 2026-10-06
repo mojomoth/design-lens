@@ -11,6 +11,7 @@ import * as csstree from 'css-tree';
 import type { Browser, Page } from 'playwright';
 
 import type { PlaywrightModule } from '../capture/browser.js';
+import { disclosureLine } from '../capture/disclosures.js';
 import { stabilize } from '../capture/stabilize.js';
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { startStaticServer } from '../lib/static-server.js';
@@ -59,6 +60,10 @@ export interface CaptureComparison {
   /** Incomplete but intact evidence can explain differences without certifying a match. */
   diagnosticOnly?: boolean;
   issues: string[];
+  /** How the source state was produced (capture stabilization); never part of `issues`. */
+  disclosures?: string[];
+  /** Source element IDs whose motion was reduced to still pixels; motion is never verified. */
+  motionUnverified?: string[];
   viewportImage?: ImageComparison;
   fullImage?: ImageComparison;
   elements: ElementComparison[];
@@ -313,6 +318,29 @@ export function missingLoadedFonts(source: ObservationDocument, clone: Observati
     .map((face) => `source font face is missing or unloaded: ${face.family} (${face.style}, ${face.weight}, ${face.stretch})`);
 }
 
+/**
+ * Paints `rects` (document CSS px) one flat colour in a copy of `bytes`. A stopped marquee halts at
+ * whatever offset its motion had reached, which differs between capture and re-render; its box is
+ * excluded from the pixel comparison on both sides while its geometry is still compared.
+ */
+function maskRects(bytes: Buffer, rects: ReadonlyArray<ElementObservation['rect']>, dsf: number): Buffer {
+  if (rects.length === 0) return bytes;
+  const png = PNG.sync.read(bytes);
+  for (const rect of rects) {
+    const left = Math.max(0, Math.floor(rect.x * dsf));
+    const top = Math.max(0, Math.floor(rect.y * dsf));
+    const right = Math.min(png.width, Math.ceil((rect.x + rect.width) * dsf));
+    const bottom = Math.min(png.height, Math.ceil((rect.y + rect.height) * dsf));
+    for (let y = top; y < bottom; y += 1) {
+      for (let x = left; x < right; x += 1) {
+        const offset = (y * png.width + x) * 4;
+        png.data[offset] = 255; png.data[offset + 1] = 0; png.data[offset + 2] = 255; png.data[offset + 3] = 255;
+      }
+    }
+  }
+  return PNG.sync.write(png);
+}
+
 /** Crop without scaling. Out-of-image geometry is reported rather than silently clamped away. */
 function regionPng(png: PNG, rect: ElementObservation['rect'], dsf: number): Buffer | null {
   const x = Math.max(0, Math.floor(rect.x * dsf));
@@ -516,6 +544,15 @@ async function compareCapture(
     result.diagnosticOnly = true;
     result.issues.push(...capture.warnings, 'source capture is incomplete');
   }
+  const stabilization = capture.stabilization;
+  if (stabilization && stabilization.disclosures.length > 0) result.disclosures = stabilization.disclosures.map(disclosureLine);
+  const still = new Set<string>([
+    ...(stabilization?.substitutions ?? []).filter((entry) => entry.lost.includes('motion')).map((entry) => entry.referencedBy),
+    ...(stabilization?.disclosures ?? []).filter((entry) => entry.code === 'smil-paused' || entry.code === 'marquee-stopped')
+      .flatMap((entry) => entry.dlIds ?? []),
+  ]);
+  const marquees = new Set((stabilization?.disclosures ?? []).filter((entry) => entry.code === 'marquee-stopped').flatMap((entry) => entry.dlIds ?? []));
+  if (still.size > 0) result.motionUnverified = [...still].sort((left, right) => left.localeCompare(right, 'en', { numeric: true }));
   if (capture.browserVersion !== browser.version()) {
     result.diagnosticOnly = true;
     result.issues.push(`browser version differs from capture: ${capture.browserVersion} versus ${browser.version()}`);
@@ -551,7 +588,11 @@ async function compareCapture(
       if (response.status() >= 400) failures.add(`HTTP ${response.status()}: ${response.url()}`);
     });
     await page.goto(`${origin}/index.html`, { waitUntil: 'load', timeout: 30_000 });
-    const stabilized = await bounded(stabilize(page, Date.now() + 15_000, { activeResponsiveOnly: Boolean(composition) }), 16_000);
+    // The capture's media policy decides which src-less videos are expected: under `poster`, a hidden
+    // substituted video has neither frame nor poster by design and must not block certification.
+    const stabilized = await bounded(stabilize(page, Date.now() + 15_000, {
+      activeResponsiveOnly: Boolean(composition), media: capture.stabilization?.policy.media ?? 'remote',
+    }), 16_000);
     if (!stabilized.complete) result.issues.push(...stabilized.warnings);
     const provenance = await auditCompositionDom(page, capture.id, composition);
     result.issues.push(...provenance.issues);
@@ -577,8 +618,8 @@ async function compareCapture(
     }
     const cloneViewport = await page.screenshot({ fullPage: false, animations: 'disabled', caret: 'hide', timeout: 30_000 });
     const cloneFull = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide', timeout: 30_000 });
-    const sourceViewport = capture.viewportScreenshot ? await fs.readFile(await resolveEvidencePath(root, capture.viewportScreenshot)) : null;
-    const sourceFull = capture.fullScreenshot ? await fs.readFile(await resolveEvidencePath(root, capture.fullScreenshot)) : null;
+    const sourceViewportBytes = capture.viewportScreenshot ? await fs.readFile(await resolveEvidencePath(root, capture.viewportScreenshot)) : null;
+    const sourceFullBytes = capture.fullScreenshot ? await fs.readFile(await resolveEvidencePath(root, capture.fullScreenshot)) : null;
     const prefix = capture.id.replace(/[^a-zA-Z0-9_-]/g, '_');
     const write = async (name: string, bytes: Buffer): Promise<string> => {
       const file = path.join(outputDir, `${prefix}-${name}.png`);
@@ -586,17 +627,26 @@ async function compareCapture(
       return path.relative(root, file).split(path.sep).join('/');
     };
     result.screenshots = { viewport: await write('clone-viewport', cloneViewport), full: await write('clone-full', cloneFull) };
-    const viewport = sourceViewport ? comparePng(sourceViewport, cloneViewport) : null;
-    const full = sourceFull ? comparePng(sourceFull, cloneFull) : null;
+    result.elements = compareObservations(source, observations, capture.id, composition);
+    // Both sides mask the union of the source and clone boxes of every stopped marquee (see maskRects).
+    const masked = result.elements.filter((compared) => marquees.has(compared.sourceId)).flatMap((compared) => [
+      source.elements.find((element) => element.dlId === compared.sourceId)?.rect,
+      compared.cloneId ? observations.elements.find((element) => element.dlId === compared.cloneId)?.rect : undefined,
+    ]).filter((rect): rect is ElementObservation['rect'] => rect !== undefined && rect.width > 0 && rect.height > 0);
+    const mask = (bytes: Buffer): Buffer => maskRects(bytes, masked, capture.deviceScaleFactor);
+    const sourceViewport = sourceViewportBytes ? mask(sourceViewportBytes) : null;
+    const sourceFull = sourceFullBytes ? mask(sourceFullBytes) : null;
+    const viewport = sourceViewport ? comparePng(sourceViewport, mask(cloneViewport)) : null;
+    const maskedCloneFull = mask(cloneFull);
+    const full = sourceFull ? comparePng(sourceFull, maskedCloneFull) : null;
     if (viewport?.diff) viewport.comparison.diff = await write('diff-viewport', viewport.diff);
     if (full?.diff) full.comparison.diff = await write('diff-full', full.diff);
     if (viewport) result.viewportImage = viewport.comparison;
     else result.issues.push('source viewport image is unavailable');
     if (full) result.fullImage = full.comparison;
     else result.issues.push('source full image is unavailable');
-    result.elements = compareObservations(source, observations, capture.id, composition);
     const sourcePng = sourceFull ? PNG.sync.read(sourceFull) : null;
-    const clonePng = PNG.sync.read(cloneFull);
+    const clonePng = PNG.sync.read(maskedCloneFull);
     let comparedPixels = 0;
     for (let index = 0; index < result.elements.length; index += 1) {
       const compared = result.elements[index];
@@ -611,6 +661,9 @@ async function compareCapture(
       }
       const expectedRegion = regionPng(sourcePng, original.rect, capture.deviceScaleFactor);
       const actualRegion = regionPng(clonePng, actual.rect, capture.deviceScaleFactor);
+      // Clipped carousel slides lie beyond the document image on both sides: no pixels to compare,
+      // and their geometry was already compared above.
+      if (!expectedRegion && !actualRegion) continue;
       if (!expectedRegion || !actualRegion) {
         compared.status = 'fail';
         compared.issues.push('visible region is outside the captured image');

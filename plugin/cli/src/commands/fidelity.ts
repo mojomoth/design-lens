@@ -1,6 +1,7 @@
 import type { Command } from 'commander';
 
 import { runFidelity } from '../analyze/fidelity.js';
+import { recordVerdict } from '../lib/runlog.js';
 
 export { runFidelity } from '../analyze/fidelity.js';
 
@@ -22,6 +23,7 @@ export function registerFidelityCommand(program: Command): void {
           for (const issue of result.report.inertIssues) process.stderr.write(`${issue}\n`);
           process.stderr.write('Detailed measurements and image differences: fidelity.json\n');
         }
+        recordVerdict(result.report.status);
         if (result.report.status !== 'pass') process.exitCode = 1;
       } catch (error) {
         process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);

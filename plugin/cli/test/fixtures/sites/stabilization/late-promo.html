@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Late Promo Fixture — Design Lens</title>
+  <style>body { margin: 0; font-family: sans-serif; } .promo { background: #fd0; padding: 12px; }</style>
+</head>
+<body>
+  <!-- A promo banner the user removes with --remove-selector .promo; the page re-inserts it as soon
+       as the capture stamps the heading, i.e. after the first removal. -->
+  <div class="promo">EARLY BANNER</div>
+  <h1 id="title">Late promo</h1>
+  <script>
+    new MutationObserver((records, observer) => {
+      if (!document.getElementById('title').hasAttribute('data-dl-id')) return;
+      observer.disconnect();
+      const promo = document.createElement('div');
+      promo.className = 'promo';
+      promo.textContent = 'LATE BANNER';
+      document.body.append(promo);
+    }).observe(document.getElementById('title'), { attributes: true });
+  </script>
+</body>
+</html>

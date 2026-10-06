@@ -17,7 +17,8 @@ with `npx -y design-lens setup` instead, then retry.
    continue through clone-reference using the known reference. Substitute the actual project path
    for `.design-lens/<slug>/` in the examples below.
 
-2. Read `manifest.json`, REPORT.md and any `evidence.json` / `fidelity.json`. Source observations
+2. Read `manifest.json` and REPORT.md; query any `evidence.json` / `fidelity.json` with targeted
+   reads (status, warnings, the captures and elements you need), never whole. Source observations
    belong to a particular capture ID and viewport in `evidence.json`; the same `dl-N` in another
    capture does not establish the same element. `inspect` measures the current editable clone,
    including overrides. Its `page.source` is `clone`, so do not present these measurements as
@@ -28,31 +29,33 @@ with `npx -y design-lens setup` instead, then retry.
    source identity; the manifest composition maps it to the canonical element. Use the inspected
    clone ID for edits and that provenance for source lookup.
 
-   Use the capture dimensions for a focused question. For a complete inventory, measure all
-   stamped elements instead of limiting the result to the original role heuristics:
+   Start with the compact lite inventory across the captured sizes, then target what matters with
+   repeated `--id` and `--selector` (CSS selectors are evaluated in the document and every open
+   shadow root; IDs come first in the output):
 
    ```
-   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --all --details --pretty
-   ```
-
-   This covers text, cards, forms, tables, containers, hidden alternatives and open shadow roots.
-   Use `--kind <role> --details` when only one existing role is relevant. For actual layout
-   parents and targets identified in a small HTML window, batch direct IDs:
-
-   ```
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --lite --viewports 1440x900,768x1024,390x844
+   ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --lite --viewports 1440x900,768x1024,390x844 --id <target-id> --selector "<css>"
    ~/.design-lens/bin/design-lens inspect .design-lens/<slug> --viewport <width>x<height> --id <target-id> --id <parent-id> --pretty
    ```
 
-   Direct lookup implies details and searches open shadow roots as well as the document. It
-   preserves requested order and reports missing or ambiguous IDs. Do not combine `--id` with
-   `--kind`, or `--all` with either selection option. Follow `parentDlId`, `childDlIds` and
+   Lite elements give `r` (x, y, width, height in document CSS px), a `font` string
+   (family|size/line height|weight|letter spacing|transform), colors, box, layout, effects and
+   pseudo content, omitting empty values; `v: 0` marks a match in an inactive sampled variant and
+   `id: null` with a `path` marks an unstamped match. Each selector returns at most 20 matches;
+   truncation appears in `page.warnings`. Without `--lite`, `--id` and `--selector` return full
+   details. Use `--all --details` at one viewport only when a complete stamped inventory is needed,
+   and `--kind <role> --details` when only one existing role is relevant. Direct lookup searches
+   open shadow roots as well as the document and reports missing or ambiguous IDs. Do not combine
+   `--kind` with `--id` or `--selector`, `--all` with any selection, or `--viewport` with
+   `--viewports`; `--viewports` requires `--lite`. Follow `parentDlId`, `childDlIds` and
    `rootPath` for relationships and shadow boundaries; consult `page.body` and `page.rootFontSize`
-   for the document root. Ordinary CSS selectors cannot cross a shadow boundary: resolve the
+   for the document root. A selector never matches across a shadow boundary: resolve the
    recorded host path when inspecting that descendant. Read `pseudo`, `visual` and image
    readiness for generated content, backgrounds, gradients, cropping and missing media.
 
-3. For responsive appearance, repeat relevant measurements at 1440x900, 768x1024 and 390x844.
-   Record each viewport and include any additional requested capture size. Match a source
+3. For responsive appearance, measure 1440x900, 768x1024 and 390x844 in one `--lite --viewports`
+   call. Record each viewport and include any additional requested capture size. Match a source
    observation only to its recorded viewport. When a claim depends on source fidelity, run:
 
    ```
@@ -99,9 +102,10 @@ with `npx -y design-lens setup` instead, then retry.
    established; do not substitute a convenient grid. Palette/type/spacing candidates may include
    inactive rules. Prefer actual computed values for the component and viewport being discussed.
 
-6. State that this is a LIVE inventory: inspect itself writes no inventory into the project and
-   measurements go stale after edits. Fidelity comparisons produce their own dated images and
-   current report without changing source evidence. Re-run the relevant measurement after edits.
+6. State that this is a LIVE inventory: inspect itself writes nothing into the project (at most a
+   run-log line in the enclosing `.design-lens/RUNLOG.jsonl`) and measurements go stale after
+   edits. Fidelity comparisons produce their own dated images and current report without
+   changing source evidence. Re-run the relevant measurement after edits.
    If inspection is a
    prerequisite for a change already requested, continue into customize-clone with that target;
    do not ask the user to pick it again. For inspection-only work, finish with the useful inventory

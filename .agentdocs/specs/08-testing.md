@@ -153,7 +153,9 @@ authority; this suite is the fast local proxy that must make it pass.
   `.harness/fixture/`) — read-only; their assertions are mirrored in ACCEPTANCE.md.
 - Live-web or real-site testing (manual, post-loop, per ACCEPTANCE.md "Manual").
 - Numerical LLM quality scores. Deterministic source-to-clone pixel/geometry checks are required
-  by ADR-023; independent design interpretation remains a recorded evidence review.
+  by ADR-023; independent design interpretation remains a recorded evidence review. The ADR-030
+  retention and reference-fidelity numbers are deterministic consistency gates over
+  agent-authored tables, not LLM quality scores.
 - Testing the Codex install leg (ACCEPTANCE.md AC-18 handles it; demotable to a warning).
 
 ## Verified facts
@@ -186,3 +188,24 @@ height changes, stale hashes and incomplete evidence. Cover base/redirect/SVG/CS
 image-set/SRI/CSP/srcdoc resources, alpha/calc/font shorthand/selector token failures, and false
 measurement citations. Independent agents exercise the actual skills and implement from a
 blueprint; retain reproducible inputs/results with generated artifacts outside the repository.
+
+### Tone, validation, build QA, inspection, capture and run-log coverage (ADR-030)
+Unit tests cover pixel lightness/histograms and tone bands on synthetic PNGs, markdown and build
+contract parsing, every new validate-design failure mode (typeface forms, tone rows, stale tone as
+unverified, signature citations and kinds, stale design basis as fail, selection basis, retention
+range, quote verification, contract cross-checks, reference fidelity missing/failed/unverified/
+unconfirmed/older run/failed signature check, `documents` fields), qa's number tokenizer and unit
+classes, LCS, review codes and contract evaluation, run-log location/redaction/summary, and
+capture diffing, media substitution and stabilization validation. E2E spawns the bundle: a
+`qa-study` fixture reproduces the experiment's defects (span tabs with and without pointer/hover
+styles, five-label `#footer` links, a self-anchor with ↗, a fixed button covering 18% of a CTA, an
+inverted opaque PNG icon, a 5 px masked overflow, unsourced month counts) and must fail with each
+check id, while a clean page with content passes; wrong review codes write no `review.json`; a
+`--project` case covers lineage in both modes, source assets and contract checks. Inspect lite,
+selector and multi-viewport cases keep flagless output identical. Capture cases cover poster
+substitution, lazy/hidden images, timer freezing (opt-in; the existing incomplete timer case stays
+green without it) and SMIL. Run-log cases prove nested layouts log once and `DESIGN_LENS_RUNLOG=off`
+logs nothing. Existing assertions keep their outcomes; changed defaults keep the old behavior
+covered under the opt-out flag. The 0.4.0 skills get fresh independent local evaluations
+exercising qa, qa-confirm and reference fidelity, recorded under `test/evaluations/0.4.0/`
+together with the external baseline that motivated them.

@@ -39,6 +39,7 @@ import type { Command } from 'commander';
 
 import { OVERRIDES_LOCAL_PATH } from '../analyze/css-sources.js';
 import { OVERRIDES_HREF } from '../localize/localize.js';
+import { recordVerdict } from '../lib/runlog.js';
 import { PROVENANCE_LINE } from '../output/provenance.js';
 
 /** The cheerio document API, named without importing a second cheerio export (tsup aliases the package). */
@@ -428,6 +429,7 @@ export function registerVerifyCommand(program: Command): void {
         const result = runVerify(projectDir);
         if (options.json === true) process.stdout.write(result.json);
         // A violated invariant is a failed run, not a thrown error: no `error:` line, just exit 1.
+        recordVerdict(result.report.ok ? 'pass' : 'fail');
         if (!result.report.ok) process.exitCode = 1;
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);

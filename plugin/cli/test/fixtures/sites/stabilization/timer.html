@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Timer Fixture — Design Lens</title></head>
+<body>
+  <!-- A ticker that never stops: without a timer freeze the capture must stay incomplete. -->
+  <p id="counter">0</p>
+  <script>setInterval(() => { counter.textContent = Number(counter.textContent) + 1; }, 20);</script>
+</body>
+</html>

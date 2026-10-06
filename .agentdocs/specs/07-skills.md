@@ -43,7 +43,8 @@ portability rules, the exact frontmatter, and the body procedure of each of the 
   MUST include the literal closing rule "Never open the cloned index.html's full contents into
   context — it is large; use grep and targeted reads."; `inspect-elements` MUST state its output
   is a LIVE inventory, not a saved manifest, re-run after edits; `build-from-design` MUST require
-  DESIGN.md, build in the USER'S stack, and copy zero assets/text/logo from the clone.
+  DESIGN.md, build in the USER'S stack, and copy zero assets/text/logo from the clone (its
+  explicit `clone-base` mode keeps only a copy's markup skeleton and layout stylesheets, ADR-030).
 - `reverse-design` MUST ship three support files inside its folder: `LENSES.md`,
   `templates/DESIGN.template.md`, `templates/VARIATIONS.template.md`. Their contents, the 12
   required DESIGN headings (gate AC-13), and the analysis methodology are specified in spec 04
@@ -88,6 +89,7 @@ Run through every line before the user deploys anything derived from a reference
 - Photography replaced or licensed (font/image source hosts are listed in REPORT.md)
 - Fonts licensed for the user's use
 - No trademarks, mascots, or brand names remain — finish with `grep -ri "<brand-name>"` over the output
+- Clone-base builds: before deploying, rewrite the retained captured markup and stylesheets or confirm the right to reuse them (they are the reference's code); local comparison builds may keep them
 - The shipped work is a derivation, not a copy
 Report anything that still contains original brand material.
 ```
@@ -144,13 +146,15 @@ Read conversation and project structure, framework, components, tokens, content 
 tasks before asking for missing essentials. A new-page request authorizes necessary capture,
 analysis, recommendation, implementation and verification. Require DESIGN.md and VARIATIONS.md,
 creating or refreshing needed evidence via the other skills while preserving existing user
-decisions. Use the user's chosen direction or the best-fit recommendation. Before coding, record
+decisions. Use the user's chosen direction, otherwise the highest signature-retention score when
+the brief prioritizes the reference's design language, otherwise the best-fit recommendation. Before coding, record
 target brief, selected reusable principles, deliberate structural changes and planned acceptance
 checks in VARIATIONS.md. Build in the USER'S existing stack/design system; default HTML/CSS in
 an empty project with only necessary JavaScript. Adapt hierarchy and composition to the product's
 content and tasks. Copy zero reference assets/text/logos and invent no customers/prices/results.
 Implement semantic controls, meaningful destinations, relevant states and keyboard access.
-Serve the result and capture AND VIEW 1440×900, 768×1024 and 390×844 at DSF 1 with new filenames.
+Serve the result and capture AND VIEW 1440×900, 768×1024 and 390×844 at DSF 1 through `qa` review
+images (confirmed with `qa-confirm`), adding new-filename screenshots for other states.
 Repair hierarchy, wrapping, density, overflow and interaction problems using available browser
 tools and relevant project checks. Report unavailable checks honestly. Record actual checks and
 evidence in VARIATIONS.md and return applied principles, changes, paths and limits. Keep the
@@ -192,3 +196,29 @@ no improvement, preserve the best complete result and report remaining failures.
 thresholds or hide differing regions to obtain pass. Reverse-design consumes capture observations
 and comprehensive inspection, produces implementation tables and runs validate-design. All five
 skills share the new evidence boundaries; original captures stay unchanged.
+
+### Reference-faithful skill contracts (ADR-030)
+Descriptions and frontmatter are unchanged. Both brand checklists are byte-identical (the drift
+between `rg -ni` and `grep -ri` is resolved to the canonical `grep -ri`) and carry the clone-base
+item above. `reverse-design` runs `tone` and lite inventories (`inspect --lite --viewports`, then
+targeted `--id`/`--selector`; `--all --details` only for specific recipe gaps), classifies
+Typeface forms from glyph crops (a display-role row is required; Form features name at least two
+vocabulary features, never just a family; target-language roles list a script-covering
+substitute), cites lite `src` addresses, copies the Tone budget from `tone.json`, ranks 5–10 signature
+devices by form, never lets What NOT to Copy silently remove one, fills the Signature retention
+matrix with at least one high-retention and otherwise differing directions, and records the
+Design basis and Build contract for the selected or recommended direction. `build-from-design` chooses
+`derive` unless clone-base was explicitly requested, selects a direction only after DESIGN.md has
+no failing check, keeps a single writer for both documents (helpers return findings; the owner
+compares `documents.*.sha256` before rewriting), builds to the contract (deviations update the
+contract and re-validate, never DESIGN.md observations; a font deviation first adds the family as
+a Typeface forms substitute and refreshes the Design basis), runs `qa` with content and brand inputs,
+fixes every fail, views every review image, confirms the final run with `qa-confirm`, fills
+Reference fidelity from that run, and claims completion only when validate-design has no fail.
+Links without a real destination render as plain text. Helpers prefix CLI calls with
+`DESIGN_LENS_AGENT=<role>`; phases are marked with `runlog --mark` and the summary is reported.
+`clone-reference` documents the stabilization flags and disclosures and recaptures continuously
+changing pages into a new project with `--freeze-timers`; motion is never verified.
+`customize-clone` applies the same mechanics to a clone-base copy while the study clone stays
+untouched. `inspect-elements` documents lite, selector and multi-viewport inspection and remains
+a LIVE inventory that writes nothing into the project.

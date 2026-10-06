@@ -42,8 +42,8 @@ existing `inspect`, `verify`, and `screenshot` commands.
   `clone/assets/custom/` (creating it on demand) and update the element's `src`/`srcset`/inline
   `url()` reference to the relative path `assets/custom/<file>`. If the user supplied no file,
   the agent MUST either generate a placeholder SVG into `assets/custom/` or ask — never hotlink
-  a remote URL. Original captured assets MUST NOT be deleted (they are provenance, mapped in
-  `manifest.json`).
+  a remote URL. Original captured assets of the study clone MUST NOT be deleted (they are
+  provenance, mapped in `manifest.json`).
 - **`data-dl-id` attributes are IMMUTABLE**: the agent MUST NOT remove, rename, renumber, or
   duplicate them — they are the addressing system. Elements the agent inserts MUST NOT be given
   a `data-dl-id` (ids are capture-time only); address new elements via their own class/id.
@@ -139,3 +139,13 @@ style element inside the owning declarative shadow template. Preserve captured s
 and existing stamps, record the exact appended block for undo, and verify its actual effect.
 Authorized inserted elements receive unused numeric dl-N IDs above all existing clone/capture
 IDs; record them as clone-only additions, never as source identity.
+
+### Study clone and clone-base copies (ADR-030)
+The captured-CSS and captured-asset restrictions above protect the study clone at
+`.design-lens/<slug>/clone/`, which a build never edits. A clone-base build (build-from-design,
+explicit request only) copies that folder into the target project once and applies these same
+mechanics to the copy in every sampled variant: text-node edits, ID-scoped rules appended to the
+copy's `assets/dl-overrides.css`, replacements under `assets/custom/`. On the copy, every captured
+image, font, icon and media file is deleted, captured stylesheets may be kept or rewritten (the
+choice is recorded in the Build contract), and retained controls receive real behavior or are
+removed. The copy keeps its `data-dl-id` values so `qa` can measure lineage.

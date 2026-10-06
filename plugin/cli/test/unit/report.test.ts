@@ -227,3 +227,42 @@ describe('buildReport — source section', () => {
     expect(buildReport(INPUT)).not.toContain('Final URL:');
   });
 });
+
+// why: substituted media is neither localized nor remote. A reader of "## Left remote" must see
+// each replaced source with what still stands in for it and what is lost, without a new heading
+// (the six headings are gate-locked) and without the false "every resource was localised" line.
+describe('buildReport — substitutions and disclosures', () => {
+  // why: both lists must render inside the existing sections with one line per entry.
+  it('lists substituted media under Left remote and disclosures under Fidelity notes', () => {
+    const md = buildReport({
+      ...INPUT,
+      substituted: [
+        { kind: 'video-frame', referencedBy: 'dl-449', urls: ['https://cdn.example.com/hero.webm', 'https://cdn.example.com/hero.mp4'], stillFrom: 'captured-frame', currentTime: 3.2, lost: ['motion', 'source-alternatives'] },
+        { kind: 'media-hidden', referencedBy: 'dl-9', captureId: 'viewport-390x844', urls: ['https://cdn.example.com/a.mp3'], stillFrom: 'none', lost: ['audio'] },
+      ],
+      disclosures: ['lazy-promoted: 141 loading=lazy images\n were loaded eagerly'],
+    });
+    const leftRemote = md.split('## Left remote\n')[1].split('\n## ')[0];
+    expect(leftRemote).not.toContain('every referenced resource was localised');
+    expect(leftRemote).toContain('- Substituted (not remote): https://cdn.example.com/hero.webm, https://cdn.example.com/hero.mp4 — video-frame at 3.20s (referenced by dl-449); motion/source-alternatives not reproduced');
+    expect(leftRemote).toContain('- Substituted (not remote): https://cdn.example.com/a.mp3 — media-hidden (referenced by viewport-390x844 dl-9); audio not reproduced');
+    const fidelity = md.split('## Fidelity notes\n')[1].split('\n## Verify')[0];
+    expect(fidelity).toContain('- Disclosed: lazy-promoted: 141 loading=lazy images were loaded eagerly');
+    expect(md.split('\n').filter((line) => line.startsWith('## '))).toEqual(
+      buildReport(INPUT).split('\n').filter((line) => line.startsWith('## ')),
+    );
+  });
+
+  // why: real remote references still matter most; substitutions must not hide or reword them.
+  it('keeps remote references listed before substitutions when both exist', () => {
+    const md = buildReport({
+      ...INPUT,
+      remote: [{ url: 'https://cdn.example.com/f.woff2', reason: 'fetch-failed', referencedBy: 'style.css' }],
+      substituted: [{ kind: 'video-poster', referencedBy: 'dl-2', urls: ['https://cdn.example.com/v.mp4'], stillFrom: 'poster-attr', lost: ['motion'] }],
+    });
+    const leftRemote = md.split('## Left remote\n')[1].split('\n## ')[0];
+    expect(leftRemote.split('\n')[0]).toBe('- https://cdn.example.com/f.woff2 — fetch-failed (referenced by style.css)');
+    expect(leftRemote).toContain('- Substituted (not remote): https://cdn.example.com/v.mp4 — video-poster (referenced by dl-2); motion not reproduced');
+    expect(leftRemote).not.toContain('None');
+  });
+});

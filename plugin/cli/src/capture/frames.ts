@@ -4,7 +4,7 @@ import type { Frame, Page } from 'playwright';
 
 import { serializeDom } from './serialize.js';
 import { stampDom } from './stamp.js';
-import { stabilize } from './stabilize.js';
+import { stabilize, type StabilizeOptions } from './stabilize.js';
 
 export interface FrameSnapshot {
   dlId: string;
@@ -28,7 +28,9 @@ export function embedFrameSnapshots(html: string, frames: readonly FrameSnapshot
 }
 
 /** Snapshot rendered frame DOM (including JS output) instead of replaying its original program. */
-export async function captureFrames(page: Page, deadline: number): Promise<{ frames: FrameSnapshot[]; warnings: string[] }> {
+export async function captureFrames(
+  page: Page, deadline: number, options: Pick<StabilizeOptions, 'readiness'> = {},
+): Promise<{ frames: FrameSnapshot[]; warnings: string[] }> {
   const warnings: string[] = [];
   if (page.mainFrame().childFrames().length > 0) {
     // Whole-frame pixels can hide a tiny missing logo or a fallback font below the image budget.
@@ -48,7 +50,7 @@ export async function captureFrames(page: Page, deadline: number): Promise<{ fra
         if (!dlId) { warnings.push('embedded frame has no addressable host'); continue; }
         const baseUrl = await child.evaluate(() => document.baseURI);
         await stampDom(child, []);
-        const readiness = await stabilize(child, deadline);
+        const readiness = await stabilize(child, deadline, options);
         warnings.push(...readiness.warnings.map((warning) => `frame ${dlId}: ${warning}`));
         const nested = await children(child, depth + 1);
         const serialized = await serializeDom(child);

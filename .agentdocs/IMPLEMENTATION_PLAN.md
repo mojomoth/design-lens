@@ -94,6 +94,19 @@ project is kept green pre-spine with vitest `passWithNoTests`.
 - [x] T46 (P1) Integrate composed inspection and diagnostic fidelity with capture-qualified source identity | AC: default inspect, source mapping, incomplete diagnostics and negative controls pass; `bash .harness/verify.sh` exits 0 | Spec: 03-clone-format.md, 05-element-inventory.md, 08-testing.md
 - [x] T47 (P2) Verify the complete bundle and fresh Tenity captures with documented fidelity limits | AC: `npm run verify`, `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` pass; fresh Tenity all-viewport comparison is recorded | Spec: 01-packaging.md, 02-clone-engine.md, 08-testing.md
 
+## Milestone 10 — Reference-faithful builds and measured QA (approved 2026-10-06)
+
+- [x] T48 (P1) Record the signature, tone, build-contract, build-QA, lite-inspection, capture-stabilization and run-log contracts through ADR-030 | AC: `bash .harness/verify.sh --plan` exits 0 and ADR-030 names every changed spec | Spec: 00-product.md, 01-packaging.md, 02-clone-engine.md, 03-clone-format.md, 04-design-analysis.md, 05-element-inventory.md, 06-customization.md, 07-skills.md, 08-testing.md, 10-ethics.md
+- [x] T49 (P1) Implement pixel tone profiles with the tone command plus shared markdown and build-contract parsers | AC: pixels, tone, markdown and build-contract unit tests plus the tone e2e pass; `bash .harness/verify.sh` exits 0 | Spec: 03-clone-format.md, 04-design-analysis.md
+- [x] T50 (P1) Extend validate-design with typeface, tone, signature, retention, design-basis, build-contract and reference-fidelity checks | AC: every existing design-validation outcome is unchanged and each new failure mode has a unit test; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 08-testing.md
+- [x] T51 (P1) Implement qa and qa-confirm with measured lineage, signature checks and confirmed review images | AC: the qa-study defective page fails with every check id, the clean page passes, wrong codes write no review.json; `bash .harness/verify.sh` exits 0 | Spec: 04-design-analysis.md, 08-testing.md, 10-ethics.md
+- [x] T52 (P1) Stabilize capture through poster media, lazy promotion, readiness retries, opt-in timer freezing, state attempts and disclosures | AC: capture, clone and fidelity regressions pass with legacy behavior kept under opt-out flags; `bash .harness/verify.sh` exits 0 and `bash .harness/e2e-assert.sh --all` passes | Spec: 02-clone-engine.md, 03-clone-format.md
+- [x] T53 (P1) Add lite, selector and multi-viewport inspection without changing flagless output | AC: inspect lite e2e and the inspect-responsive pins pass; `bash .harness/verify.sh` exits 0 | Spec: 05-element-inventory.md
+- [x] T54 (P2) Record a local opt-out run log with phase marks, summaries and clone, qa and inspect phase timings | AC: runlog unit/e2e tests pass, `DESIGN_LENS_RUNLOG=off` writes nothing and the clone ethics notice stays the last stderr line | Spec: 03-clone-format.md, 10-ethics.md
+- [x] T55 (P1) Update the five skills, reverse-design templates and usage documentation for reference-faithful builds | AC: S6 and B3 greps print nothing, both brand checklists are byte-identical and `npx vitest run --project unit test/unit/docs.test.ts` passes | Spec: 06-customization.md, 07-skills.md
+- [x] T56 (P2) Evaluate the 0.4.0 skills with fresh independent local runs exercising qa, qa-confirm and reference fidelity | AC: `plugin/cli/test/evaluations/0.4.0/RESULTS.md` records the runs, limits and baseline comparison without generated artifacts | Spec: 08-testing.md
+- [ ] T57 (P2) Prepare the verified 0.4.0 dual-plugin release bundle | AC: `npm run verify`, `bash .harness/verify.sh --strict` and `bash .harness/e2e-assert.sh --all` pass; versions and bundle are coherent | Spec: 00-product.md, 01-packaging.md
+
 ## Deferred / Optional (does NOT block completion)
 
 - (none) — every task above is load-bearing for `verify.sh --strict`; speculative flags

@@ -1,4 +1,4 @@
-# Design Lens 0.3.0 사용 가이드
+# Design Lens 0.4.0 사용 가이드
 
 레퍼런스의 타이포그래피·여백·위계와 같은 원리를 분석해 **내 제품의 목적과 콘텐츠에 맞는 화면을 제작**할 때 사용합니다. 새 화면이 필요하면 `build-from-design`으로 시작하세요. 필요한 캡처와 역설계부터 구현, 화면·동작 검증까지 이어집니다.
 
@@ -8,9 +8,9 @@
 
 터미널에서 `node --version`으로 Node.js 20 이상인지 확인하세요. 에이전트가 작업할 **프로젝트 폴더**를 열고 다음 중 한 채널로 설치합니다.
 
-### 이 저장소의 0.3.0을 로컬에서 확인하기
+### 이 저장소의 0.4.0을 로컬에서 확인하기
 
-0.3.0은 이 체크아웃에서 준비한 버전입니다. npm이나 GitHub 릴리스에 공개됐다는 뜻은 아닙니다. 이 저장소 루트에서 아래 명령을 실행하면 현재 코드를 빌드하고 공용 CLI를 준비합니다.
+0.4.0은 이 체크아웃에서 준비한 버전입니다. npm이나 GitHub 릴리스에 공개됐다는 뜻은 아닙니다. 이 저장소 루트에서 아래 명령을 실행하면 현재 코드를 빌드하고 공용 CLI를 준비합니다.
 
 ```bash
 npm --prefix plugin/cli ci
@@ -19,7 +19,7 @@ bash plugin/scripts/bootstrap.sh
 ~/.design-lens/bin/design-lens --version
 ```
 
-이 경로의 기대 버전은 `0.3.0`입니다. 스킬도 이 체크아웃의 `plugin/`에서 별도로 설치하거나 로드해야 합니다. CLI 준비만으로 이전에 설치한 스킬 본문이 바뀌지는 않습니다. 아래 공개 설치 채널은 해당 채널에 실제 배포된 버전을 설치하며, 명시적으로 `0.2.0`을 지정한 예시는 이전 버전용입니다.
+이 경로의 기대 버전은 `0.4.0`입니다. 스킬도 이 체크아웃의 `plugin/`에서 별도로 설치하거나 로드해야 합니다. CLI 준비만으로 이전에 설치한 스킬 본문이 바뀌지는 않습니다. 아래 공개 설치 채널은 해당 채널에 실제 배포된 버전을 설치하며, 명시적으로 `0.2.0`을 지정한 예시는 이전 버전용입니다.
 
 ### Claude Code
 
@@ -67,9 +67,9 @@ npx -y design-lens@0.2.0 setup
 ~/.design-lens/bin/design-lens --version
 ```
 
-새 측정·검증 기능에는 CLI와 스킬 모두 `0.3.0`이 필요합니다. CLI만 필요하면 로컬 준비 과정만 수행해도 됩니다. 다만 `DESIGN.md`, `VARIATIONS.md`, 새 페이지의 코드는 **에이전트 스킬이 작성**합니다. CLI 명령만 실행해서 이 문서나 앱이 자동 생성되지는 않습니다.
+새 측정·검증 기능(`tone`, `qa`, `qa-confirm`, `runlog`, `inspect --lite`)에는 CLI와 스킬 모두 `0.4.0`이 필요합니다. CLI만 필요하면 로컬 준비 과정만 수행해도 됩니다. 다만 `DESIGN.md`, `VARIATIONS.md`, 새 페이지의 코드는 **에이전트 스킬이 작성**합니다. CLI 명령만 실행해서 이 문서나 앱이 자동 생성되지는 않습니다.
 
-이전 0.2.0 릴리스 패키지를 직접 지정하는 설치 경로도 유지됩니다. 아래 명령은 0.3.0을 설치하지 않습니다.
+이전 0.2.0 릴리스 패키지를 직접 지정하는 설치 경로도 유지됩니다. 아래 명령은 0.4.0을 설치하지 않습니다.
 
 ```bash
 npx -y --package=https://github.com/mojomoth/design-lens/releases/download/v0.2.0/design-lens-0.2.0.tgz design-lens setup
@@ -94,7 +94,7 @@ codex plugin add design-lens@design-lens
 
 `codex plugin list`에서 설치 상태와 제공되는 버전 정보를 확인하고 새 세션에서 사용하세요. 기존 설치가 새 버전으로 교체됐는지도 확인해야 합니다. 호스트 버전에 따라 관리 기능이 다르면 `codex plugin --help`를 확인하세요. `npx skills`로 설치했다면 위의 해당 에이전트 설치 명령으로 최신 저장소의 스킬을 다시 설치합니다.
 
-런타임 버전도 확인하세요. 이 체크아웃의 0.3.0을 검증하려면 위의 로컬 준비 과정을 사용합니다. 공개 채널 갱신은 해당 채널에 배포된 버전에 따릅니다. **스킬 파일 갱신과 공용 CLI 갱신은 별개**입니다. CLI 버전만 바꿔도 이전에 설치한 스킬 본문이 자동 교체되지는 않습니다.
+런타임 버전도 확인하세요. 이 체크아웃의 0.4.0을 검증하려면 위의 로컬 준비 과정을 사용합니다. 공개 채널 갱신은 해당 채널에 배포된 버전에 따릅니다. **스킬 파일 갱신과 공용 CLI 갱신은 별개**입니다. CLI 버전만 바꿔도 이전에 설치한 스킬 본문이 자동 교체되지는 않습니다.
 
 ## 2. 스킬을 부르는 방법
 
@@ -133,7 +133,11 @@ https://example.com의 글자 위계와 넓은 여백을 참고해
 
 에이전트는 프로젝트와 요청을 읽고, 레퍼런스를 캡처한 뒤 `DESIGN.md`와 `VARIATIONS.md`를 작성합니다. 선택한 방향과 구조 변경 이유를 기록하고 실제 페이지를 구현합니다. 단계마다 같은 승인을 다시 요구하지 않으며, 프로젝트나 대화에서 찾을 수 없는 필수 정보가 남을 때 질문합니다.
 
-완료 후에는 적용한 원칙, 코드 위치와 실행 방법, 확인한 화면과 동작, 미확인 사항을 확인하세요. 실제 서비스가 연결되지 않은 데모 폼을 운영 중인 접수 기능으로 설명해서는 안 됩니다.
+레퍼런스의 인상을 최대한 살리고 싶다면 "레퍼런스의 디자인 언어가 분명히 드러나야 해"처럼 적어 주세요. 그러면 에이전트는 `VARIATIONS.md`의 방향 중 시그니처 유지 점수(`variationScores`)가 가장 높은 방향을 고릅니다. 사용자가 직접 고른 방향은 항상 우선합니다. 문구·수치가 담긴 콘텐츠 파일(예: `CONTENT.md`)이 있다면 경로를 알려 주세요. `qa`는 그 파일에 없는 숫자(예: "09 MONTHS")를 오류로 표시합니다.
+
+에이전트는 방향을 고르기 전에 `DESIGN.md`가 검증을 통과했는지 확인하고, 선택한 방향에 `Design basis`(시그니처·서체·톤 표의 해시)와 `Build contract`(서체, 어두운 면적 상한, 시그니처 검사)를 기록한 뒤 그 계약대로 구현합니다. 구현 후 `qa`로 결과를 측정해 모든 `fail`을 고치고, 검토 이미지를 모두 열어 본 뒤 `qa-confirm`으로 마지막 실행을 확인합니다. 그 실행을 근거로 `## Reference fidelity`를 채우고 `validate-design`에 `fail`이 없을 때만 완료를 보고합니다.
+
+완료 후에는 적용한 원칙, 코드 위치와 실행 방법, `qa` 실행 경로와 레퍼런스 충실도 점수, 확인한 화면과 동작, 미확인 사항을 확인하세요. 실제 서비스가 연결되지 않은 데모 폼을 운영 중인 접수 기능으로 설명해서는 안 됩니다.
 
 ## 4. 같은 레퍼런스로 관리 화면 만들기
 
@@ -168,7 +172,20 @@ VARIATIONS.md에 기록된 B 방향을 적용하되,
 프로젝트의 관련 검사와 화면·동작 검증까지 수행해줘.
 ```
 
-이미 `DESIGN.md`가 있다면 해당 파일 경로를 알려 주면 됩니다. 에이전트는 기존 결정을 활용하고, 측정 근거나 반응형 설명이 부족한 부분을 보완합니다. 사용자가 선택한 방향이 있으면 추천안보다 우선합니다.
+이미 `DESIGN.md`가 있다면 해당 파일 경로를 알려 주면 됩니다. 에이전트는 기존 결정을 활용하고, 측정 근거나 반응형 설명이 부족한 부분(예: 0.3.0 문서에 없는 서체 형태·톤 예산·시그니처 순위 표)을 보완합니다. 사용자가 선택한 방향이 있으면 추천안보다 우선합니다.
+
+### 캡처한 클론을 기반으로 만들기 (clone-base)
+
+기본 빌드(`derive`)는 분석에서 새 마크업을 만들고 클론 파일을 전혀 복사하지 않습니다. 클론의 섹션 골격과 그리드를 그대로 쓰고 싶다면 명시적으로 요청하세요.
+
+```text
+$build-from-design
+.design-lens/reference-study 클론을 기반으로 우리 제품 소개 페이지를 만들어줘.
+클론의 그리드와 섹션 구조는 유지하고 문구·이미지·로고·폰트는 모두 우리 것으로 바꿔줘.
+콘텐츠는 CONTENT.md를 사용해줘.
+```
+
+에이전트는 편집용 `clone/` 폴더를 대상 프로젝트에 한 번 복사하고(학습용 클론은 그대로 둠), 복사본의 캡처 이미지·폰트·아이콘·미디어를 삭제한 뒤 모든 문구와 자산을 교체합니다. 남겨 둔 컨트롤에는 실제 동작을 넣거나 제거합니다. 계보는 `qa`가 측정해 `build-lineage.json`에 기록합니다. 남은 캡처 마크업·스타일시트는 레퍼런스의 코드이므로, 배포 전에는 다시 작성하거나 재사용 권리를 확인해야 합니다.
 
 ## 6. 캡처·분석·수정만 요청하기
 
@@ -182,6 +199,8 @@ https://example.com을 'reference-study'라는 이름으로 클론만 해줘.
 ```
 
 클론은 공개 페이지 한 장의 렌더링 상태를 저장합니다. 전체 사이트 수집이나 로그인 페이지 복구용이 아닙니다. 원본 JavaScript와 인라인 이벤트 처리가 제거되므로 메뉴·로그인·결제 등 원래 앱의 동작이 복원되지는 않습니다.
+
+캡처는 재생 중인 영상을 캡처한 프레임이나 포스터로 바꾸고(`--media poster`), 지연 로딩 이미지를 미리 불러오고, 준비 대기를 재시도합니다. 이런 대체는 REPORT.md에 공개되며 움직임은 검증하지 않습니다. 페이지가 계속 바뀌어 캡처가 불완전하면 새 프로젝트로 `--freeze-timers`를 붙여 다시 캡처합니다.
 
 스킬의 기본 캡처 크기는 1440×900, 768×1024, 390×844입니다. 원본을 각 크기에서 새로 로드하고, 하나의 편집 가능한 클론을 모든 크기로 비교합니다. CLI가 측정과 차이 진단을 수행하며 에이전트가 원본 근거에 따라 HTML·CSS·자산을 최대 3회 보정합니다. 매회 전체 크기를 재검증하고 개선이 멈추면 가장 나은 결과를 복원해 남은 차이를 보고합니다. 페이지 전체를 이미지로 바꾸거나 허용 오차를 늘려 통과시키지 않습니다.
 
@@ -198,7 +217,7 @@ $reverse-design
 
 `DESIGN.md`에는 캡처 조건과 분석 한계, 기존 12개 분석 섹션, 재사용 원칙이 들어갑니다. 원칙은 **근거 → 가능한 이유 → 적용 조건 → 구현 방법 → 검증 기준**으로 정리합니다. `VARIATIONS.md`에는 기본 세 방향과 추천 이유를 기록합니다. 모바일 원본이나 실제 동작을 확보하지 못하면 확인 불가로 남깁니다.
 
-설계도에는 컨테이너·그리드, 글자 체계, 색상 역할, 간격, 컴포넌트 구조, 반응형 규칙의 구현 표와 CSS 예시를 추가합니다. 관측값은 화면 크기와 캡처·관측 ID에 연결합니다. 원본 관측, 현재 클론 관측, 의도 추론, 새로운 동작 제안을 구분하며 대상 제품이 없으면 요구사항을 만들어내지 않습니다.
+설계도에는 컨테이너·그리드, 글자 체계, 색상 역할, 간격, 컴포넌트 구조, 반응형 규칙의 구현 표와 CSS 예시를 추가합니다. 또한 글리프 모양으로 분류한 `### Typeface forms`(픽셀·스텐실·테크노·그로테스크 등과 같은 형태의 OFL 대체 서체), `tone.json`에서 옮긴 `### Tone budget`(어두운 면적과 전면 다크 밴드 비율), 레퍼런스를 알아보게 만드는 5~10개 장치를 순위로 정리한 `### Signature priority`가 들어갑니다. `VARIATIONS.md`의 `## Signature retention` 표는 각 방향이 시그니처를 유지·변형·대체·포기하는지 기록하며, 상위 3개 시그니처를 포기하려면 브리프나 콘텐츠의 문장을 그대로 인용해야 합니다. 관측값은 화면 크기와 캡처·관측 ID에 연결합니다. 원본 관측, 현재 클론 관측, 의도 추론, 새로운 동작 제안을 구분하며 대상 제품이 없으면 요구사항을 만들어내지 않습니다.
 
 ### 측정하거나 학습용 클론 수정하기
 
@@ -234,6 +253,8 @@ CTA 색은 #245C47로 조정하고 모바일 줄바꿈을 확인해줘.
 
 첫 크기가 편집 가능한 기본 클론의 기준입니다. CLI에서 화면 옵션을 생략하면 기존처럼 1440×900 한 크기만 캡처합니다. `--viewport`와 `--viewports`를 명시적으로 함께 지정하면 오류입니다. 기본 원본 캡처 예산은 요청한 크기당 90초이며, `--timeout`을 지정하면 전체 원본 캡처의 초 단위 예산을 설정합니다.
 
+캡처 안정화 옵션: `--media <remote|poster|include>`(기본 `poster`), `--lazy-images <eager|native>`(기본 `eager`), `--readiness-ms <ms>`(기본 5000), `--readiness-retries <n>`(기본 2), `--capture-attempts <n>`(기본 2), `--freeze-timers`(기본 꺼짐). 대체·안정화 내역은 REPORT.md의 `## Left remote`(`Substituted (not remote)`)와 `## Fidelity notes`(`Disclosed:`)에 기록되며, 이 공개 항목은 캡처를 불완전하게 만들지 않습니다.
+
 다음 예시 변수는 **반환된 실제 경로로 교체**합니다.
 
 ```bash
@@ -266,12 +287,16 @@ dl_project='.design-lens/reference-study'
 ### 모바일·상세 스타일·특정 요소 측정하기
 
 ```bash
+~/.design-lens/bin/design-lens inspect "$dl_project" --lite --viewports 1440x900,768x1024,390x844
+~/.design-lens/bin/design-lens inspect "$dl_project" --lite --viewports 1440x900,390x844 --id dl-17 --selector ".hero h1"
 ~/.design-lens/bin/design-lens inspect "$dl_project" --pretty
 ~/.design-lens/bin/design-lens inspect "$dl_project" --viewport 390x844 --all --details --pretty
 ~/.design-lens/bin/design-lens inspect "$dl_project" --viewport 1440x900 --kind hero-heading --details --pretty
 ```
 
-첫 명령의 기본 크기는 1440×900이며 기존 `{elements, colors}` 구조를 반환합니다. `--details`는 요소별 계산 스타일과 부모·직접 자식 ID, 선택된 이미지 경로, 페이지의 루트 글자 크기·body·폰트 상태를 추가합니다. 단위는 브라우저가 실제 적용한 값을 기준으로 읽습니다.
+`--lite`는 선택한 요소만 간결하게 측정합니다(위치·크기 `r`, `글꼴|크기/줄높이|굵기|자간|변환` 형태의 `font` 문자열, 색상, 상자·배치·효과·가상 요소, 빈 값 생략). `--viewports`는 `--lite`와 함께 여러 크기를 한 번에 측정하고, 반복 가능한 `--selector`는 문서와 열린 Shadow DOM에서 CSS 선택자를 찾습니다(선택자당 최대 20개). 비활성 반응형 변형의 요소는 `v: 0`으로 표시됩니다. 레퍼런스 분석은 이 방식으로 시작하고, `--all --details`는 특정 구성법의 빈틈을 채울 때만 사용합니다.
+
+세 번째 명령의 기본 크기는 1440×900이며 기존 `{elements, colors}` 구조를 반환합니다. `--details`는 요소별 계산 스타일과 부모·직접 자식 ID, 선택된 이미지 경로, 페이지의 루트 글자 크기·body·폰트 상태를 추가합니다. 단위는 브라우저가 실제 적용한 값을 기준으로 읽습니다.
 
 `--all`은 본문·카드·폼·표·컨테이너와 열린 Shadow DOM을 포함한 모든 ID 부여 요소를 조회합니다. 숨긴 요소도 포함하며, 닫힌 Shadow DOM은 확인할 수 없습니다. 상세 측정에는 가상 요소, 배경·그라디언트, 이미지 크롭과 부모·자식 관계도 포함됩니다.
 
@@ -281,13 +306,16 @@ dl_project='.design-lens/reference-study'
 ~/.design-lens/bin/design-lens inspect "$dl_project" --viewport 390x844 --id dl-17 --id dl-18 --pretty
 ```
 
-`--id`는 반복해서 여러 요소를 선택할 수 있고 상세 모드를 자동 적용합니다. 열린 Shadow DOM과 숨겨진 요소도 조회합니다. 미분류 요소는 `role`과 `confidence`가 `null`일 수 있습니다. `--all`, `--id`, `--kind`는 서로 함께 쓸 수 없습니다. 역할 목록에는 숨겨진 후보가 제외됩니다. `--viewport`는 `390x844`처럼 양의 정수 두 개를 영문 소문자 `x`로 연결합니다.
+`--id`는 반복해서 여러 요소를 선택할 수 있고 상세 모드를 자동 적용합니다. 열린 Shadow DOM과 숨겨진 요소도 조회합니다. 미분류 요소는 `role`과 `confidence`가 `null`일 수 있습니다. `--all`은 `--id`·`--kind`·`--selector`와, `--kind`는 `--id`·`--selector`와, `--viewport`는 `--viewports`와 함께 쓸 수 없습니다. 역할 목록에는 숨겨진 후보가 제외됩니다. `--viewport`는 `390x844`처럼 양의 정수 두 개를 영문 소문자 `x`로 연결합니다.
 
 `inspect`는 프로젝트 파일을 바꾸거나 측정 파일을 저장하지 않습니다. 수정한 뒤에는 다시 실행하세요. `tokens`는 파일을 생성합니다.
 
 ```bash
 ~/.design-lens/bin/design-lens tokens "$dl_project"
+~/.design-lens/bin/design-lens tone "$dl_project"
 ```
+
+`tone`은 각 원본 전체 페이지 스크린샷의 픽셀을 밝음·중간·어두움으로 분류하고 전면 다크 밴드를 찾아 `tone.json`에 기록합니다. 화면에서 어두운 면적이 실제로 얼마인지는 CSS 선언 횟수가 아니라 이 값으로 판단합니다.
 
 `tokens.json`은 `schemaVersion: 2`이며 현재 클론의 CSS 선언 통계입니다. 인라인 스타일도 포함합니다. 색상은 `alpha`와 알파를 보존한 `css`·`oklch`를 제공하며 완전 투명색을 대표색에서 제외합니다. 근거 없는 간격 기준은 `spacing.base: null`이고 `calc()`의 피연산자를 별도 간격 토큰으로 세지 않습니다. `font` 축약형과 선택자의 실제 대상도 해석합니다.
 
@@ -299,7 +327,7 @@ dl_project='.design-lens/reference-study'
 ~/.design-lens/bin/design-lens validate-design "$dl_project" --json
 ```
 
-`DESIGN.md`의 기존 12개 섹션과 `### Layout recipe`, `### Typography recipe`, `### Color roles`, `### Spacing recipe`, `### Component recipes`, `### Responsive rules` 표, `### CSS recipe`의 CSS 예시를 검사합니다. `### Measured observations` 표 형식은 다음과 같습니다. 아래 값은 형식 예시이므로 실제 근거의 값으로 교체해야 합니다.
+`DESIGN.md`의 기존 12개 섹션과 `### Layout recipe`, `### Typography recipe`, `### Color roles`, `### Spacing recipe`, `### Component recipes`, `### Responsive rules` 표, `### CSS recipe`의 CSS 예시를 검사합니다. `## Measured observations` 표 형식은 다음과 같습니다. 아래 값은 형식 예시이므로 실제 근거의 값으로 교체해야 합니다.
 
 ```markdown
 | Label | Capture | Viewport | Observation | Field | Value | Unit | Precision |
@@ -308,6 +336,8 @@ dl_project='.design-lens/reference-study'
 ```
 
 `Label`은 `observed-reference`, `observed-clone`, `unavailable` 중 하나입니다. 캡처·화면 크기가 일치해야 하고 `Observation`은 `page` 또는 해당 캡처의 `dl-N`입니다. 모든 완전한 캡처의 원본 측정과 레이아웃·타이포그래피·색상 범위의 근거가 필요합니다. 숫자는 `Value`에, `px`·`rem`·`unitless`는 `Unit`에 따로 적고 `Precision`은 반올림 자릿수 0–6으로 지정합니다. px/rem 환산은 관측된 루트 글자 크기를 사용합니다. `css` 단위는 문자열, `color` 단위는 알파를 포함한 RGBA를 비교하며 두 경우 `Precision`은 `-`입니다.
+
+0.4.0부터는 `### Typeface forms`(`Role | Source family and status | Form class | Form features | OFL substitutes`), `### Tone budget`(`Capture | Viewport | Metric | Value | Unit | Precision`, 캡처마다 `darkShare`와 `fullBleedDarkShare` 필수, 단위 `ratio`), `### Signature priority`(`Rank | Device | Kind | Evidence | Transfer | Build check`, 5~10행)도 필수입니다. `Typeface forms`에는 Role이 display·heading·headline·title·hero 중 하나와 맞는 행이 최소 하나 있어야 합니다. `Form features` 칸은 대소문자·따옴표·공백을 무시하고 원본 패밀리명이나 OFL 대체 패밀리명과 같으면 실패하고, 정해진 어휘(단자·터미널, 카운터·속공간, 폭·너비, 대문자·소문자, 획·대비, 굵기, 모서리·각진, 픽셀, 스텐실, 세리프, 기하, 고정폭, 자간, 기울기 등 영어·한국어 용어, 전체 목록은 `LENSES.md`)에서 서로 다른 형태 특징을 두 개 이상 적지 않아도 실패합니다. 시그니처의 근거는 `viewport-1440x900/dl-17/styles.fontFamily` 같은 실측 행이나 `tone/viewport-1440x900/darkShare` 같은 톤 행을 인용해야 합니다. `VARIATIONS.md`에는 `## Signature retention`, `**Design basis:** sha256:…`, `### Build contract`가 필요하고, `qa` 실행 뒤에는 `## Reference fidelity`도 필요합니다. 보고서(schemaVersion 2)는 `documents`(문서 해시·상태·`basisSha256`), `variationScores`, `referenceFidelity`를 함께 출력합니다. 이 점수는 문서 사이의 일관성을 보는 결정적 검사이며 디자인 품질 점수가 아닙니다.
 
 검증기는 파일을 수정하지 않습니다. 원본 근거의 해시·참조·수치·단위·반올림과 문서 필수 구조를 확인합니다. 현재 클론 관측을 인용하려면 클론 해시와 일치하는 최신 `fidelity.json`이 필요합니다. `pass`만 종료 코드 0이고 `fail`·`unverified`는 1입니다. 디자인 의도의 해석이나 새로운 구현의 재현성까지 자동으로 입증하지는 않으므로 별도 구현·렌더링 평가를 수행합니다.
 
@@ -325,6 +355,30 @@ dl_project='.design-lens/reference-study'
 
 새 앱의 화면은 개발 서버를 실행한 뒤 `screenshot --url http://127.0.0.1:실제포트/실제경로`로 캡처할 수 있습니다. 새 앱은 클론 형식이 아니므로 앱 품질 검사 용도로 `verify`를 적용하지 않습니다.
 
+### 빌드 결과 측정하기 (qa)
+
+```bash
+~/.design-lens/bin/design-lens qa --dir ./dist --project "$dl_project" --content CONTENT.md --brand "원본 브랜드명"
+~/.design-lens/bin/design-lens qa --url http://127.0.0.1:5173/ --project "$dl_project" --content CONTENT.md
+~/.design-lens/bin/design-lens qa-confirm "$dl_project/qa/실제-실행-ID" --codes 코드1,코드2,코드3
+```
+
+`qa`는 정적 빌드 폴더(`--dir`, 직접 서빙)나 실행 중인 개발 서버(`--url`)를 캡처 크기마다 열어 측정합니다. 동작하지 않는 탭·버튼(`dead-control`), `#`·자기 자신·한 섹션으로 몰린 임시 링크(`stand-in-link`), 컨트롤을 가리는 고정 요소(`fixed-overlap`), 가로 넘침과 잘린 콘텐츠, 단색 덩어리로 렌더링된 아이콘(`solid-icon`), 콘텐츠 파일에 없는 숫자(`unsourced-number`), 깨진 이미지·폰트·요청 실패, 원본 자산·문구와 브랜드명 잔재, 계약과 다른 서체·톤(`font-drift`, `tone-drift`), `check:<순위>` 시그니처 검사, 계보를 확인합니다. 실행마다 `qa/qa-<시각>-<8자리>` 폴더가 새로 생기고, stdout에는 `status`·`out`·`counts`와 검토 이미지 경로 목록(`review`)이 나옵니다. `--content`가 없으면 숫자 검사를 건너뛰므로 결과는 `unverified`입니다. 레퍼런스 충실도에 인용할 실행은 항상 `--project`와 함께, `--out` 없이 실행하세요. `validate-design`은 프로젝트의 `qa/` 아래에서 `--project`로 실행되고 확인을 마친 가장 최근 실행만 인정하며, 그 실행이 검사한 Build contract와 모드가 현재 VARIATIONS.md와 같아야 합니다. qa 이후 계약을 고쳤다면 qa를 다시 실행하세요.
+
+검토 이미지(가장 넓은·좁은 크기의 타일, 나머지 크기의 화면 이미지, `--project`가 있을 때 왼쪽 REFERENCE·오른쪽 BUILD 비교 시트)에는 노란 배지 6개로 코드가 그려져 있습니다. 이미지를 열어 왼쪽부터 읽은 코드를 `review` 순서대로 `qa-confirm`에 넘기면 `review.json`이 생깁니다. 하나라도 틀리면 확인되지 않은 이미지 목록과 함께 종료 코드 1을 반환합니다. 코드는 해시로만 저장되며 출력되지 않습니다. 직접 작성한 `review.json`은 코드에서만 얻을 수 있는 증명 값이 없으므로 확인으로 인정되지 않습니다.
+
+### 실행 기록 (RUNLOG)
+
+각 명령은 프로젝트를 감싸는 `.design-lens/RUNLOG.jsonl`에 한 줄(명령, 인수, 종료 코드, 소요 시간, 단계, `DESIGN_LENS_AGENT` 역할)을 남깁니다. 로컬 파일이며 외부로 전송하지 않고, 리뷰 코드는 가려지며, `DESIGN_LENS_RUNLOG=off`로 끌 수 있습니다.
+
+```bash
+DESIGN_LENS_AGENT=analysis-helper ~/.design-lens/bin/design-lens tone "$dl_project"
+~/.design-lens/bin/design-lens runlog .design-lens --mark build --event start
+~/.design-lens/bin/design-lens runlog .design-lens --summary
+```
+
+`runlog`는 `.design-lens` 폴더를 만들지 않습니다. 새 프로젝트에서는 `clone`이 `.design-lens`를 만든 뒤에 단계를 표시하세요. 폴더가 없으면 종료 코드 1을 반환합니다. 작업이 중단된 단계는 `--event abort`로 닫으면 요약에서 완료된 단계 시간과 따로 표시됩니다. 판정 명령(`qa`, `qa-confirm`, `validate-design`, `fidelity`, `verify`)은 보고한 상태를 기록하므로, 요약은 판정에 따른 종료 코드 1과 오류를 구분합니다.
+
 ## 8. 결과 파일은 어디에 있나요?
 
 ```text
@@ -338,6 +392,8 @@ dl_project='.design-lens/reference-study'
 ├── evidence.json                   크기별 원본 관측·캡처 조건·파일 해시
 ├── evidence/                       각 원본 캡처의 DOM·자산·이미지
 ├── fidelity.json                   근거·현재 클론 해시에 연결된 비교 결과
+├── tone.json                       원본 전체 페이지의 픽셀 톤 측정(tone 실행 후)
+├── qa/qa-<시각>-<8자리>/            빌드 측정 결과·스크린샷·검토 이미지·계보
 ├── REPORT.md                       재현 차이·누락·경고
 ├── tokens.json                     tokens 실행 후 생성
 ├── DESIGN.md                       reverse-design 실행 후 생성
@@ -363,6 +419,8 @@ dl_project='.design-lens/reference-study'
 | 클론 형식 | `verify`의 종료 코드와 오류 확인 |
 | 원본 외형 재현 | 모든 캡처 크기의 `fidelity` 결과와 남은 차이 확인 |
 | 설계도 수치 | `validate-design`의 근거·수치·단위·반올림 검사 확인 |
+| 빌드 측정 | 마지막 `qa` 실행에 `fail`이 없는지, `review.json`이 있는지 확인 |
+| 레퍼런스 충실도 | `## Reference fidelity`의 판정과 `referenceFidelity.score`, 비교 시트를 직접 보고 확인 |
 
 `verify` 통과는 출처 정보·요소 ID·에셋 경로·스크립트 제거 등 **클론의 형식 검사**가 통과했다는 뜻입니다. 시각적 유사도 점수나 앱의 기능 검증 결과가 아닙니다. 스크린샷 파일을 생성하는 것과 그 화면을 검토하는 것도 구분해야 합니다.
 
@@ -372,8 +430,8 @@ dl_project='.design-lens/reference-study'
 
 | 상황 | 다음 확인 |
 | --- | --- |
-| `~/.design-lens/bin/design-lens`가 없음 | 0.3.0은 1절의 로컬 준비 과정 후 `--version` 확인. Codex는 훅 신뢰 상태도 확인 |
-| `fidelity`, `validate-design`, `--all`을 모름 | 공용 CLI가 0.3.0인지 확인. 에이전트의 스킬도 별도로 갱신 |
+| `~/.design-lens/bin/design-lens`가 없음 | 0.4.0은 1절의 로컬 준비 과정 후 `--version` 확인. Codex는 훅 신뢰 상태도 확인 |
+| `tone`, `qa`, `--lite`를 모름 | 공용 CLI가 0.4.0인지 확인. 에이전트의 스킬도 별도로 갱신 |
 | 스킬이 목록에 안 보임 | 설치 채널과 대상 에이전트 확인 후 새 세션 시작. Claude는 `claude plugin list`, Codex는 `codex plugin list` 확인 |
 | 결과 폴더를 못 찾음 | 마지막 `clone` 결과의 `projectDir` 확인. 같은 이름의 이전 캡처와 구분 |
 | 모바일 메뉴가 클론에서 작동하지 않음 | 원본 JavaScript가 제거된 결과인지 확인. 원본 동작을 확인하지 못했다면 추정해서 복원됐다고 보고하지 않기 |
@@ -384,6 +442,11 @@ dl_project='.design-lens/reference-study'
 | 원본과 캡처 화면이 다름 | 화면 크기·DSF·스크롤 범위·관찰 시점, 누락 리소스와 상태 비교 |
 | 기존 클론의 `fidelity`가 `unverified` | 원본 근거 유무 확인. 필요한 재캡처는 새 프로젝트에 저장 |
 | 수정 후 설계도에서 클론 관측이 오래됐다고 나옴 | `fidelity`를 다시 실행하고 실제 최신 관측값으로 문서 갱신 |
+| `tone-report`가 `unverified` | `tone`을 다시 실행해 현재 원본 근거에 맞는 `tone.json` 생성 |
+| Design basis가 다르다고 나옴 | 서체·톤·시그니처 표가 바뀐 것이므로 방향을 다시 평가하고 새 `basisSha256` 기록 |
+| `qa`가 `unverified` | stdout·`qa.json`의 `skipped` 확인. 콘텐츠 파일을 `--content`로 넘겼는지, Build contract가 유효한지 확인 |
+| `qa-confirm` 불일치 | 확인되지 않은 이미지를 다시 열어 코드를 왼쪽부터 읽고 `review` 순서대로 입력 |
+| 캡처가 계속 불완전함(상태 변경 경고) | 새 프로젝트로 `--freeze-timers --readiness-retries 4`를 붙여 다시 캡처 |
 
 폰트 준비 확인은 탐색 후 최대 5초를 기다립니다. 초기 폰트 응답 지연도 별도로 처리하지만, 이 값은 전체 명령이 5초 안에 끝난다는 뜻이 아닙니다. 이미지·스타일시트·리다이렉트·페이지 탐색에는 추가 시간이 필요할 수 있습니다.
 

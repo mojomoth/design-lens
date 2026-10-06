@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Marquee Fixture — Design Lens</title>
+  <!-- A large hero marquee. It is stopped in capture and in the fidelity re-render, but at whatever
+       offset its motion had reached by then, which differs between the two; its box must not decide
+       the pixel verdict while the rest of the page still does. -->
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #fff; }
+    marquee { display: block; height: 200px; background: #111; color: #ffe600; font: bold 120px/200px sans-serif; }
+    h1 { margin: 24px; }
+  </style>
+</head>
+<body>
+  <marquee scrollamount="40" scrolldelay="20" truespeed>MARQUEE HERO ■ MARQUEE HERO ■ MARQUEE HERO</marquee>
+  <h1>Static content below the marquee</h1>
+</body>
+</html>

@@ -2,8 +2,10 @@
 
 **Turn reference designs into frontends for your product.**
 
-Design Lens **0.3.0** connects reference capture, design evidence, reverse engineering, adaptation,
-implementation, and visual/behavioral verification. It works with Claude Code and OpenAI Codex CLI;
+Design Lens **0.4.0** connects reference capture, design evidence, reverse engineering, adaptation,
+implementation, and measured visual/behavioral verification. 0.4.0 focuses on reference
+fidelity: ranked signature devices, typeface forms, pixel-measured tone, a checked build
+contract, and a `qa` command whose review images must actually be viewed. It works with Claude Code and OpenAI Codex CLI;
 Cursor and OpenCode can install the skills through the channels in the [repository README](../README.md).
 
 ## Skills
@@ -12,11 +14,11 @@ Invoke with `/design-lens:<name>` in Claude Code or `$<name>` in Codex, followed
 
 | Skill | What it does |
 | --- | --- |
-| `clone-reference` | Capture a reference at three viewport sizes, compare one editable clone against the evidence, and repair supported differences for at most three rounds. |
-| `reverse-design` | Produce `DESIGN.md` with cited observations and inferences, and `VARIATIONS.md` with adaptable directions. |
-| `inspect-elements` | Measure visible roles, exact elements, layout parents, typography, and responsive reflow using stable IDs. |
+| `clone-reference` | Capture a reference at three viewport sizes with media posters and readiness retries, compare one editable clone against the evidence, and repair supported differences for at most three rounds. |
+| `reverse-design` | Produce `DESIGN.md` with cited observations, typeface forms, a tone budget and 5–10 ranked signature devices, and `VARIATIONS.md` with scored directions and a build contract. |
+| `inspect-elements` | Measure roles, exact elements and CSS selectors across several viewports in compact lite form, or in full detail, using stable IDs. |
 | `customize-clone` | Edit study-copy text, imagery and styles, then check matching before/after views and affected controls. |
-| `build-from-design` | Adapt supported principles to the user's product and stack, build with original content/assets, and verify the result. |
+| `build-from-design` | Adapt supported principles to the user's product and stack (`derive`, or `clone-base` on request), build to the contract with original content/assets, and verify with `qa`. |
 
 For example, in Claude Code:
 
@@ -42,10 +44,27 @@ separates clone-compatible token changes from new-product structural adaptations
 the selected brief and verification results. A reference marketing page may inspire a compact
 management interface; its section order and component structure do not have to be copied.
 
-Build verification includes viewed desktop, tablet and mobile screenshots, relevant project
-checks, and navigation/keyboard/control checks through available browser tools. Unavailable
-checks and service integrations are reported explicitly. `verify` alone checks clone format,
-not visual quality or application behavior.
+What makes a reference recognizable is recorded explicitly. `### Signature priority` ranks five to
+ten devices (tone, display typeface form, grid lines, ornaments, component chrome, hero motion,
+closing bands) with cited evidence. `### Typeface forms` classifies each type role by glyph form
+(pixel, stencil, techno, grotesk, …) and lists open-licensed substitutes of the same form.
+`### Tone budget` copies pixel-measured light/dark shares and full-bleed dark bands from
+`tone.json`. In `VARIATIONS.md`, a signature-retention matrix scores every direction, the selected
+direction records the hash of those tables (`Design basis`) and a `Build contract` (mode, fonts,
+display fonts, dark maxima, `check:<rank>` style assertions). `validate-design` checks all of it.
+
+Builds default to `derive`: new markup, no clone files. `clone-base`, only when you ask for it,
+copies the clone into your project, deletes its captured images, fonts, icons and media, replaces
+all text and imagery, and keeps the skeleton and layout stylesheets; the study clone is untouched.
+
+`qa` checks the built page at every captured viewport: dead tabs and buttons, stand-in links,
+fixed elements over controls, clipped content, icons rendered as solid blocks, numbers absent from
+your content files, broken images, font and request failures, reference assets/text and brand
+residue, font and tone drift against the contract, signature checks, and measured lineage. It
+writes review images (tiles and REFERENCE/BUILD compare sheets) that each carry a short code;
+`qa-confirm` accepts the run only when every code was read from the images. The agent then fills
+`## Reference fidelity` from that run. Menus, forms, carousels and keyboard behavior are still
+checked with available browser tools. `verify` alone checks clone format, not visual quality.
 
 ## CLI
 
@@ -57,8 +76,12 @@ or custom output location. Use that path for later commands.
 design-lens clone <url>            # local capture, manifest, report and images
 design-lens fidelity <projectDir> --json # compare the current clone to saved source evidence
 design-lens tokens <projectDir>    # captured CSS statistics → tokens.json
-design-lens inspect <projectDir>   # current visible role inventory as JSON
-design-lens validate-design <projectDir> --json # read-only design recipe and measurement checks
+design-lens inspect <projectDir>   # current visible role inventory as JSON (--lite for compact output)
+design-lens tone <projectDir>      # pixel tone of source screenshots → tone.json
+design-lens validate-design <projectDir> --json # read-only design, retention and contract checks
+design-lens qa --dir <build> --project <projectDir> # measured build QA → <projectDir>/qa/<runId>/
+design-lens qa-confirm <qaDir> --codes <c1,c2,…>   # confirm the review images were viewed
+design-lens runlog .design-lens --summary          # per-phase and per-agent command timings
 design-lens screenshot <projectDir> | --url <url>   # PNG of a clone or live URL
 design-lens serve <projectDir>     # local preview
 design-lens verify <projectDir>    # clone-format integrity; exit 1 on violation
@@ -74,6 +97,11 @@ breakpoints. Only the recorded viewport pairs can earn an exact source compariso
 sizes retain captured CSS without a source-match guarantee. Missing samples remain unverified.
 Useful clone flags also include `--timeout <seconds>`, `--settle <ms>`,
 `--remove-selector <css>` (repeatable), `--filter-list <file>`, `--no-scroll`, and `--no-block-cookies`.
+Capture stabilization: `--media <remote|poster|include>` (default `poster`: a painted video becomes
+its captured frame or poster, disclosed in REPORT.md), `--lazy-images <eager|native>` (default
+`eager`), `--readiness-ms <ms>` (5000) and `--readiness-retries <n>` (2), `--capture-attempts <n>`
+(2) and opt-in `--freeze-timers` for pages that keep changing. Disclosures keep a capture complete;
+motion is never verified.
 
 `fidelity` renders that one clone at every saved source size with external requests blocked. It
 compares viewport, full-page and major-region images plus element geometry. `pass` exits 0;
@@ -95,9 +123,15 @@ to improve a result. Older clones remain usable, but without source evidence the
 ### Inspect actual layout
 
 ```bash
-~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --all --details --pretty
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --lite --viewports 1440x900,768x1024,390x844
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --lite --viewports 1440x900,390x844 --id dl-17 --selector ".hero h1"
 ~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --id dl-17 --id dl-18 --pretty
 ```
+
+`--lite` returns compact elements (rect, a one-line font string, colors, box, layout, effects,
+pseudo content; empty values omitted) and `--viewports` measures several sizes in one run.
+Repeatable `--selector <css>` matches in the document and open shadow roots (20 matches per
+selector). Use `--all --details` only when a complete stamped inventory is really needed.
 
 Replace the example project and ID with those from your capture. Bare `inspect` retains its
 1440×900, DSF-1 default and original `{elements, colors}` JSON shape. `--viewport WxH` changes
@@ -153,19 +187,23 @@ or whether a new implementation reproduces the design; those require independent
 ├── evidence.json              # source observations, capture conditions and file hashes
 ├── evidence/                  # separate DOM, assets and screenshots for each source size
 ├── fidelity.json              # current clone comparison bound to evidence and clone hashes
+├── tone.json                  # pixel tone of each source full-page screenshot (tone command)
+├── qa/<runId>/                # build QA runs: qa.json, screenshots, review images, lineage
 ├── REPORT.md                  # capture/fidelity warnings, font hosts and usage notice
 └── screenshots/               # original viewport/full page and clone full-page capture
 ```
 
 Analysis adds `tokens.json`, `DESIGN.md`, `VARIATIONS.md`, and separately named comparison images
-as needed. Capture images remain intact. Failed captures or render stages are reported; assets
+as needed. Each command except `setup` and `runlog` also appends one line to `.design-lens/RUNLOG.jsonl` (command, agent role
+from `DESIGN_LENS_AGENT`, exit code, duration, phases); it is local only, review codes are
+redacted, and `DESIGN_LENS_RUNLOG=off` disables it. Capture images remain intact. Failed captures or render stages are reported; assets
 may remain remote, and closed shadow roots or live application behavior may be missing.
 The local clone strips scripts and inline event handlers, so it is study material rather than a
 restored application. A later source screenshot can differ from the original capture's state.
 
 ## Installation and first run
 
-Version 0.3.0 is prepared in this checkout; this guide does not claim it has been published to
+Version 0.4.0 is prepared in this checkout; this guide does not claim it has been published to
 GitHub releases or npm. To validate this checkout locally, run from the repository root:
 
 ```bash
@@ -175,7 +213,7 @@ bash plugin/scripts/bootstrap.sh
 ~/.design-lens/bin/design-lens --version
 ```
 
-That provisions the local 0.3.0 CLI. Install or load this checkout's `plugin/` separately to use its
+That provisions the local 0.4.0 CLI. Install or load this checkout's `plugin/` separately to use its
 updated skills; runtime setup does not replace previously installed skill text.
 
 Published installation channels remain available via the marketplace (see the repository root
@@ -214,8 +252,10 @@ different activities, and this plugin refuses to blur them:
 - **Shipping** — `build-from-design` and the `## Before you ship — brand checklist`. Build new
   work from the extracted principles: no logos, no copy, no photography, no assets carried over.
   `build-from-design` is the promoted clean path, and it requires zero assets copied from the
-  clone. The checklist runs before you ship, and it ends by grepping your output for the
-  reference's brand name — it must return nothing.
+  clone. Its opt-in `clone-base` mode keeps only the copied markup skeleton and layout
+  stylesheets, which are still the reference's code: the checklist requires rewriting them or
+  confirming the right to reuse them before anything is deployed. The checklist runs before you
+  ship, and it ends by grepping your output for the reference's brand name — it must return nothing.
 
 **Clones are never to be deployed or redistributed.** A clone is for private design study and
 derivation, full stop. Everything inside it — content, images, logos, fonts, text — remains the

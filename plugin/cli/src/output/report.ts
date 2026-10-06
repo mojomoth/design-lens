@@ -11,7 +11,7 @@
  */
 
 import { isFontResource } from '../localize/media-type.js';
-import type { ManifestRemote, ManifestResource } from './manifest.js';
+import type { ManifestRemote, ManifestResource, ManifestSubstitution } from './manifest.js';
 
 /** The verbatim license notice — reproduced exactly (including line breaks) from the spec. */
 const LICENSE_NOTICE = `This clone is for private design study and derivation. All content, images, logos, fonts and text
@@ -85,6 +85,8 @@ export interface ReportInput {
   };
   /** References left remote (manifest `remote[]`); rendered one bullet each with its reason. */
   remote: ManifestRemote[];
+  /** Media replaced by a still (manifest `substituted[]`); listed under Left remote as not remote. */
+  substituted?: ManifestSubstitution[];
   fidelity: {
     canvasConverted: number;
     shadowRootsSerialized: number;
@@ -92,6 +94,8 @@ export interface ReportInput {
   };
   /** Capture and re-render diagnostics, retained beside the fidelity caveats. */
   warnings?: string[];
+  /** How the static source state was produced; disclosed without making the capture incomplete. */
+  disclosures?: string[];
   /** Pass/warn summary from the verify routine; free text so warnings can be enumerated. */
   verify: string;
 }
@@ -120,16 +124,30 @@ export function buildReport(input: ReportInput): string {
           .map((f) => `- ${f.localPath} — from ${f.host}`)
           .join('\n')}`;
 
+  const substituted = input.substituted ?? [];
+  const substitutionLines = substituted.map((entry) => {
+    const still = entry.kind === 'video-frame'
+      ? `video-frame at ${(entry.currentTime ?? 0).toFixed(2)}s`
+      : entry.kind;
+    const owner = entry.captureId ? `${entry.captureId} ${entry.referencedBy}` : entry.referencedBy;
+    const lost = entry.lost.length > 0 ? `; ${entry.lost.join('/')} not reproduced` : '';
+    return `- Substituted (not remote): ${entry.urls.join(', ')} — ${still} (referenced by ${owner})${lost}`;
+  });
   const remoteBlock =
-    input.remote.length === 0
+    input.remote.length === 0 && substitutionLines.length === 0
       ? 'None — every referenced resource was localised.'
-      : input.remote
-          .map((r) => `- ${r.url} — ${r.reason} (referenced by ${r.referencedBy})`)
-          .join('\n');
+      : [
+          ...(input.remote.length === 0 ? ['None — no live reference remains; media below was replaced by still pixels.'] : []),
+          ...input.remote.map((r) => `- ${r.url} — ${r.reason} (referenced by ${r.referencedBy})`),
+          ...substitutionLines,
+        ].join('\n');
 
   // A multiline browser diagnostic must remain one report entry, not create extra headings.
   const warningBlock = (input.warnings ?? [])
     .map((warning) => `\n- Warning: ${warning.replace(/\s+/g, ' ').trim()}`)
+    .join('');
+  const disclosureBlock = (input.disclosures ?? [])
+    .map((disclosure) => `\n- Disclosed: ${disclosure.replace(/\s+/g, ' ').trim()}`)
     .join('');
 
   return `# Clone Report: ${input.title}
@@ -160,7 +178,7 @@ ${remoteBlock}
 - Open shadow roots serialized: ${fidelity.shadowRootsSerialized}
 - Cross-origin iframes left live: ${fidelity.crossOriginIframes}
 - Closed shadow DOM is undetectable and may be missing.
-- JS interactivity was intentionally removed — the clone is a photograph, not a program.${warningBlock}
+- JS interactivity was intentionally removed — the clone is a photograph, not a program.${warningBlock}${disclosureBlock}
 
 ## Verify
 ${input.verify}

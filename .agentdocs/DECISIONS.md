@@ -550,3 +550,125 @@ size fallbacks. Restore script execution in all completion/failure paths and ret
 consistency checks. Intrinsic fallbacks retain auto skipping and normal editable layout rather than
 forcing hidden content to paint or setting fixed element dimensions. The live DOM, saved evidence,
 comparison thresholds and intermediate-viewport guarantee remain unchanged.
+
+## ADR-030 — Reference-faithful builds, measured build QA and stabilized capture (2026-10-06)
+- Date: 2026-10-06 · Status: accepted
+- Context: A four-arm comparison (one Korean public-program landing page built from one
+  technology-lab reference; two arms used the 0.3.0 plugin, two used the same models without it;
+  n=1 per arm, LLM judges) ranked both plugin arms below the pure arms, mainly on reference
+  fidelity (judge averages 7.20 and 6.30 against 8.30 and 8.28). Observed causes: (1) the brief
+  asked to build from the clone while build-from-design forbade clone markup, so the clone was
+  copied and discarded (0 retained data-dl-id) and a self-written lineage file overstated reuse;
+  (2) DESIGN.md capped Signature Moves at two or three and recorded the display face only as
+  family and size, so the pixel/techno face, corner squares, clipped-corner buttons, carousel
+  chrome, marquee hero and light closing footer band were lost; (3) builds added full-bleed dark
+  bands (14–42% of page height against 0% in the reference) and fonts no document specified;
+  (4) a direction was chosen before DESIGN.md existed, several writers overwrote VARIATIONS.md,
+  and every variation dropped the same signatures; (5) verification missed dead span tabs,
+  stand-in in-page links, a fixed button over a CTA, a solid white icon, a masked 5 px overflow and
+  invented durations, and screenshots were created but not viewed; (6) every capture was
+  incomplete (skipped videos, unloaded lazy images, state changes), so fidelity stayed unverified;
+  (7) `inspect --all --details` produced about 57 MB per viewport and helper CLI runs left no
+  per-phase timing. Dark bands and dead tabs also occurred in a pure arm, so these checks are
+  value the plugin can add, not only plugin regressions.
+- Decision:
+  - Build modes. `derive` (default) never copies the clone into the target. `clone-base`, only on
+    an explicit user or brief request, copies the editable clone into the target once, keeps its
+    skeleton, grid, layout stylesheets and data-dl-id values, deletes every copied captured image,
+    font, icon and media file, replaces all text, imagery, logos, icons, fonts and media with
+    customize-clone mechanics on the copy, and gives retained controls real behavior or removes
+    them. The study clone stays untouched. Lineage is measured by `qa` (`build-lineage.json`),
+    never self-described.
+  - DESIGN.md gains three required tables: `### Typeface forms` (form classes from the glyphs,
+    OFL substitutes of the same class; at least one row whose Role matches
+    `/display|heading|headline|title|hero|디스플레이|헤드라인|헤딩|제목|타이틀|히어로/i` (Korean role names count,
+    because skills write prose in the user's language); Form features fails when, ignoring case, quotes and
+    whitespace, it equals the row's source family or an OFL substitute family, or names fewer than
+    two distinct features from an exported English/Korean vocabulary listed in LENSES.md), `### Tone budget` (pixel-derived shares from a new `tone`
+    command that reads the source screenshots and writes `tone.json`) and `### Signature priority`
+    (five to ten ranked devices with Kind, cited evidence, transfer and build check).
+  - VARIATIONS.md gains `## Signature retention` (per-variation decisions scored
+    deterministically), a `**Design basis:**` hash of the three tables, an optional quoted
+    `**Selection basis:**`, a parsed `### Build contract` (mode, fonts, display-fonts, dark maxima,
+    stylesheets, `check:<rank>` rows) and `## Reference fidelity`, required once build QA ran and
+    bound to the newest confirmed QA run. validate-design stays read-only and reports schemaVersion
+    2 with `documents`, `variationScores` and `referenceFidelity`.
+  - New `qa` and `qa-confirm` commands measure a built page (dead controls, stand-in links, fixed
+    overlap, clipped content, solid icons, unsourced numbers, images, fonts, requests, source
+    assets/text, brand residue, font/tone drift, signature checks, lineage) and require review
+    images to be viewed: each carries a random code whose salted hash is stored, and only matching
+    codes write `review.json`, whose proof value validate-design checks against qa.json, so a
+    hand-written confirmation does not count. A cited run must also have used `--project`.
+  - `inspect --lite`, repeatable `--selector` and `--viewports` give compact targeted measurements
+    in one browser run; default inspect output is unchanged.
+  - Capture stabilization: `--media` (default `poster`), `--lazy-images` (default `eager`),
+    `--readiness-ms`, `--readiness-retries`, `--freeze-timers` (opt-in) and `--capture-attempts`.
+    Disclosed substitutions and stabilizations keep a capture complete; motion is never verified.
+  - Review amendments before release: qa fails a main document with HTTP ≥ 400 (`navigation`);
+    dead-control counts scroll and popover/details toggle events; solid-icon skips an icon an
+    overlay covers (not status-affecting); hash routes (`#/x`, `#!/x`) are destinations; a
+    fragment target inside a shadow root fails with that reason unless a click scrolls it into
+    view; font-drift fails display headings whose glyphs a platform fallback paints (CDP
+    `getPlatformFontsForNode`); inlined captured style blocks are counted against the contract's
+    `stylesheets`. Capture removes `--remove-selector` matches re-inserted after stamping, judges
+    unloaded images hidden only by CSS or explicit zero size, keeps `<noscript>` unrendered during
+    paused screenshots, and the fidelity re-render uses the capture's media policy. Lite elements
+    carry `src` (`<captureId>/<dl-N>`). validate-design fails Reference fidelity whose cited run
+    checked another Build contract or mode, and accepts emphasis around the selected letter.
+  - Evaluation amendments (false-positive and cost reductions, enforcement unchanged): fidelity
+    masks the boxes of stopped marquees on both sides of the pixel comparison (their stop offset
+    differs between capture and re-render; geometry is still compared); fixed-overlap does not
+    report coverage below 5% by a bar pinned to the viewport top unless it covers the centre;
+    the five-labels-share-one-URL warning applies to bare site roots only (card grids share real
+    listing pages); compare sheets scale both pages by one factor (taller ≤ 1568 px) and pad the
+    shorter; qa.json records per-viewport `controls` counts and console errors carry their script
+    location; run-log records carry verdict commands' `verdict`, and an `abort` mark closes an
+    interrupted window that the summary reports apart.
+  - A local, best-effort, opt-out `RUNLOG.jsonl` in the enclosing `.design-lens` directory records
+    each command (agent role, exit code, duration, phases) plus `runlog` phase marks.
+  - Skills: one writer for DESIGN.md/VARIATIONS.md; direction selection only after DESIGN.md
+    validates without `fail`, an explicit user choice always wins, otherwise the highest retention
+    score when the brief prioritizes the reference's design language; completion is claimed only
+    after a confirmed QA run and validate-design without `fail`. Both brand checklists become
+    identical and gain the clone-base markup/stylesheet item.
+- Consequences: update specs/00-product.md, specs/01-packaging.md (version literals),
+  specs/02-clone-engine.md, specs/03-clone-format.md, specs/04-design-analysis.md,
+  specs/05-element-inventory.md, specs/06-customization.md, specs/07-skills.md,
+  specs/08-testing.md, specs/10-ethics.md and ARCHITECTURE.md. This supersedes, explicitly:
+  spec 04's two-or-three Signature Moves wording and its fixed required-subheading list; its ban on
+  an "automated design score" and "extra analysis-state files" for `variationScores`,
+  `referenceFidelity.score`, `tone.json`, `qa/<runId>/*` and `RUNLOG.jsonl`; its "not identical
+  reference pixels" sentence for tone budgets; and its CSS-count-versus-painted-area rule, which
+  now permits labelled pixel-derived tone from source screenshots while declaration counts stay
+  non-area evidence. Spec 05's out-of-scope image-derived analysis line is narrowed to allow
+  `tone`, and inspect still writes nothing in the project. Spec 06's captured-CSS and
+  captured-asset restrictions apply to the study clone only. Spec 07 and 10's "copy zero
+  assets/text/logos" holds for both modes: clone-base keeps markup and stylesheets only, disclosed
+  through the checklist. Spec 08's ban on numerical LLM quality scores stands: the new numbers are
+  deterministic consistency gates over agent-authored tables, not design-quality judgments.
+  Spec 05 adds `--lite`, `--selector` and `--viewports` to the inspect command line and selection
+  rules. Spec 03's evidence and manifest shapes gain the optional `stabilization` and
+  `substituted[]` fields, REPORT.md gains disclosure lines under existing headings, and the
+  project layout gains `tone.json`, `qa/<runId>/` and the run-log location. Spec 02's media
+  default changes from leaving media remote to `poster` (`--media remote` keeps the old behavior)
+  and its command table gains the stabilization flags. Spec 00's command list, output root and
+  zero-copy build rule gain `tone`, `qa`, `qa-confirm`, `runlog` and the clone-base mode. Spec 01's
+  version literals become 0.4.0.
+  Unchanged: ADR-002 (no edit manifest; inventory stays ephemeral), clone inertness, REPORT
+  headings and notice, the remote[] reason enum (substitutions use a new optional
+  `substituted[]`), fidelity thresholds and the ADR-028 negative controls, five skills and their
+  descriptions. No dependency addition, harness change or publication. Version 0.4.0 moves through
+  code, manifests, specs and docs together (ADR-017); the 0.4.0 skills are evaluated with fresh
+  local runs before the release task, recorded under test/evaluations/0.4.0.
+  Evaluation consequences (test/evaluations/0.4.0/RESULTS.md): the live recapture showed that part
+  of the baseline's cause (6) was a capture-tool artifact present since 0.3.0 (`<noscript>`
+  rendered after a paused screenshot, shifting every later element), not the site; capture now
+  keeps it unrendered, and a fixture reproduces it. The tone margins measured on the four builds
+  separate full-bleed dark cleanly but darkShare only narrowly, so the template relies on
+  `full-bleed-dark-max` and keeps `dark-share-max` at the loosest accepted value. The end-to-end run
+  showed that Reference fidelity could cite a QA run made under another Build contract, which led
+  to the contract binding above and to one recorded build per study project. Accepted limits:
+  Korean Role names do not satisfy the display-row rule (English role words are required); a
+  qa.json written before the binding (no recorded contract) is not rejected; validate-design does
+  not recompute tone.json profiles; dead-control clicks at most six members per group; the
+  clone-base skeleton comparison is trivial on short pages.

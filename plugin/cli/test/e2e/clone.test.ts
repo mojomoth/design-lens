@@ -110,7 +110,7 @@ describe('clone basic (M1 spine)', () => {
 
   it('writes clone/index.html with the provenance comment on line 1', () => {
     expect(fs.existsSync(path.join(projectDir, 'clone', 'index.html'))).toBe(true);
-    expect(indexHtml.split('\n')[0]).toContain('Cloned by design-lens v0.3.0');
+    expect(indexHtml.split('\n')[0]).toContain('Cloned by design-lens v0.4.0');
   });
 
   it('stamps unique data-dl-id attributes on body elements', () => {
@@ -647,6 +647,7 @@ describe('clone xorigin (cross-origin webfont, css-fetch)', () => {
 interface PolicyManifest {
   remote: { url: string; reason: string; referencedBy: string }[];
   resources: { localPath: string; originalUrl: string; via: string; bytes: number }[];
+  substituted?: { kind: string; referencedBy: string; urls: string[]; stillFrom: string; lost: string[] }[];
 }
 
 /** Read and parse a clone's `manifest.json`. */
@@ -765,10 +766,12 @@ describe('clone basic --max-asset-mb (oversize policy)', () => {
  * T30 — bulk media (`--include-media`), against the dedicated `media` fixture.
  *
  * WHY: a design clone wants the poster frame, not the 40 MB video behind it, so `mp4/webm/mp3/pdf/
- * zip` stay remote by default (spec 02 §6). Both branches are asserted from the SAME fixture, which
- * is what makes each one attributable to the flag rather than to the media never loading at all:
- *   • default          → mp4 + mp3 in `remote[]` as `media-skipped`, nothing on disk
- *   • `--include-media` → both localized under `clone/assets/`, `remote[]` empty
+ * zip` are never downloaded by default (spec 02 §6). All branches are asserted from the SAME
+ * fixture, which is what makes each one attributable to the flag rather than to the media never
+ * loading at all:
+ *   • default (`poster`) → still pixels; sources kept in `data-dl-original-src`, `substituted[]`
+ *   • `--media remote`   → mp4 + mp3 in `remote[]` as `media-skipped`, nothing on disk
+ *   • `--include-media`  → both localized under `clone/assets/`, `remote[]` empty
  * The fixture's `<video>` carries a `poster` beside its skipped `src`; asserting the poster survives
  * is what separates "skip the media reference" from "skip the media element".
  */
@@ -777,8 +780,10 @@ describe('clone media (bulk media policy)', () => {
   let out: string;
   let defaultDir: string;
   let includedDir: string;
+  let remoteDir: string;
   let defaultHtml: string;
   let includedHtml: string;
+  let remoteHtml: string;
 
   beforeAll(async () => {
     server = await startStaticServer(path.join(SITES, 'media'));
@@ -793,21 +798,23 @@ describe('clone media (bulk media policy)', () => {
     };
     defaultDir = await cloneMedia([], 'media-default');
     includedDir = await cloneMedia(['--include-media'], 'media-included');
+    remoteDir = await cloneMedia(['--media', 'remote'], 'media-remote');
     defaultHtml = fs.readFileSync(path.join(defaultDir, 'clone', 'index.html'), 'utf8');
     includedHtml = fs.readFileSync(path.join(includedDir, 'clone', 'index.html'), 'utf8');
-  }, 120_000);
+    remoteHtml = fs.readFileSync(path.join(remoteDir, 'clone', 'index.html'), 'utf8');
+  }, 180_000);
 
   afterAll(async () => {
     await server.close();
     fs.rmSync(out, { recursive: true, force: true });
   });
 
-  // why: the default. Chromium DOES fetch these bodies (`preload="auto"`), so they sit in the
-  // ResourceStore — meaning the skip is a deliberate policy decision, not an accident of what the
-  // render happened to request. Their references must survive byte-identical, and no media byte may
-  // reach the clone tree.
-  it('leaves mp4 and mp3 remote with reason media-skipped by default', () => {
-    const manifest = readManifest(defaultDir);
+  // why: the legacy policy, kept under `--media remote`. Chromium DOES fetch these bodies
+  // (`preload="auto"`), so they sit in the ResourceStore — meaning the skip is a deliberate policy
+  // decision, not an accident of what the render happened to request. Their references must survive
+  // byte-identical, and no media byte may reach the clone tree.
+  it('leaves mp4 and mp3 remote with reason media-skipped under --media remote', () => {
+    const manifest = readManifest(remoteDir);
 
     for (const file of ['/media/promo.mp4', '/media/tone.mp3']) {
       const entry = manifest.remote.find((r) => r.url.endsWith(file));
@@ -818,10 +825,42 @@ describe('clone media (bulk media policy)', () => {
     }
 
     // References left exactly as authored, and nothing media-shaped written under clone/assets/.
-    expect(defaultHtml).toContain('src="media/promo.mp4"');
-    expect(defaultHtml).toContain('src="media/tone.mp3"');
+    expect(remoteHtml).toContain('src="media/promo.mp4"');
+    expect(remoteHtml).toContain('src="media/tone.mp3"');
+    const written = fs.readdirSync(path.join(remoteDir, 'clone', 'assets'), { recursive: true }) as string[];
+    expect(written.filter((f) => /\.(?:mp4|mp3)$/.test(f))).toEqual([]);
+    expect(manifest.substituted).toBeUndefined();
+  });
+
+  // why: the default `poster` policy. The unplayed video paints its poster and the control-less
+  // audio paints nothing, so neither needs a live source: both sources move verbatim into
+  // data-dl-original-src, are never downloaded, and are listed as substituted (not remote). If this
+  // regresses, every page with a hero video is permanently incomplete and fidelity never certifies.
+  it('substitutes the poster-showing video and hidden audio by default instead of leaving them remote', () => {
+    const manifest = readManifest(defaultDir);
+    expect(manifest.remote).toEqual([]);
+    expect(manifest.substituted?.map((entry) => [entry.kind, entry.stillFrom]).sort()).toEqual([
+      ['media-hidden', 'none'], ['video-poster', 'poster-attr'],
+    ]);
+    for (const entry of manifest.substituted ?? []) {
+      expect(entry.referencedBy).toMatch(/^dl-\d+$/);
+      expect(entry.urls).toHaveLength(1);
+      expect(entry.urls[0]).toMatch(/\/media\/(?:promo\.mp4|tone\.mp3)$/);
+    }
+    expect(defaultHtml).toMatch(/<video[^>]*\bdata-dl-original-src="media\/promo\.mp4"/);
+    expect(defaultHtml).toMatch(/<audio[^>]*\bdata-dl-original-src="media\/tone\.mp3"/);
+    expect(defaultHtml).not.toMatch(/\ssrc="media\//);
     const written = fs.readdirSync(path.join(defaultDir, 'clone', 'assets'), { recursive: true }) as string[];
     expect(written.filter((f) => /\.(?:mp4|mp3)$/.test(f))).toEqual([]);
+    const report = fs.readFileSync(path.join(defaultDir, 'REPORT.md'), 'utf8');
+    const leftRemote = report.split('## Left remote\n')[1]!.split('\n## ')[0]!;
+    expect(leftRemote).toMatch(/- Substituted \(not remote\): \S+\/media\/promo\.mp4 — video-poster \(referenced by dl-\d+\)/);
+    expect(report).toContain('- Disclosed: media-substituted: 2 media elements');
+    const evidence = JSON.parse(fs.readFileSync(path.join(defaultDir, 'evidence.json'), 'utf8')) as {
+      captures: Array<{ complete: boolean; warnings: string[]; stabilization: { policy: { media: string } } }>;
+    };
+    expect(evidence.captures[0].stabilization.policy.media).toBe('poster');
+    expect(evidence.captures[0].warnings.filter((warning) => /media|video/.test(warning))).toEqual([]);
   });
 
   // why (THE DISCRIMINATOR): the poster frame lives on the very `<video>` whose `src` is skipped. An

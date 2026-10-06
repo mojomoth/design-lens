@@ -52,6 +52,27 @@ export interface ManifestRemote {
   referencedBy: string;
 }
 
+/** How a live media element was reduced to the still pixels the clone shows. */
+export type SubstitutionKind = 'video-frame' | 'video-poster' | 'media-hidden';
+
+/**
+ * Media whose live sources were replaced by a still (or dropped because nothing was painted). The
+ * clone keeps each source value in `data-dl-original-src`; it is never fetched and never remote.
+ */
+export interface ManifestSubstitution {
+  kind: SubstitutionKind;
+  /** Capture-local `data-dl-id` of the media element. */
+  referencedBy: string;
+  /** Source capture, set when responsive composition unions several captures. */
+  captureId?: string;
+  /** Absolute source URLs that the clone no longer loads. */
+  urls: string[];
+  stillFrom: 'captured-frame' | 'poster-attr' | 'none';
+  /** Media time of a captured frame, in seconds. */
+  currentTime?: number;
+  lost: Array<'motion' | 'audio' | 'source-alternatives'>;
+}
+
 /** Capture-origin provenance. `url` is as given; `finalUrl` is after redirects. */
 export interface ManifestSource {
   url: string;
@@ -103,6 +124,8 @@ export interface Manifest {
   source: ManifestSource;
   resources: ManifestResource[];
   remote: ManifestRemote[];
+  /** Absent when nothing was substituted; older manifests stay valid. */
+  substituted?: ManifestSubstitution[];
   stats: ManifestStats;
 }
 
@@ -113,6 +136,7 @@ export interface BuildManifestInput {
   source: ManifestSource;
   resources: ManifestResource[];
   remote?: ManifestRemote[];
+  substituted?: ManifestSubstitution[];
   stats: ManifestStats;
 }
 
@@ -166,6 +190,7 @@ export function buildManifest(input: BuildManifestInput): Manifest {
     source: input.source,
     resources: input.resources,
     remote: input.remote ?? [],
+    ...(input.substituted && input.substituted.length > 0 ? { substituted: input.substituted } : {}),
     stats: input.stats,
   };
 }

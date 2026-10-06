@@ -678,3 +678,71 @@ Final npm verify passed 561 unit tests and 210 browser E2Es. All 18 sealed asser
 The final strict gate passed every check, including the completed 47-task plan, all 18 sealed
 assertions, plugin validation, portable skills and fresh bundle. The evaluated bundle SHA-256 is
 `26cdeb801d13867baae66177dd1b9f724bab8051ce95d317b953300fc9368409`.
+
+## T48 and T55 documentation — Reference-faithful contracts and skill guidance (2026-10-06)
+
+ADR-030 records the swmaestro four-arm findings and the 0.4.0 response; specs 00–08 and 10 plus
+ARCHITECTURE.md gain minimal edits and one ADR-030 section each, with spec/architecture version
+literals at 0.4.0. Milestone 10 (T48–T57) is planned and left unticked until integration verifies
+the merged CLI. The five skills, LENSES.md and both templates now carry build modes, Typeface
+forms, Tone budget, Signature priority, Signature retention, Design basis, Build contract,
+Reference fidelity, qa/qa-confirm review, lite inspection, capture stabilization and run-log
+guidance; both brand checklists are byte-identical with the clone-base item. READMEs, INSTALL,
+USAGE.ko, the CLI reference, 0.4.0 release notes and the 0.4.0 evaluation baseline were written
+from the contract while the CLI was implemented in parallel; integration reconciles any drift.
+Traps: S6 forbids `$`+digit and `!`+backtick in SKILL.md, so qa check examples avoid both.
+
+Docs reconciliation against the merged code (2026-10-06): a fill test cloned the design-study
+fixture with a temporary bundle, ran `tone`, filled both templates as the skills direct and passed
+validate-design, including Reference fidelity after two real `qa --project` runs and a
+`qa-confirm` of the newest. Missing display font, family-only typeface cells, a dark maximum above
+the reference without a quote, a stale design basis, an older or unconfirmed QA run and a
+hand-written `review.json` each failed with a specific message. The docs now state what the code
+enforces beyond the contract: cited runs need `--project` and no `--out`, `review.json` carries a
+code-derived proof, any rank every variation drops needs a quote, `check:` properties are
+kebab-case computed properties (no pseudo-elements), and composed-clone inspect IDs are canonical
+clone IDs, not the capture IDs DESIGN.md cites.
+
+## T48–T57 — Reference-faithful builds, measured QA and stabilized capture (2026-10-06)
+
+The 0.4.0 CLI, skills and docs answer the swmaestro four-arm findings (ADR-030): `tone`, the
+Typeface forms, Tone budget and Signature priority tables, Signature retention, Design basis and
+Build contract in VARIATIONS.md, `qa`/`qa-confirm` with measured lineage and code-confirmed review
+images, Reference fidelity bound to the newest confirmed run under the current Build contract,
+`inspect --lite/--selector/--viewports`, capture stabilization with disclosures, and a local
+opt-out run log with phases, abort marks and verdict records. Code review and three evaluations
+added fixes before release (ADR-030 review and evaluation amendments).
+
+Evaluation (`plugin/cli/test/evaluations/0.4.0/RESULTS.md`): on the experiment's four builds qa
+found 12 of 12 known defects at the right viewports with no false fail, rerun on the final bundle
+with identical fail counts and fewer noise warnings; tone separates the dark-band builds by
+full-bleed share. A live recapture went from 16 warnings per capture to complete captures, and
+exposed a capture artifact (below). An end-to-end skill run produced derive and clone-base builds
+that pass qa with confirmed review and validate-design 126/126.
+
+Final gates on this checkout: `npm run verify` passed 724 unit and 284 browser tests;
+`bash .harness/verify.sh` ALL GREEN (test count 886); `bash .harness/e2e-assert.sh --all` ALL
+GREEN; `bash .harness/verify.sh --strict` passed every check except S5 (pending commit: a rebuild
+reproduces the bundle SHA-256 `8155aa4dc46c089a7dea4eb963d7fb31a0bd7c628b0a602af83a0f0a3452c592`
+exactly, but S5 compares with committed files) and S1 (T57 stays open until strict passes after
+the commit). `claude plugin validate ./plugin --strict` passed. T48–T56 are ticked.
+
+Traps learned:
+- Paused screenshots disable scripts through CDP, and on some pages that renders `<noscript>`
+  content; a second capture attempt then accepted the shifted page as consistent. This artifact
+  dated from 0.3.0 and explains part of the baseline's state-change warnings and full-image
+  failures. Capture now keeps `<noscript>` unrendered; `stabilization/noscript.html` reproduces it.
+- A fixer run died of ENOSPC: evaluation and e2e scratch (clones, qa runs, review images) filled
+  the disk. Keep scratch in one temporary directory, check free space before long runs and delete
+  it afterwards.
+- macOS has no `flock` binary; serialize Chromium-heavy runs with a Python `fcntl.flock` wrapper.
+  Concurrent Chromium runs make wall-clock tests flaky.
+- e2e tests spawn the built bundle: assertions added while an older bundle runs fail until
+  `npm run build`.
+- The B4 test ban on the sequence `xit(` also matches `exit(` in any file under `plugin/cli/test`,
+  including evaluation records.
+- `verify.sh` B5 runs `npm ci` when package-lock.json is newer than the installed tree; check that
+  the lockfile is unchanged afterwards. S5 cannot pass before the rebuilt dist is committed.
+- Skills write prose in the user's language, so any validator rule that matches table text must
+  accept the user's language too: the Typeface forms display-role rule first matched English role
+  names only and failed Korean documents (`디스플레이 제목`); it now accepts Korean role names.

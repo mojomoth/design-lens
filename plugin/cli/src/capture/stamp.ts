@@ -50,3 +50,52 @@ export function stampDom(page: Page | Frame, removeSelectors: string[]): Promise
     return counter;
   }, removeSelectors);
 }
+
+/** Elements that scripts inserted after {@link stampDom}, now stamped with fresh unique IDs. */
+export interface LateStamp {
+  ids: string[];
+  /** Count per tag name, for the disclosure line. */
+  tags: Record<string, number>;
+}
+
+/**
+ * Stamp body elements (including open shadow roots) that appeared after the first stamping, e.g.
+ * tracking pixels injected by scripts. New IDs continue after the largest existing `dl-N`, so IDs
+ * stay unique and every serialized element remains addressable and measurable. `removeSelectors`
+ * matches are removed first, exactly as {@link stampDom} does: a banner the page re-inserts after
+ * stamping must not reach the clone under the recorded removal policy.
+ */
+export function stampLate(page: Page | Frame, removeSelectors: string[] = []): Promise<LateStamp> {
+  return page.evaluate((selectors: string[]): LateStamp => {
+    for (const selector of selectors) {
+      try {
+        document.querySelectorAll(selector).forEach((node) => node.remove());
+      } catch {
+        // An invalid selector is ignored rather than aborting the whole capture, as in stampDom.
+      }
+    }
+    const elements: Element[] = [];
+    const visit = (element: Element): void => {
+      elements.push(element);
+      if (element.shadowRoot) for (const child of Array.from(element.shadowRoot.children)) visit(child);
+      for (const child of Array.from(element.children)) visit(child);
+    };
+    if (document.body) for (const child of Array.from(document.body.children)) visit(child);
+    let max = 0;
+    for (const element of elements) {
+      const match = /^dl-(\d+)$/.exec(element.getAttribute('data-dl-id') ?? '');
+      if (match) max = Math.max(max, Number(match[1]));
+    }
+    const result: LateStamp = { ids: [], tags: {} };
+    for (const element of elements) {
+      const tag = element.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style' || element.hasAttribute('data-dl-id')) continue;
+      max += 1;
+      const id = `dl-${max}`;
+      element.setAttribute('data-dl-id', id);
+      result.ids.push(id);
+      result.tags[tag] = (result.tags[tag] ?? 0) + 1;
+    }
+    return result;
+  }, removeSelectors);
+}

@@ -14,92 +14,103 @@ with `npx -y design-lens setup` instead, then retry.
 1. **Resolve the reference and outcome.** Use the reference, clone, and product context already
    supplied. If there is no capture, run clone-reference first, including its responsive repair
    checks. Ask only if the reference cannot be identified. An analysis-only request ends with the
-   two documents; an already-requested build continues after them.
+   two documents; an already-requested build continues after them. One agent writes DESIGN.md and
+   VARIATIONS.md; helpers return findings as text and prefix CLI calls with
+   `DESIGN_LENS_AGENT=<role>`. Before rewriting either file, compare its validate-design
+   `documents.*.sha256` with your last read and re-read when it changed. Mark the phase with
+   `~/.design-lens/bin/design-lens runlog <projectDir> --mark reverse-design --event start`, and
+   with `--event end` at the hand-off.
 
-2. **Inspect source evidence first.** Read `manifest.json`, `REPORT.md`, `evidence.json`, and the
-   latest `fidelity.json`. View the original viewport/full images for every captured viewport,
-   then the corresponding clone and difference images named in fidelity. The standard capture
-   set is 1440x900, 768x1024, and 390x844. Source snapshots, images, resource files, and observations
-   under `evidence/` are immutable. Each observation ID belongs to its capture; the same dl-N at
+2. **Inspect source evidence first.** Read `REPORT.md` and `manifest.json`. Query `evidence.json`
+   and the latest `fidelity.json` with targeted reads (status, warnings, `captures[].complete`,
+   disclosures, file paths); never load them whole. View the original viewport/full images for
+   every captured viewport, then the corresponding clone and difference images named in fidelity.
+   The standard capture set is 1440x900, 768x1024, and 390x844. Source snapshots, images, resource
+   files, and observations under `evidence/` are immutable. Each observation ID belongs to its capture; the same dl-N at
    another width does not establish the same element.
 
    Record source/final URL, capture times, browser, viewport, device scale, media policy, font
-   status, incomplete coverage, and unresolved differences. A legacy clone without source
-   evidence remains usable as clone evidence. If recapture is needed and its URL is known, save
-   a new project through clone-reference; never overwrite the old project or substitute later
+   status, disclosures, incomplete coverage, and unresolved differences. A legacy clone without
+   source evidence remains usable as clone evidence. If recapture is needed and its URL is known,
+   save a new project through clone-reference; never overwrite the old project or substitute later
    source observations into it. If capture is unavailable, label the affected conclusions
    Unavailable and continue the supported analysis.
 
 3. **Measure and compare.** Source measurements in each capture's `observations` are the primary
-   numerical evidence for the reference, even when the clone differs. The `body` member includes
-   root-page content styles and geometry; element entries include their parent/children, layout,
-   typography, backgrounds, image crop, pseudo-elements, and shadow-root context. Check font
-   readiness, failed families and loaded faces; a family name alone does not establish the glyph
-   face. Coverage excludes unmeasured iframe interiors and closed shadow roots.
-
-   Run the following commands with the actual returned project path, repeating inspection at
-   all recorded widths. Use repeated IDs to measure related components together.
+   numerical evidence for the reference, even when the clone differs. Element entries include
+   parent/children, layout, typography, backgrounds, image crop, pseudo-elements, and shadow-root
+   context. A family name alone does not establish the glyph face. Run, with the returned project
+   path and the captured viewports:
 
    ```
    ~/.design-lens/bin/design-lens tokens <projectDir>
-   ~/.design-lens/bin/design-lens inspect <projectDir> --viewport 1440x900 --all --details --pretty
-   ~/.design-lens/bin/design-lens inspect <projectDir> --viewport 768x1024 --all --details --pretty
-   ~/.design-lens/bin/design-lens inspect <projectDir> --viewport 390x844 --all --details --pretty
-   ~/.design-lens/bin/design-lens inspect <projectDir> --viewport 390x844 --id <container-id> --id <child-id> --pretty
+   ~/.design-lens/bin/design-lens tone <projectDir>
+   ~/.design-lens/bin/design-lens inspect <projectDir> --lite --viewports 1440x900,768x1024,390x844
+   ~/.design-lens/bin/design-lens inspect <projectDir> --lite --viewports 1440x900,768x1024,390x844 --id <dl-id> --selector "<css>"
    ~/.design-lens/bin/design-lens fidelity <projectDir> --json
    ```
 
-   Bare inspect preserves its visible-role inventory; `--all` includes stamped hidden elements
-   and open shadow trees. Inspect is current clone evidence and writes no inventory file.
-   Fidelity saves hash-bound clone observations. A nonzero fidelity result means fail or
-   unverified, so read its diagnostics instead of treating it as a command transport failure.
-   Do not transfer a missing mobile menu or wrong clone font into the reference's design rules.
+   The first lite call is the role inventory; target signature elements and their containers with
+   repeated `--id` and `--selector`. Use `--all --details --viewport <WxH>` only to close a specific
+   recipe gap. Inspect measures the current clone and writes nothing into the project. In a
+   composed clone its IDs are canonical clone IDs: DESIGN.md cites the capture's own IDs, which
+   lite elements carry as `src` (`<captureId>/<dl-N>`, from `data-dl-source-capture` and
+   `data-dl-source-id`); cite `src`, not `id`. A nonzero fidelity result means fail or
+   unverified; read its diagnostics. Do not transfer a missing mobile
+   menu or wrong clone font into the reference's design rules.
 
-   Read tokens schemaVersion 2 as a CSS declaration census. `provenance` records source hashes,
-   relative-unit assumptions, unresolved values, and warnings. Color counts are CSS occurrences,
-   not painted area. Preserve `alpha` or use the alpha-preserving `css`/`oklch` value. A nullable
-   `spacing.base` is an unknown grid, not zero or an implicit 4/8px rhythm. Font usage `unknown`
-   means the selector did not establish a text role. Prefer observed values over all guesses.
-   Inspect relevant media queries and small HTML/CSS windows with targeted searches; never read
-   the entire cloned index into context. Distinguish declared breakpoints from checked widths.
+   `tone.json` measures painted light, mid and dark pixels of each source full-page screenshot,
+   including full-bleed dark bands; it is the only basis for visible area. Tokens schemaVersion 2
+   is a CSS declaration census: color counts are occurrences, not painted area. Preserve `alpha`;
+   a null `spacing.base` is an unknown grid. Inspect relevant media queries and small HTML/CSS
+   windows with targeted searches; never read the entire cloned index into context.
 
 4. **Write an implementation blueprint.** Read `LENSES.md` and fill `templates/DESIGN.template.md`
    in the project. Preserve the evidence preface, `## Measured observations`, all twelve English
-   heading prefixes, the six recipe tables, and the fenced CSS recipe. Write prose in the user's
-   language. Label Observed-reference, Observed-clone, Inferred, Proposed, and Unavailable.
+   heading prefixes, the six recipe tables, the fenced CSS recipe, and the Typeface forms, Tone
+   budget and Signature priority tables. Write prose in the user's language. Label
+   Observed-reference, Observed-clone, Inferred, Proposed, and Unavailable.
 
-   Include concrete container constraints and grid/flex rules; heading/body/label type; spacing;
-   foreground/surface/action colors including alpha; component markup order and parent/child
-   relationships; responsive reflow and image crop. A developer must be able to build from these
-   recipes without rediscovering the CSS. Cover meaningful body sections, cards, forms, tables,
-   and web components actually present, rather than only the header and hero. If an item is
-   absent, explain that with observed evidence; if it is inaccessible, mark it unavailable.
+   Include container constraints and grid/flex rules; heading/body/label type; spacing; colors
+   with alpha; component markup order and parent/child relationships; responsive reflow and image
+   crop, covering meaningful body sections, not only the header and hero. The measured table uses
+   exactly `Label | Capture | Viewport | Observation | Field | Value | Unit | Precision`, with the
+   exact capture ID, WxH, capture-local dl-N or `page`, finite numbers for px/rem/unitless
+   (Precision 0–6), and Unit css or color with Precision - for exact strings and colors. Cite rows
+   as `capture/dl-N/field`. Unsupported values stay exact CSS strings or are unavailable.
 
-   The measured table uses exactly these columns:
-   `Label | Capture | Viewport | Observation | Field | Value | Unit | Precision`.
-   Use the exact capture ID, WxH, and capture-local dl-N, or `page` for document fields such as
-   `rootFontSize` and `body.styles.backgroundColor`. Field examples are `rect.width`,
-   `styles.fontSize`, `styles.rowGap`, and `pseudo.before.content`. Put only a finite number in
-   Value for px/rem/unitless; Precision is 0–6 decimal places. For exact CSS strings use Unit css
-   and Precision -; for equivalent RGBA colors use Unit color and Precision -. Convert px/rem
-   only using the same capture's measured root size. Preserve alpha. Unsupported values stay
-   exact CSS strings or are unavailable, never fabricated numbers.
+   - **Typeface forms:** view the cited element's region in the original viewport screenshot (its
+     lite `r` box locates it; no crop command is needed) and classify its glyphs (terminals,
+     counters, width, case, weight) into the template's form classes; list OFL substitutes as
+     `Family (class)` sharing a class with the row. Include every role the build will set. At
+     least one row's Role must match display, heading, headline, title or hero (in Korean:
+     디스플레이, 헤드라인, 제목, 타이틀 or 히어로). Form features must describe letterforms:
+     validate-design fails a cell that equals, ignoring case, quotes and whitespace, the row's
+     source family or one of its substitute families, and a cell that names fewer than two
+     distinct features from the English and Korean vocabulary in `LENSES.md`.
+     A role that sets text in the target's language lists a substitute that covers that script,
+     or says none of the same form does and how the form is adapted.
+   - **Tone budget:** copy darkShare and fullBleedDarkShare for every profiled capture from
+     `tone.json`, with Unit ratio and a Precision the value rounds to.
+   - **Signature priority:** rank five to ten devices by how much they make the page recognizable,
+     described by form: tone and dark usage, display typeface form, frame and grid lines, ornaments
+     such as corner marks, component chrome such as clipped corners and carousel controls, hero and
+     motion devices, closing bands. Cite measured or tone rows. What NOT to Copy never silently
+     removes a ranked signature; it states how the device is adapted.
 
-   Include source measurements at every complete captured viewport and enough rows to support
-   each recipe's numerical claims, covering at least layout, typography, and colors. Cite those
-   rows from recipe tables and prose with capture, ID, and field. Observed-clone rows must match
-   the latest fidelity report's current clone hash; rerun fidelity after an edit. Put interpretation
-   and proposed changes outside the measured table. A failed comparison does not invalidate
-   independent complete source observations. An incomplete source capture remains qualified.
-
-5. **Derive three directions.** Fill `templates/VARIATIONS.template.md`: conservative, bold,
-   and adapted to the supplied target. Tie each direction to verified rules in DESIGN. Record
-   the target brief, selected direction, structural changes, and verification criteria. Use the
-   user's existing preference, otherwise recommend the supported direction without another
-   approval pause. When no target product exists, explicitly say not supplied, keep adaptations
-   conditional, and do not invent audience, data, interactions, or commercial requirements.
-   Separate clone-compatible token changes from new-build structures. Carry forward source
-   assets and copy that must be replaced in new work.
+5. **Derive three directions.** Run validate-design and continue only when
+   `documents.design.status` is not `fail`. Fill `templates/VARIATIONS.template.md`: conservative,
+   bold, and adapted to the supplied target, each tied to verified DESIGN rules. Fill the
+   `## Signature retention` matrix so the variations differ in what they retain and at least one
+   scores 0.75 or more. Record the target brief, selected direction, structural changes and
+   verification criteria. Use the user's existing preference, otherwise recommend the supported
+   direction without another approval pause; when the brief prioritizes the reference's design
+   language, recommend the highest retention score. For the selected or recommended direction,
+   always record the `**Design basis:**` from `documents.design.basisSha256`, the
+   `### Build contract` and planned `## Reference fidelity` rows; validate-design requires the
+   first two even for analysis-only work. Copy every quoted clause into the Target brief. When no
+   target product exists, say so, keep adaptations conditional, and invent no audience, data,
+   interactions or commercial requirements. Carry forward source assets and copy to replace.
 
 6. **Validate, repair, and review meaning.** Run:
 
@@ -108,17 +119,17 @@ with `npx -y design-lens setup` instead, then retry.
    ```
 
    It reads without editing and returns 1 for fail/unverified. Fix incorrect IDs, capture scopes,
-   units, rounding, missing tables, and unsupported numerical claims, then rerun. Never modify
-   source evidence to satisfy a document claim. Where evidence cannot be obtained, keep the
-   unavailable explanation and report incomplete analysis; do not claim the blueprint fully
-   verified. The validator checks structure and cited measurements, not the truth of design
-   intent or the quality of a recipe. Independently review the blueprint against the source
-   images: check representative containers, type roles, component spacing, and each responsive
-   transition. If an independent reviewer is available, have them try to implement a representative
-   component from the document alone and resolve the ambiguity they find.
+   units, rounding, missing tables, unmatched citations, retention and contract problems, then
+   rerun. A `tone-report` that is unverified means `tone.json` is missing or stale: run `tone`
+   again. Never modify source evidence to satisfy a document claim. Where evidence cannot be
+   obtained, keep the unavailable explanation and report incomplete analysis. The validator checks
+   structure and cited measurements, not design intent or recipe quality. Independently review
+   the blueprint against the source images: representative containers, type roles, component
+   spacing, each ranked signature and each responsive transition. If an independent reviewer is
+   available, have them implement a representative component from the document alone.
 
-7. **Hand off the result.** Summarize within ten lines: useful implementation rules, recommended
-   direction, validation outcome and material limits, with links to DESIGN.md and VARIATIONS.md.
-   Finish for analysis-only work. Continue build-from-design for an already-requested new build;
-   apply only requested clone edits through customize-clone. Do not substitute a fluent design
-   description for a validated, usable blueprint.
+7. **Hand off the result.** Summarize within ten lines: top signatures, useful implementation
+   rules, recommended direction with its retention score, validation outcome and material limits,
+   with links to DESIGN.md and VARIATIONS.md. Finish for analysis-only work. Continue
+   build-from-design for an already-requested new build; apply only requested clone edits through
+   customize-clone. Do not substitute a fluent design description for a validated, usable blueprint.

@@ -1,6 +1,6 @@
 {
   "name": "design-lens",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Capture reference pages, measure their design, and turn evidence-backed principles into frontends adapted to your product, with responsive and behavioral verification.",
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json"

@@ -18,8 +18,8 @@ does not refuse.
   MUST equal `manifest.json` `tool.version` and the CLI `--version` output.
 - `manifest.json` MUST carry the full source-URL mapping: every localized asset appears in
   `resources[]` with its `originalUrl`, and every non-localized reference appears in `remote[]`
-  with `url`, `reason`, and `referencedBy` (schema in specs/03-clone-format.md). Nothing in the
-  clone may have untraceable origin.
+  with `url`, `reason`, and `referencedBy`, or in `substituted[]` when a painted still replaced
+  it (schema in specs/03-clone-format.md). Nothing in the clone may have untraceable origin.
 - Font provenance MUST be visible for commercial-font licensing checks: the REPORT.md
   `## Capture results` section MUST list every localized font file with its origin host. The
   deterministic `assets/<host>/<path>` layout already encodes the host in the local path; the
@@ -71,7 +71,7 @@ does not refuse.
 - `clone/index.html` provenance comment (first line of the file; substitute the ISO capture date).
   Template owned by `specs/03-clone-format.md`; the raw source URL is deliberately absent, because
   sealed assertion A4 forbids the capture host anywhere inside `clone/` (ADR-011):
-  `<!-- Cloned by design-lens v0.3.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`
+  `<!-- Cloned by design-lens v0.4.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->`
 - Completion one-liner (stderr, last line of clone output):
   `Note: this clone is for private design study only — see REPORT.md "License & usage notice" before shipping anything derived.`
 - Brand checklist block for BOTH `customize-clone/SKILL.md` and `build-from-design/SKILL.md`
@@ -85,6 +85,8 @@ does not refuse.
   - Fonts licensed for your use (origin hosts are listed in REPORT.md)
   - No trademarks, mascots, or brand names remain
   - Final check: run `grep -ri "<brand-name>"` over the output — it must return nothing
+  - Clone-base builds: before deploying, rewrite the retained captured markup and stylesheets or
+    confirm the right to reuse them (they are the reference's code); local comparison builds may keep them
   ```
 
 - Manifest fields owned by this spec: `source.robotsDisallowed` (boolean, always present),
@@ -115,3 +117,14 @@ does not refuse.
   build-from-design come from the source design (design/plugin-design.md §8, §5.6, §7.5).
 - CLI I/O convention: human output → stderr, machine JSON → stdout — the completion notice
   therefore goes to stderr (README.md canonical contract; specs/00-product.md).
+
+### Clone-base builds, disclosures and the local run log (ADR-030)
+build-from-design's default `derive` mode copies nothing from the clone. Its explicit `clone-base`
+mode copies the clone into the target, deletes every captured image, font, icon and media file,
+and replaces all text, imagery, logos, icons, fonts and media; the retained captured markup and
+stylesheets are the reference's code, which the checklist item above discloses before any
+deployment. `qa` reports retained reference assets, reference text and brand residue, and
+measures lineage instead of trusting a self-description. Clones remain never to be deployed or
+redistributed. The run log (`RUNLOG.jsonl`) is local, best effort and opt-out
+(`DESIGN_LENS_RUNLOG=off`); it records commands, timings, phases and agent roles, redacts review
+codes, and is never transmitted. Transparency over blocking is unchanged.

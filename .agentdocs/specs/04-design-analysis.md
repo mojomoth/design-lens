@@ -34,9 +34,9 @@ and records the target design and verification brief. The sealed AC-13 gate chec
      and warnings. Preserve all three capture PNGs and previous analysis images. Any new screenshot
      uses an unused descriptive filename with an increasing suffix.
    - Run `tokens` and read `tokens.json` as statistics over captured CSS.
-   - Run `inspect --details --viewport <capture-width>x<capture-height> --pretty` and
-     `inspect --details --viewport 390x844 --pretty` through the canonical launcher. Use roles
-     to locate elements, then `--id dl-N` for relevant containers outside the role vocabulary.
+   - Run `tone`, then `inspect --lite --viewports <capture sizes>` through the canonical launcher
+     (ADR-030). Use roles to locate elements, then `--lite` with `--id dl-N` or `--selector` for
+     signature elements and relevant containers; `--details` closes specific recipe gaps.
      Follow direct `parentDlId` values to measure grid/flex parents; consult `childDlIds`,
      `page.rootFontSize`, `page.body` and `page.fonts`. Body itself has no stamped ID.
    - Read small grep windows around IDs, landmarks, headings, named CSS variables, media/container
@@ -88,6 +88,8 @@ Use these five explicit labels throughout both artifacts:
   impressions may remain qualitative; never invent a measurement to satisfy a template.
 - CSS color counts are declaration occurrences, not painted-area percentages, semantic importance
   or proof of a 60–30–10 distribution. Keep CSS occurrence share distinct from visual estimates.
+  Painted-area shares come only from `tone.json`, measured from source screenshots and labelled
+  as pixel-derived in the Tone budget (ADR-030).
 - Token font sizes, spacing bases and scale ratios are heuristics over captured CSS. Their 16px
   rem/em conversion is not an actual root or inherited font metric. Variables, inactive conditions,
   unused rules, inline styling and current edits can make statistics differ from rendered values.
@@ -139,9 +141,11 @@ Include `## Target brief`, `## Selected direction`, `## Structural changes` and
 `## Verification criteria`. Record the product/audience/content/stack known from context, selected
 or recommended direction and reason, target-specific structural choices, measurable checks and
 unresolved essentials. Preserve an explicit user choice; otherwise recommend the direction best
-supported by the brief and record the assumptions. If the target is not yet known, mark it as
-unavailable rather than inventing product facts. These fields are the implementation handoff and
-verification notes in the existing artifact; no additional persistent state file is needed.
+supported by the brief (the highest signature-retention score when the brief prioritizes the
+reference's design language) and record the assumptions. If the target is not yet known, mark it
+as unavailable rather than inventing product facts. These fields are the implementation handoff
+and verification notes in the existing artifact; the only additional state is `tone.json`, build
+QA runs under `qa/` and the local run log (ADR-030).
 
 Repeat `## Variation {letter}: {name}` three times by default, or 3–5 when appropriate. The literal
 `## Variation` is a gate anchor. Every direction provides a concept, transferable principles to
@@ -156,7 +160,8 @@ keep, best-fit product situations and two distinct tables:
 
 Verification criteria describe the selected product's responsive hierarchy, layout, typography,
 component behavior and relevant accessibility checks. Evaluate new work against these principles
-and requirements, not identical reference pixels or copied content. Analysis-only use does not
+and requirements, not identical reference pixels or copied content. Tone budgets and Reference
+fidelity compare measured tone shares and ranked devices, never pixel equality (ADR-030). Analysis-only use does not
 itself authorize implementation; when a build was requested, these notes support immediate handoff.
 
 ### LENSES.md (required per-section methodology)
@@ -174,7 +179,7 @@ with a `Look at:` evidence line and an `Answer:` line addressing the following q
 7. **Imagery & Iconography** — Manifest, asset listings and screenshots: image treatment, icon style and image/text balance, while distinguishing transferable techniques from source-specific assets.
 8. **Motion & Interaction** — CSS motion evidence and available state observations: declared timings, observed states, inferred rationale and proposed behavior. JS triggers and unobserved states remain unknown.
 9. **Component Patterns** — Roles, direct IDs, parent/child details, responsive images and small markup windows: reusable recipes with structure, measured spacing, responsive behavior, proposed states and unresolved implementation needs.
-10. **Signature Moves** — Earlier evidence: two or three distinctive techniques, quantified where measurable, cited and explained.
+10. **Signature Moves** — Original screenshots and earlier evidence: five to ten devices ranked by how much they make the reference recognizable, described by form, cited and explained (Signature priority, ADR-030).
 11. **What NOT to Copy** — Brand/asset provenance and observed usability limits: identity, imagery, proprietary type and copy to exclude; inaccessible choices only claimed with supporting evidence.
 12. **Reusable Principles** — Sections 1–11: 5–10 transferable rules for a different product, each traceable to an observation and explicit about assumptions.
 
@@ -192,8 +197,10 @@ capture; mobile evidence uses 390×844. If either side is unavailable, mark the 
 ## Out of scope
 
 - The CLI does not author DESIGN.md or VARIATIONS.md; the agent does.
-- No multi-page analysis, automated design score, persistent inventory JSON or extra analysis-state
-  files beyond the two artifacts and existing clone evidence/screenshot directories.
+- No multi-page analysis, design-quality score, persistent inventory JSON or extra analysis-state
+  files beyond the two artifacts, existing clone evidence/screenshot directories, `tone.json`,
+  build QA runs under `qa/<runId>/` and the local run log. Deterministic retention and reference
+  fidelity scores over agent-authored tables are consistency gates, not quality scores (ADR-030).
 - Fresh source screenshots are allowed for viewport comparisons; this is not an interactive
   live-site crawler, and clone inspection cannot recover the source's original application behavior.
 - Applying directions belongs to customize-clone or build-from-design. An authorized end-to-end
@@ -233,7 +240,49 @@ RGBA colors use color and precision -. Root-supported px/rem conversion preserve
 Every complete source viewport and layout, typography and color categories need verified rows.
 
 The twelve sections retain these populated table subheadings: Layout recipe, Typography recipe,
-Color roles, Spacing recipe, Component recipes, Responsive rules. CSS recipe contains an actual
+Color roles, Spacing recipe, Component recipes, Responsive rules, plus Typeface forms, Tone budget
+and Signature priority (ADR-030). CSS recipe contains an actual
 fenced CSS example. VARIATIONS retains Target brief, Selected direction, Structural changes and
 Verification criteria, plus three to five named Variation sections. Fail or unverified exits 1;
 a machine pass validates cited facts and required structure, not prose intent or recipe quality.
+
+### Signature, tone and reference-fidelity contracts (ADR-030)
+`design-lens tone <projectDir>` profiles each source full-page screenshot (hash-checked against
+evidence) into `tone.json`: light/mid/dark shares (CIE L* below 30 dark, above 70 light), full-bleed
+dark bands (edge strips and half the row dark, merged runs of at least 60 CSS px), tile dark share,
+band count and dark usage `none|tiles|bands|mixed`. DESIGN.md adds `### Typeface forms` inside
+section 5 (`Role | Source family and status | Form class | Form features | OFL substitutes`; form
+classes from a fixed list, classified from glyphs; substitutes `Family (class)` sharing a class;
+at least one row whose Role matches `/display|heading|headline|title|hero|디스플레이|헤드라인|헤딩|제목|타이틀|히어로/i`; a Form features
+cell fails when, ignoring case, quotes and whitespace, it equals the row's source family or one of
+its OFL substitute families, or when it names fewer than two distinct features of the exported
+`FORM_FEATURE_VOCABULARY` — terminals, counters, aperture, width, case, stroke, weight, x-height,
+corners, pixel, stencil, serif, geometric, mono, tracking, slant — whose English and Korean terms
+LENSES.md lists; Latin terms match whole words, Korean terms anywhere),
+`### Tone budget` inside section 6 (`Capture | Viewport | Metric | Value | Unit | Precision`;
+darkShare and fullBleedDarkShare required per profiled capture; compared with tone.json at the
+declared precision; stale or missing tone is unverified) and `### Signature priority` inside
+section 10 (`Rank | Device | Kind | Evidence | Transfer | Build check`; 5–10 rows ranked 1..N;
+citations `capture/dl-N/field` or `tone/capture/metric` must match table rows; at least three
+Kinds, one tone row and one typeface row citing styles.fontFamily). What NOT to Copy never silently
+removes a ranked signature. The design basis is the hash of those three tables' canonical rows.
+
+VARIATIONS.md adds `## Signature retention` (`Rank`, one `Variation <L>` column per variation,
+`Drop basis`; cells `keep|adapt|substitute|drop: treatment`; rank 1–3 drops, and any rank every
+variation drops, need a verbatim `Brief:`/`Content:`/`User:` quote from the Target brief), scored Σw·v/Σw with weight N−rank+1 and keep 1,
+adapt/substitute 0.75, drop 0; at least one variation reaches 0.75. `## Selected direction` records
+`**Direction:**` (the letter may carry `*`/`_` emphasis), `**Design basis:** sha256:<hex>` equal to the current basis, a quoted
+`**Selection basis:**` when the choice scores more than 0.10 below the best, and `### Build
+contract` (`Contract | Value | Source`: mode, fonts, display-fonts, dark-share-max,
+full-bleed-dark-max, stylesheets for clone-base, `check:<rank>` rows `selector :: property op
+value`) cross-checked against Typeface forms, tone.json and the selected variation's top ranks.
+`## Reference fidelity` (`Rank | Device | Decision | Verdict | Evidence`) becomes required once a
+`qa/qa-*/qa.json` exists or a Verification criteria result is no longer planned; it cites the
+newest QA run, which must have run with `--project`, must not have failed, and must be confirmed
+(`review.json` carries a proof only the matching codes produce), whose recorded Build contract and
+mode must equal the current ones (canonical rows without Sources), and whose failed signature checks
+cannot be reported present or partial. `check:<rank>` properties are kebab-case computed CSS
+properties (or `count`); pseudo-element selectors never match in qa. validate-design reports schemaVersion 2 with `documents` hashes and statuses,
+`variationScores` and `referenceFidelity`; existing check ids and outcomes are unchanged.
+The procedure's inspection steps use `inspect --lite --viewports` for the role inventory and
+targeted `--id`/`--selector` lookups; `--all --details` is reserved for specific recipe gaps.

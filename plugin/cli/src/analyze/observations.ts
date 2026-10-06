@@ -45,6 +45,8 @@ export interface ObservationDocument {
   elements: ElementObservation[];
   /** Body is a measured document root, not a stamped editable inventory element. */
   body?: Omit<ElementObservation, 'dlId'>;
+  /** Unready or failed images that are not painted; absent when there are none. */
+  hiddenUnloadedImages?: string[];
   complete: boolean;
   warnings: string[];
 }
@@ -125,6 +127,9 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   const activeCaptureId = activeHosts[0]?.getAttribute('data-dl-source-capture') ?? undefined;
   const activeBody = activeHosts[0]?.shadowRoot?.querySelector('[data-dl-generated="body"]') ?? document.body;
   const seenIds = new Set<string>();
+  // Unloaded images have a 0x0 box by construction; their paint visibility comes from CSS and explicit size.
+  const unloadedPaintable = new Set<string>();
+  const zeroSize = (value: string | null): boolean => value !== null && /^\s*0(?:\.0*)?(?:px)?\s*$/i.test(value);
   let unstamped = 0;
   let visited = 0;
   type Entry = { element: Element; rootPath: string[]; domPath: string; parent: Element | null };
@@ -164,6 +169,11 @@ export function probeObservations(options: ObservationOptions = {}): Observation
     if (seenIds.has(dlId)) warnings.push(`duplicate observation ID: ${dlId}`);
     seenIds.add(dlId);
     elements.push({ dlId, ...measure(element, rootPath, domPath, parent) });
+    if (element instanceof HTMLImageElement && (!element.complete || element.naturalWidth === 0)
+        && element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+        && !(zeroSize(element.getAttribute('width')) || zeroSize(element.getAttribute('height')) || zeroSize(element.style.width) || zeroSize(element.style.height))) {
+      unloadedPaintable.add(dlId);
+    }
   }
   function measure(element: Element, rootPath: string[], domPath: string, parent: Element | null): Omit<ElementObservation, 'dlId'> {
     const style = getComputedStyle(element);
@@ -204,7 +214,11 @@ export function probeObservations(options: ObservationOptions = {}): Observation
   if (failed.size > 0) warnings.push(`failed font families: ${[...failed].sort().join(', ')}`);
   const brokenImages = elements.filter((element) => (!activeCaptureId || !element.source || element.source.captureId === activeCaptureId)
     && element.image && element.currentSrc && (!element.image.complete || element.image.naturalWidth === 0));
-  if (brokenImages.length > 0) warnings.push(`unready or failed images: ${brokenImages.map((element) => element.dlId).join(', ')}`);
+  // Hidden images are not painted; they are recorded, and the clone refetches their bytes.
+  const paints = (element: ElementObservation): boolean => element.visible || unloadedPaintable.has(element.dlId);
+  const visibleBroken = brokenImages.filter(paints);
+  const hiddenUnloadedImages = brokenImages.filter((element) => !paints(element)).map((element) => element.dlId);
+  if (visibleBroken.length > 0) warnings.push(`unready or failed images: ${visibleBroken.map((element) => element.dlId).join(', ')}`);
   const width = Math.max(window.innerWidth, document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0);
   const height = Math.max(window.innerHeight, document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   if (width * height * window.devicePixelRatio ** 2 > 40_000_000) warnings.push('full screenshot exceeds 40000000 pixel limit');
@@ -219,10 +233,72 @@ export function probeObservations(options: ObservationOptions = {}): Observation
       'scrollBehavior', 'scrollbarGutter', 'overscrollBehaviorX', 'overscrollBehaviorY',
     ].map((property) => [property, String(Reflect.get(getComputedStyle(document.documentElement), property) ?? '')])),
     ...(activeCaptureId ? { activeCaptureId } : {}),
-    fonts, fontFaces, elements, ...(activeBody ? { body: measure(activeBody, [], 'body', activeBody.parentElement) } : {}), complete: warnings.length === 0, warnings,
+    fonts, fontFaces, elements, ...(activeBody ? { body: measure(activeBody, [], 'body', activeBody.parentElement) } : {}),
+    ...(hiddenUnloadedImages.length > 0 ? { hiddenUnloadedImages } : {}), complete: warnings.length === 0, warnings,
   };
 }
 
 export async function observePage(page: Page, options: ObservationOptions = {}): Promise<ObservationDocument> {
   return page.evaluate(probeObservations, options);
+}
+
+export type ObservationField = 'rect' | 'styles' | 'text' | 'image' | 'currentSrc' | 'visible' | 'pseudo' | 'structure';
+
+export interface ObservationDiff {
+  equal: boolean;
+  /** Changed document-level keys (fonts, fontFaces, width, warnings, …). */
+  document: string[];
+  changed: Array<{ dlId: string; fields: ObservationField[] }>;
+  added: string[];
+  removed: string[];
+}
+
+function same(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** Which measured facts differ between two observations of the same source state. */
+export function diffObservations(before: ObservationDocument, after: ObservationDocument): ObservationDiff {
+  const documentKeys = new Set([...Object.keys(before), ...Object.keys(after)].filter((key) => key !== 'elements'));
+  const document = [...documentKeys].filter((key) => !same(Reflect.get(before, key), Reflect.get(after, key))).sort();
+  const previous = new Map(before.elements.map((element) => [element.dlId, element]));
+  const current = new Map(after.elements.map((element) => [element.dlId, element]));
+  const changed: ObservationDiff['changed'] = [];
+  for (const element of after.elements) {
+    const old = previous.get(element.dlId);
+    if (!old) continue;
+    const fields: ObservationField[] = [];
+    if (!same(old.rect, element.rect)) fields.push('rect');
+    if (!same(old.styles, element.styles)) fields.push('styles');
+    if (old.text !== element.text) fields.push('text');
+    if (!same(old.image, element.image)) fields.push('image');
+    if (old.currentSrc !== element.currentSrc || old.src !== element.src) fields.push('currentSrc');
+    if (old.visible !== element.visible) fields.push('visible');
+    if (!same(old.pseudo, element.pseudo)) fields.push('pseudo');
+    const rest = (value: ElementObservation): unknown => ({ ...value, rect: 0, styles: 0, text: 0, image: 0, currentSrc: 0, src: 0, visible: 0, pseudo: 0 });
+    if (!same(rest(old), rest(element))) fields.push('structure');
+    if (fields.length > 0) changed.push({ dlId: element.dlId, fields });
+  }
+  const added = after.elements.filter((element) => !previous.has(element.dlId)).map((element) => element.dlId);
+  const removed = before.elements.filter((element) => !current.has(element.dlId)).map((element) => element.dlId);
+  const orderChanged = added.length === 0 && removed.length === 0
+    && !same(before.elements.map((element) => element.dlId), after.elements.map((element) => element.dlId));
+  if (orderChanged) document.push('element order');
+  return { equal: document.length === 0 && changed.length === 0 && added.length === 0 && removed.length === 0, document, changed, added, removed };
+}
+
+/** Compact, bounded summary appended to a state-consistency warning. */
+export function summarizeObservationDiff(diff: ObservationDiff, limit = 6): string {
+  if (diff.equal) return 'no measured difference';
+  const list = (ids: string[]): string => ids.length > limit ? `${ids.slice(0, limit).join(', ')}, …` : ids.join(', ');
+  const parts: string[] = [];
+  if (diff.changed.length > 0) {
+    const byField = new Map<ObservationField, string[]>();
+    for (const entry of diff.changed) for (const field of entry.fields) byField.set(field, [...(byField.get(field) ?? []), entry.dlId]);
+    parts.push(`${diff.changed.length} element${diff.changed.length === 1 ? '' : 's'}: ${[...byField].map(([field, ids]) => `${field} ${list(ids)}`).join('; ')}`);
+  }
+  if (diff.added.length > 0) parts.push(`added ${list(diff.added)}`);
+  if (diff.removed.length > 0) parts.push(`removed ${list(diff.removed)}`);
+  if (diff.document.length > 0) parts.push(`document: ${diff.document.join(', ')}`);
+  return parts.join('; ');
 }

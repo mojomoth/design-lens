@@ -1,0 +1,24 @@
+* { box-sizing: border-box; }
+html { font-family: sans-serif; }
+body { margin: 0; overflow-x: hidden; background: #fff; color: #111; }
+.hero { position: relative; height: 844px; padding: 24px; background: #f6f3ee; }
+.hero h1 { margin: 120px 0 0; font-size: 40px; }
+.cta { position: absolute; left: 199px; top: 796px; width: 174px; height: 48px; display: block; background: #ff7120; color: #fff; text-align: center; line-height: 48px; text-decoration: none; }
+.quick { position: fixed; right: 8px; bottom: 8px; width: 46px; height: 90px; background: #111; z-index: 10; }
+.quick a { display: block; height: 100%; color: #fff; font-size: 11px; text-align: center; padding-top: 36px; text-decoration: none; }
+section { padding: 32px 24px; }
+.program-glyph { display: flex; flex-direction: column; font-size: 28px; }
+.step-icon { width: 64px; height: 64px; padding: 8px; background: #fff; }
+.step-icon img { display: block; filter: brightness(0) invert(1); }
+.filter-list { display: flex; gap: 8px; margin: 12px 0; }
+.filter-list span { padding: 4px 8px; border: 1px solid #ccc; }
+.filter-list span.active { background: #111; color: #fff; }
+.filter-list.pointer span { cursor: pointer; }
+.filter-list.pointer span:hover { background: #ff7120; }
+.tabs button[aria-selected="true"] { background: #111; color: #fff; }
+.like { cursor: pointer; display: inline-block; padding: 4px 8px; border: 1px solid #ccc; }
+.like.liked { background: #ff7120; }
+.cards { padding: 0; overflow: hidden; }
+.card { width: 377px; margin: 0 0 16px 18px; padding: 16px; background: #eee; }
+.footer { padding: 32px 24px 160px; background: #fafafa; }
+.policy a { display: inline-block; margin-right: 8px; }

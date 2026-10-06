@@ -7,8 +7,8 @@
  * `reducedMotion: 'reduce'` MUST be set BEFORE navigation so the page sees the preference from
  * its first render (spec 02 §1); CSS that ignores it can still animate. Resource capture is wired
  * the instant the page exists: each response's
- * body is read asynchronously and recorded; body-read failures are tolerated as warnings, never
- * thrown (a redirect/opaque response has no readable body). Callers MUST `await drainResponses()`
+ * body is read asynchronously and recorded; body-read failures are recorded for the caller to
+ * reconcile, never thrown (a redirect/opaque response has no readable body). Callers MUST `await drainResponses()`
  * once the page has settled, then close the browser.
  *
  * This module also owns the read-only counterpart: {@link renderScreenshot} and
@@ -24,6 +24,7 @@ import type { APIResponse, Browser, BrowserContext, CDPSession, Page, Response, 
 import { loadRuntimeDep } from '../lib/runtime-deps.js';
 import { startStaticServer } from '../lib/static-server.js';
 import { ResourceStore } from '../localize/resource-store.js';
+import type { BodyReadFailure } from './disclosures.js';
 
 /**
  * The slice of the Playwright module we use (loaded at run time, external to the bundle).
@@ -57,8 +58,10 @@ export interface Capture {
   page: Page;
   /** Every 2xx response body captured during render. */
   store: ResourceStore;
-  /** Non-fatal capture warnings (e.g. a response body that could not be read). */
+  /** Non-fatal capture warnings. */
   warnings: string[];
+  /** 2xx responses whose body could not be read; the caller reconciles them against the store. */
+  bodyReadFailures: BodyReadFailure[];
   /** Resolve once every in-flight response body has been read into the store. */
   drainResponses(deadline?: number): Promise<void>;
 }
@@ -69,10 +72,16 @@ export interface LaunchOptions {
   deviceScaleFactor: number;
   /** Override the default Chromium UA; omitted ⇒ real default Chromium UA (spec 02 §1). */
   userAgent?: string;
+  /** Install page-timer wrappers so readiness can be followed by a timer freeze (`--freeze-timers`). */
+  freezeTimers?: boolean;
 }
 
-/** Runs in every new document before source scripts create their drawing contexts or RAF loops. */
-function initializeCaptureRuntime(): void {
+/**
+ * Runs in every new document before source scripts create their drawing contexts or RAF loops.
+ * Timer wrappers exist only under the freeze-timers policy: without it, page timers stay native so
+ * continuing timer mutations remain observable and keep such captures explicitly incomplete.
+ */
+function initializeCaptureRuntime(policy?: { freezeTimers?: boolean }): void {
   const getContext = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, kind: string, options?: object) {
     const attributes = /^(webgl2?|experimental-webgl)$/.test(kind)
@@ -103,13 +112,51 @@ function initializeCaptureRuntime(): void {
     pending.delete(id);
     cancel(id);
   };
-  Object.defineProperty(window, '__designLensCaptureRuntime', {
-    value: { freezeRaf(): void {
+
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  let timersFrozen = false;
+  let suppressed = 0;
+  const runtime: Record<string, unknown> = {
+    freezeRaf(): void {
       frozen = true;
       for (const id of pending) cancel(id);
       pending.clear();
-    } },
-  });
+    },
+    // Capture waits must keep working after page timers are frozen.
+    sleep(ms: number): Promise<void> {
+      return new Promise((resolve) => { nativeSetTimeout(resolve, Math.max(0, ms)); });
+    },
+    suppressedTimers(): number { return suppressed; },
+  };
+  if (policy?.freezeTimers === true) {
+    const nativeSetInterval = window.setInterval.bind(window);
+    const nativeClearInterval = window.clearInterval.bind(window);
+    type Callback = (...args: unknown[]) => unknown;
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]): number => {
+      if (typeof handler !== 'function') return nativeSetTimeout(handler, timeout, ...args);
+      return nativeSetTimeout(() => {
+        if (timersFrozen) { suppressed += 1; return; }
+        (handler as Callback)(...args);
+      }, timeout);
+    }) as typeof window.setTimeout;
+    window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]): number => {
+      if (typeof handler !== 'function') return nativeSetInterval(handler, timeout, ...args);
+      const id: number = nativeSetInterval(() => {
+        if (timersFrozen) { suppressed += 1; nativeClearInterval(id); return; }
+        (handler as Callback)(...args);
+      }, timeout);
+      return id;
+    }) as typeof window.setInterval;
+    if (typeof window.requestIdleCallback === 'function') {
+      const nativeIdle = window.requestIdleCallback.bind(window);
+      window.requestIdleCallback = (callback: IdleRequestCallback, options?: IdleRequestOptions): number => nativeIdle((deadline) => {
+        if (timersFrozen) { suppressed += 1; return; }
+        callback(deadline);
+      }, options);
+    }
+    runtime.freezeTimers = (): void => { timersFrozen = true; };
+  }
+  Object.defineProperty(window, '__designLensCaptureRuntime', { value: runtime });
 }
 
 /** Launch Chromium, open a page with capture wired, and set reduced-motion before any navigation. */
@@ -125,13 +172,14 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
     bypassCSP: true,
     ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
   });
-  await context.addInitScript(initializeCaptureRuntime);
+  await context.addInitScript(initializeCaptureRuntime, { freezeTimers: options.freezeTimers === true });
   const page = await context.newPage();
   await guardFontRequests(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
   const store = new ResourceStore();
   const warnings: string[] = [];
+  const bodyReadFailures: BodyReadFailure[] = [];
   const pending: Promise<void>[] = [];
 
   page.on('response', (response: Response) => {
@@ -143,7 +191,8 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
         try {
           body = await response.body();
         } catch {
-          warnings.push(`could not read response body: ${response.url()}`);
+          // Reconciled after refetch: bytes stored from another response are not lost.
+          bodyReadFailures.push({ url: response.url(), resourceType: response.request().resourceType(), status });
           return;
         }
         const contentType = (response.headers()['content-type'] ?? '').trim();
@@ -166,6 +215,7 @@ export async function launchCapture(options: LaunchOptions): Promise<Capture> {
     page,
     store,
     warnings,
+    bodyReadFailures,
     // Snapshot the queue: awaiting may let already-registered handlers push more, so loop to a fixpoint.
     async drainResponses(deadline = Date.now() + 15_000): Promise<void> {
       let drained = 0;
@@ -366,11 +416,25 @@ async function withPausedScreenshotScripts<T>(page: Page, capture: (session: CDP
     screenshotSessions.set(page, pending);
   }
   const session = await pending;
+  // With script execution disabled, a style recalc re-attaches `<noscript>` as rendered fallback
+  // markup, and it stays rendered after scripts are re-enabled: the photographed page grows and
+  // every later element shifts, while the clone strips `<noscript>`. A constructed sheet hides it
+  // for the paused window without a DOM mutation and regardless of the page's style CSP.
+  await page.evaluate(() => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync('noscript{display:none!important}');
+    Object.defineProperty(window, '__designLensNoscriptGuard', { value: sheet, configurable: true });
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  });
   try {
     await session.send('Emulation.setScriptExecutionDisabled', { value: true });
     return await capture(session);
   } finally {
     await session.send('Emulation.setScriptExecutionDisabled', { value: false });
+    await page.evaluate(() => {
+      const sheet = (window as unknown as { __designLensNoscriptGuard?: CSSStyleSheet }).__designLensNoscriptGuard;
+      if (sheet) document.adoptedStyleSheets = document.adoptedStyleSheets.filter((entry) => entry !== sheet);
+    });
     // Detaching an Emulation session also resets unrelated device metrics (including DPR).
     // Keep it with this internally JS-enabled page; closing the page/browser releases the target.
   }

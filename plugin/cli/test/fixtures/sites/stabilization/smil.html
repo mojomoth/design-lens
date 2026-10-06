@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SMIL Fixture — Design Lens</title>
+  <style>body { margin: 0; background: #fff; } svg { display: block; margin: 20px; }</style>
+</head>
+<body>
+  <!-- SMIL animation is not a DOM mutation and is not visible to the Web Animations API, so only
+       an explicit pause holds it still between the source screenshots and the clone re-render. -->
+  <svg id="pulse" width="240" height="120" viewBox="0 0 240 120">
+    <rect width="240" height="120" fill="#0a2540"/>
+    <circle cx="60" cy="60" r="20" fill="#ff5c35">
+      <animate attributeName="r" values="10;50;10" dur="1.7s" repeatCount="indefinite"/>
+    </circle>
+    <rect x="120" y="40" width="40" height="40" fill="#ffffff">
+      <animateTransform attributeName="transform" type="rotate" from="0 140 60" to="360 140 60" dur="2.3s" repeatCount="indefinite"/>
+    </rect>
+  </svg>
+  <p>Paused vector motion</p>
+</body>
+</html>

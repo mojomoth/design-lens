@@ -14,7 +14,7 @@ import { readEvidence } from '../../src/capture/evidence.js';
 import { lazyLoadSweep } from '../../src/capture/settle.js';
 import { serializeDom } from '../../src/capture/serialize.js';
 import { stabilize } from '../../src/capture/stabilize.js';
-import { stampDom } from '../../src/capture/stamp.js';
+import { stampDom, stampLate } from '../../src/capture/stamp.js';
 import { runClone } from '../../src/commands/clone.js';
 import * as beautify from '../../src/output/beautify.js';
 import * as writer from '../../src/output/writer.js';
@@ -40,7 +40,22 @@ beforeAll(async () => {
       response.on('close', () => clearTimeout(timer));
       return;
     }
+    if (url.pathname === '/collect') {
+      // An analytics endpoint whose body never completes; the page aborts it after the headers.
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.write('partial');
+      const timer = setTimeout(() => response.end(), 30_000);
+      response.on('close', () => clearTimeout(timer));
+      return;
+    }
     response.setHeader('content-type', 'text/html');
+    if (url.pathname === '/beacon') {
+      response.end(`<!doctype html><body><h1>Analytics beacon</h1><script>
+        const controller = new AbortController();
+        fetch('/collect', { signal: controller.signal }).then(() => controller.abort()).catch(() => undefined);
+      </script></body>`);
+      return;
+    }
     if (url.pathname === '/materialize') {
       response.end(`<!doctype html><body><h1>Materialization ordering</h1><script>
         const image = new Image(); image.src = '/visit?width=' + innerWidth; document.body.append(image);
@@ -58,6 +73,12 @@ beforeAll(async () => {
     }
     if (url.pathname === '/timer') {
       response.end('<body><p id="counter">0</p><script>setInterval(() => counter.textContent = Number(counter.textContent) + 1, 10)</script></body>');
+      return;
+    }
+    if (url.pathname === '/hidden-stall') {
+      response.end(`<!doctype html><body><h1>Hidden stall</h1><img src="/slow.png?width=hidden" style="display:none" alt="">
+        <img id="broken" src="/not-an-image.png" style="display:none" alt="">
+        <marquee id="ticker">Moving headline</marquee></body>`);
       return;
     }
     if (url.pathname === '/poster') {
@@ -240,6 +261,98 @@ it('finishes every live source capture before slow formatting or the first clone
     }
   } finally {
     formattingSpy.mockRestore(); writerSpy.mockRestore();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+// why: `--freeze-timers` must actually stop page timers after readiness (a ticking page becomes
+// still and complete), while the default launch installs no wrappers at all — the legacy
+// incomplete-timer behavior above depends on native timers.
+it('freezes page timers only when the capture was launched with the timer policy', async () => {
+  const plain = await captureBrowser.launchCapture({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 });
+  try {
+    await plain.page.goto(`${origin}/timer`);
+    expect(await plain.page.evaluate(() => window.setTimeout.toString())).toContain('[native code]');
+  } finally { await plain.browser.close(); }
+  const capture = await captureBrowser.launchCapture({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1, freezeTimers: true });
+  try {
+    await capture.page.goto(`${origin}/timer`);
+    expect(await capture.page.evaluate(() => window.setTimeout.toString())).not.toContain('[native code]');
+    const ready = await stabilize(capture.page, Date.now() + 5_000);
+    expect(ready.complete, ready.warnings.join('\n')).toBe(true);
+    expect(ready.frozen.timers).toBe(true);
+    const before = await capture.page.locator('#counter').textContent();
+    await capture.page.waitForTimeout(100);
+    expect(await capture.page.locator('#counter').textContent()).toBe(before);
+  } finally { await capture.browser.close(); }
+});
+
+// why: a hidden image that never loads is not painted; it must be disclosed (its bytes are
+// refetched for the clone) instead of making the capture incomplete, and a marquee must be
+// stopped and disclosed like other motion.
+it('discloses unloaded hidden images and stopped marquees without a warning', async () => {
+  const capture = await captureBrowser.launchCapture({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 });
+  try {
+    await capture.page.goto(`${origin}/hidden-stall`, { waitUntil: 'domcontentloaded' });
+    await stampDom(capture.page, []);
+    const ready = await stabilize(capture.page, Date.now() + 10_000, { readiness: { timeoutMs: 1_000, retries: 1, reserveMs: 0 } });
+    expect(ready.warnings).toEqual([]);
+    expect(ready.complete).toBe(true);
+    expect(ready.images.pending).toBe(1);
+    expect(ready.images.failed).toBe(1);
+    const codes = ready.disclosures.map((entry) => entry.code);
+    expect(codes).toEqual(expect.arrayContaining(['hidden-images-unloaded', 'marquee-stopped']));
+    // Nothing visible was pending, so no retry window was spent.
+    expect(ready.readiness.attempts).toHaveLength(1);
+    const observed = await observePage(capture.page);
+    expect(observed.warnings.join(' ')).not.toContain('unready or failed images');
+    // The stalled request has no current source yet; the decoded-and-failed one is recorded.
+    expect(observed.hiddenUnloadedImages).toEqual([await capture.page.locator('#broken').getAttribute('data-dl-id')]);
+  } finally { await capture.browser.close(); }
+});
+
+// why: scripts insert nodes (tracking pixels, widgets) after stamping; unstamped nodes made the
+// observation incomplete. Late stamping must keep IDs unique, continue the numbering and reach
+// open shadow roots.
+it('stamps late script-inserted nodes, including inside open shadow roots, with fresh unique IDs', async () => {
+  const capture = await captureBrowser.launchCapture({ viewport: { width: 400, height: 300 }, deviceScaleFactor: 1 });
+  try {
+    await capture.page.goto(`${origin}/materialize`);
+    const stamped = await stampDom(capture.page, []);
+    await capture.page.evaluate(() => {
+      const pixel = document.createElement('img');
+      pixel.style.display = 'none';
+      document.body.append(pixel);
+      const host = document.createElement('div');
+      host.attachShadow({ mode: 'open' }).append(document.createElement('span'));
+      document.body.append(host);
+    });
+    const late = await stampLate(capture.page);
+    expect(late.ids).toEqual([stamped + 1, stamped + 2, stamped + 3].map((n) => `dl-${n}`));
+    expect(late.tags).toEqual({ img: 1, div: 1, span: 1 });
+    const observed = await observePage(capture.page);
+    expect(observed.warnings.join(' ')).not.toContain('without data-dl-id');
+    expect((await stampLate(capture.page)).ids).toEqual([]);
+  } finally { await capture.browser.close(); }
+});
+
+// why: real captures stayed incomplete only because an analytics response body could not be read
+// ("could not read response body"). A non-design resource never reaches the inert clone, so its
+// unreadable body must be disclosed, not warned; the reconciliation runs in Node after refetch.
+it('discloses an unreadable analytics response body instead of making the capture incomplete', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dl-body-read-'));
+  try {
+    const result = await runClone(`${origin}/beacon`, {
+      out: directory, project: 'beacon', viewport: { width: 400, height: 300 }, dsf: 1,
+      timeoutMs: 60_000, settleMs: 0, removeSelectors: [], noScroll: true,
+      blockCookies: false, maxAssetBytes: 25 * 1024 * 1024, includeMedia: false,
+    });
+    const [capture] = (await readEvidence(result.projectDir)).captures;
+    expect(capture.warnings).toEqual([]);
+    expect(capture.complete).toBe(true);
+    const disclosure = capture.stabilization?.disclosures.find((entry) => entry.code === 'body-unread-nondesign');
+    expect(disclosure?.detail).toContain(`fetch ${origin}/collect`);
+  } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
 });

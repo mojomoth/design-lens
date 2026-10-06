@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Broken Image Fixture — Design Lens</title>
+  <style>body { margin: 0; font-family: sans-serif; } img { display: block; margin: 20px; }</style>
+</head>
+<body>
+  <!-- Negative control: a VISIBLE image whose bytes do not exist must keep the capture incomplete
+       under the default stabilization policy; lazy promotion and disclosures never hide it. -->
+  <h1>Broken image</h1>
+  <img id="missing" src="img/does-not-exist.svg" loading="lazy" width="160" height="90" alt="Missing artwork">
+  <nav hidden><img src="img/menu-1.svg" loading="lazy" width="24" height="24" alt=""></nav>
+</body>
+</html>

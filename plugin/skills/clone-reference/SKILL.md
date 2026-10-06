@@ -27,20 +27,31 @@ location, and repeated `--remove-selector <css>` for requested exclusions. Conse
 on by default; report any limitations. A clone captures editable static appearance, including
 responsive layout, rather than reproducing the source application's JavaScript behavior.
 
+Capture stabilization defaults suit most pages: `--media poster` replaces each painted video with
+its captured frame or poster (`remote` leaves media remote, `include` stores media files),
+`--lazy-images eager` loads lazy images before readiness, `--readiness-ms 5000` with
+`--readiness-retries 2` waits for fonts and visible images, and `--capture-attempts 2` repeats a
+capture whose state changed. `--freeze-timers` (off by default) stops page timers after readiness.
+
 Explicit multi-viewport captures compose each available sample's full static DOM in a separate
 declarative open shadow tree. CSS selects the nearest captured width, choosing the larger at a
 midpoint; equal widths use the same rule for height. These generated ranges are not original
 breakpoints. Verify exact matches at recorded viewport pairs only. Intermediate sizes can be
 inspected, but do not claim their original appearance was captured. Missing samples stay unverified.
 
-Read `projectDir` from stdout JSON and use that returned path for every later command. Repeated
+Read `projectDir` from stdout JSON and use that returned path for every later command. Mark the
+phase for the run log once the project exists:
+`~/.design-lens/bin/design-lens runlog <projectDir> --mark clone-reference --event start`, and the
+same with `--event end` when the capture is reviewed. Repeated
 captures may create suffixed directories. Substitute the actual path for `.design-lens/<slug>`
 below. A failed capture command requires inspection of its error and partial output before any
 retry; its exit code alone is not a visual fidelity result.
 
 ## Preserve and inspect the source evidence
 
-Read `manifest.json`, `REPORT.md`, `evidence.json` and `fidelity.json`. Record capture IDs,
+Read `REPORT.md` and `manifest.json`. Query `evidence.json` and `fidelity.json` with targeted
+reads (status, warnings, `captures[].complete`, disclosures, file paths); they can be megabytes, so
+never load them whole. Record capture IDs,
 viewports, device scale factors, source URLs, capture times, completeness and warnings. Each
 capture's observation IDs are scoped to that capture: `dl-N` in two captures does not prove
 that the nodes represent the same element. In a composed clone, canonical numeric IDs are unique
@@ -73,6 +84,13 @@ Incomplete source evidence, source font failures, inaccessible frames or capture
 unverified. Repairing the clone cannot manufacture the missing original observation.
 Intact but incomplete source captures may have `diagnosticOnly` images and measurements. Use those
 to diagnose visible defects while retaining `unverified`; they cannot support a complete pass.
+
+Stabilization disclosures keep a capture complete but must be reported: REPORT.md lists
+`Substituted (not remote)` media under `## Left remote` and `Disclosed:` lines under
+`## Fidelity notes`, and fidelity repeats them per capture. A substituted video is verified as a
+still image only; motion is never verified. When a capture stays incomplete because the page
+keeps changing (warnings that source state or observations changed), capture again into a new
+project with `--freeze-timers --readiness-retries 4` and compare the two results.
 
 ## Repair visual differences
 
@@ -129,3 +147,5 @@ For clone-only work, finish with this result. For an already-requested analysis,
 reverse-design. For an already-requested new build, continue through reverse-design and
 build-from-design with verification. Continue authorized inspection/customization requests in
 their respective flow; do not ask for the same authorization again.
+
+Never open the cloned index.html's full contents into context — it is large; use grep and targeted reads.

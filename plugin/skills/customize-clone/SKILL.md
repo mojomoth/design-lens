@@ -41,6 +41,16 @@ from VARIATIONS.md, apply only its clone-compatible token changes here. A new pr
 adaptations belong to build-from-design; continue that requested flow instead of restructuring the
 reference clone through these edit rules.
 
+A clone-base build (build-from-design) applies the same text, override and asset mechanics to its
+copy of `clone/` inside the target project, in every sampled variant. The study clone under
+`.design-lens/<slug>/clone/` stays untouched. The bans below on editing captured CSS and deleting
+captured assets protect the study clone; on the clone-base copy, captured images, fonts, icons
+and media are deleted and captured stylesheets may be rewritten, as that build records. The copy
+may also change `href`, `alt`, `title` and `aria-label` values and gain the attributes or script a
+retained control needs; `data-dl-id` values are never removed or renumbered, and new elements carry
+none. The verify, fidelity and screenshot steps below check the study clone only: for the copy,
+`qa --mode clone-base` is the check.
+
 ## Establish the comparison
 
 Before each edit batch, record the current clone's hashes and the original evidence hash. Save
@@ -172,6 +182,7 @@ Run through every line before the user deploys anything derived from a reference
 - All copy rewritten in the user's own voice
 - Photography replaced or licensed (font/image source hosts are listed in REPORT.md)
 - Fonts licensed for the user's use
-- No trademarks, mascots, or brand names remain — finish with `rg -ni "<brand-name>"` over the output
+- No trademarks, mascots, or brand names remain — finish with `grep -ri "<brand-name>"` over the output
+- Clone-base builds: before deploying, rewrite the retained captured markup and stylesheets or confirm the right to reuse them (they are the reference's code); local comparison builds may keep them
 - The shipped work is a derivation, not a copy
 Report anything that still contains original brand material.

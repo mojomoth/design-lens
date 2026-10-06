@@ -12,10 +12,10 @@ surface for customizing that clone or building a brand-new page with the same de
 ## Requirements
 
 ### Product identity
-- The product MUST ship as one plugin named `design-lens`, version `0.3.0`, installable in both
+- The product MUST ship as one plugin named `design-lens`, version `0.4.0`, installable in both
   Claude Code and Codex CLI from this single repo (plugin root `plugin/`, marketplace at repo root).
 - Both plugin manifests (`plugin/.claude-plugin/plugin.json`, `plugin/.codex-plugin/plugin.json`)
-  MUST carry version `0.3.0`, identical to `design-lens --version` output.
+  MUST carry version `0.4.0`, identical to `design-lens --version` output.
 - All deterministic logic MUST live in the CLI (`plugin/cli/`, bundled to
   `plugin/cli/dist/design-lens.cjs`); skills MUST be thin prose procedures with no embedded logic.
 
@@ -45,7 +45,9 @@ surface for customizing that clone or building a brand-new page with the same de
   `clone/assets/dl-overrides.css`; asset swaps go to `clone/assets/custom/`.
 - Building a NEW page from the extracted design system (`build-from-design`) MUST copy zero
   assets, text, or logos from the clone — design principles and measured relationships guide
-  original work. Read context and reuse the existing stack/design system before asking for
+  original work. The default `derive` mode copies no clone files at all; the explicitly requested
+  `clone-base` mode may keep a copy's markup skeleton and layout stylesheets while replacing every
+  asset, text and logo (ADR-030). Read context and reuse the existing stack/design system before asking for
   missing essentials. Record selection and structural changes in VARIATIONS.md, build and view
   1440×900, 768×1024 and 390×844, exercise available controls/project checks, repair failures and
   report evidence and unverified behavior. Explicit new-page requests authorize this flow without
@@ -68,10 +70,14 @@ surface for customizing that clone or building a brand-new page with the same de
 ## Interfaces & contracts
 
 - CLI commands: `clone <url>`, `tokens <projectDir>`, `inspect <projectDir>`,
-  `screenshot <projectDir|--url U>`, `serve <projectDir>`, `verify <projectDir>`, `--version`.
+  `screenshot <projectDir|--url U>`, `serve <projectDir>`, `verify <projectDir>`,
+  `fidelity <projectDir>`, `validate-design <projectDir>`, `tone <projectDir>`,
+  `qa (--url U | --dir D)`, `qa-confirm <qaDir>`, `runlog <dir>`, `setup`, `--version`.
   Human progress → stderr; machine JSON → stdout; exit 0 success (warnings allowed) / 1 fatal.
 - Output root: `.design-lens/<slug>/` containing `clone/` (index.html, assets/), `manifest.json`,
-  `screenshots/`, `tokens.json`, `REPORT.md`, and agent-written `DESIGN.md` + `VARIATIONS.md`.
+  `screenshots/`, `tokens.json`, `REPORT.md`, `evidence.json` + `evidence/`, `fidelity.json`,
+  `tone.json`, `qa/<runId>/`, and agent-written `DESIGN.md` + `VARIATIONS.md`; the optional local
+  run log is `.design-lens/RUNLOG.jsonl`.
 - Install strings (verbatim in root README.md): Claude — `claude plugin marketplace add <repo>`
   then `claude plugin install design-lens@design-lens`; Codex — `codex plugin marketplace add
   <repo>` then `codex plugin add design-lens@design-lens`.
@@ -118,3 +124,14 @@ Static visual fidelity includes independently captured responsive source states,
 comparison, and bounded agent repair. Add `fidelity` and `validate-design` commands. Existing
 commands remain available; structural verification is distinct from visual/design verification.
 A passing comparison describes only its complete captured viewports/state, never universal equality.
+
+### Approved 0.4 capabilities (ADR-030)
+Reference-faithful builds: DESIGN.md ranks signature devices, classifies typeface forms and records
+a pixel-derived tone budget; VARIATIONS.md scores signature retention per direction and records
+the design basis and a machine-checked build contract. `tone` measures source screenshot tone.
+`qa` measures a built page (controls, links, overlap, clipping, icons, unsourced numbers, assets,
+fonts, tone, signature checks, measured lineage) and produces review images whose viewing
+`qa-confirm` verifies. Build modes are `derive` (default) and `clone-base` (explicit request
+only). `inspect --lite` with selectors and multiple viewports replaces exhaustive inventories for
+analysis. Capture stabilization substitutes painted media, retries readiness and discloses what
+it changed. A local opt-out run log records command timings and phases; it is never transmitted.

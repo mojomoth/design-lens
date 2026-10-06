@@ -5,8 +5,9 @@
 **Turn reference designs into frontends for your product.**
 
 Design Lens helps **Claude Code**, **OpenAI Codex CLI**, **Cursor**, and **OpenCode** study a
-reference page and build a new interface from the principles it demonstrates. Version **0.3.0**
-connects measured design evidence, adaptable directions, implementation, and verification:
+reference page and build a new interface from the principles it demonstrates. Version **0.4.0**
+connects measured design evidence, adaptable directions, implementation, and measured verification,
+with a focus on keeping what makes the reference recognizable:
 
 1. **Clone and compare** a rendered page at 1440×900, 768×1024 and 390×844. Preserve independent
    source evidence and compare one editable clone offline at each size. The agent can repair
@@ -14,13 +15,19 @@ connects measured design evidence, adaptable directions, implementation, and ver
 2. **Gather evidence** from source/clone screenshots, computed layout and typography, and desktop
    and mobile views. Keep observations, inferences, proposals, and missing evidence distinct.
 3. **Reverse-engineer** the design into `DESIGN.md`: supported patterns, possible reasons,
-   component recipes, and transferable principles.
-4. **Adapt** those principles in `VARIATIONS.md`: three directions by default, with a target brief,
-   selected direction, structural changes, and verification criteria.
+   component recipes, transferable principles, typeface forms, a pixel-measured tone budget, and
+   five to ten ranked signature devices.
+4. **Adapt** those principles in `VARIATIONS.md`: three directions by default, each scored by the
+   signatures it retains, with a target brief, selected direction, a checked build contract
+   (fonts, dark-area limits, signature assertions), structural changes, and verification criteria.
 5. **Build** in your existing stack using your content and assets. The same reference can inspire
    a landing page or a management interface with different navigation, density, and components.
-6. **Verify** the rendered result at desktop, tablet, and mobile sizes, exercise relevant controls
-   with available browser tools, and fix failures. Checks that could not run stay explicit.
+   Builds derive new markup by default; building on the captured clone happens only on request.
+6. **Verify** with `qa`: dead controls, stand-in links, covered buttons, clipped content, solid
+   icons, numbers missing from your content, reference assets, font and tone drift, signature
+   checks. The agent must open the review images (confirmed by codes drawn into them), records
+   reference fidelity per signature, and exercises other controls with browser tools. Checks that
+   could not run stay explicit.
 
 Clone customization remains available for local study: change copy, imagery, colors, and sizes
 while preserving the captured source. New product structures belong in a new implementation.
@@ -52,8 +59,10 @@ requires a separate explicit request. See the [five skills and CLI options](./pl
 ```bash
 ~/.design-lens/bin/design-lens clone https://example.com --viewports 1440x900,768x1024,390x844
 ~/.design-lens/bin/design-lens fidelity .design-lens/example-com --json
-~/.design-lens/bin/design-lens inspect .design-lens/example-com --viewport 390x844 --all --details
+~/.design-lens/bin/design-lens tone .design-lens/example-com
+~/.design-lens/bin/design-lens inspect .design-lens/example-com --lite --viewports 1440x900,768x1024,390x844
 ~/.design-lens/bin/design-lens validate-design .design-lens/example-com --json
+~/.design-lens/bin/design-lens qa --dir ./dist --project .design-lens/example-com --content CONTENT.md
 ```
 
 Use the actual `projectDir` returned by `clone`. The clone skill requests the three sizes by
@@ -80,17 +89,27 @@ append rules targeting the inspected IDs and rerun comparisons after changes.
 For captured root/body styles, target their generated proxy IDs; newly appended `html`, `body`
 or `:root` rules do not select those proxies.
 
+Captures replace painted videos with their frame or poster, load lazy images and retry readiness
+by default; every such substitution is disclosed in REPORT.md and motion is never verified.
+`--freeze-timers` helps pages that never stop changing.
+
 Reverse engineering produces implementation recipes and a measured-observation table, alongside
-the existing twelve sections and three design directions. `validate-design` checks references,
+the existing twelve sections and three design directions. `tone` measures the reference's light
+and dark pixel shares and full-bleed dark bands; DESIGN.md records them with the typeface forms
+and ranked signatures, and VARIATIONS.md scores each direction's signature retention. `validate-design` checks references,
 values, units and rounding without editing the documents. It does not judge design intent or
 prove that an implementation looks good. CSS token schema 2 preserves alpha, reports unsupported
 values and unit assumptions, and uses a null spacing base when no grid is supported.
 
-See [0.3.0 release preparation](./docs/releases/0.3.0.md) and the [CLI reference](./plugin/cli/README.md).
+`qa` measures a built page against the VARIATIONS.md Build contract and the reference, writes
+review images whose codes `qa-confirm` checks, and records measured lineage. A local `.design-lens/RUNLOG.jsonl`
+records command timings per phase and helper role (`DESIGN_LENS_RUNLOG=off` disables it).
+
+See [0.4.0 release preparation](./docs/releases/0.4.0.md) and the [CLI reference](./plugin/cli/README.md).
 
 ## Install
 
-**0.3.0 is prepared in this checkout; these documents do not claim a GitHub or npm publication.**
+**0.4.0 is prepared in this checkout; these documents do not claim a GitHub or npm publication.**
 The remote channels below install their published contents. To validate this checkout locally,
 run from the repository root:
 
@@ -101,7 +120,7 @@ bash plugin/scripts/bootstrap.sh
 ~/.design-lens/bin/design-lens --version
 ```
 
-The local version should be `0.3.0`. Provisioning the CLI does not replace previously installed
+The local version should be `0.4.0`. Provisioning the CLI does not replace previously installed
 skill text; use this checkout's plugin or local marketplace when validating its skills.
 
 
@@ -173,7 +192,9 @@ reference for a product introduction page and a management interface. Its record
 describe inspected evidence and limitations; structural `verify` is not a design-quality score.
 The [0.3.0 independent evaluation](./plugin/cli/test/evaluations/0.3.0/RESULTS.md) additionally
 records successful responsive clone repair and a separate developer reproducing measured layout
-from DESIGN/VARIATIONS alone, with original evidence preserved.
+from DESIGN/VARIATIONS alone, with original evidence preserved. The
+[0.4.0 evaluation record](./plugin/cli/test/evaluations/0.4.0/README.md) summarizes the four-arm
+build comparison that motivated 0.4.0 and the local protocol for evaluating its skills.
 
 ```
 plugin/        the plugin itself (built autonomously — see below)

@@ -9,7 +9,7 @@ import { resolveEvidencePath, sha256, type SourceCapture } from '../capture/evid
 import { rewriteCss } from '../localize/css-rewrite.js';
 import { rewriteDocumentReferences } from '../localize/document-references.js';
 import { beautifyHtml } from './beautify.js';
-import { manifestJson, resourceEntry, type Manifest, type ManifestResource, type ResponsiveComposition } from './manifest.js';
+import { manifestJson, resourceEntry, type Manifest, type ManifestResource, type ManifestSubstitution, type ResponsiveComposition } from './manifest.js';
 
 const LOCAL_ORIGIN = 'https://design-lens.invalid';
 const OVERRIDES = 'assets/dl-overrides.css';
@@ -174,6 +174,8 @@ export async function composeResponsiveClone(
   const id = (): string => `dl-${++ordinal}`;
   const resources = new Map(manifest.resources.map((entry) => [entry.localPath, entry]));
   const remote = new Map(manifest.remote.map((entry) => [JSON.stringify(entry), entry]));
+  // Capture-local media IDs are renumbered by composition; each entry keeps its source capture.
+  const substituted = new Map<string, ManifestSubstitution>();
   const pendingWrites = new Map<string, Buffer>();
 
   for (const capture of available) {
@@ -188,6 +190,10 @@ export async function composeResponsiveClone(
     const sourceManifest = JSON.parse(await fs.readFile(await resolveEvidencePath(root, sourceManifestPath), 'utf8')) as Manifest;
     const assets = await capturedResources(root, capture, sourceManifest);
     for (const entry of sourceManifest.remote) remote.set(JSON.stringify(entry), entry);
+    for (const entry of sourceManifest.substituted ?? []) {
+      const owned = { ...entry, captureId: capture.id };
+      substituted.set(JSON.stringify(owned), owned);
+    }
     const resolve = (url: string, from = 'index.html'): string | null => {
       const local = localPath(url);
       if (!local) return null;
@@ -373,6 +379,8 @@ export async function composeResponsiveClone(
   manifest.composition = composition;
   manifest.resources = [...resources.values()];
   manifest.remote = [...remote.values()];
+  if (substituted.size > 0) manifest.substituted = [...substituted.values()];
+  else delete manifest.substituted;
   manifest.stats = { ...manifest.stats, elementsStamped: ordinal,
     fonts: manifest.resources.filter((entry) => /^font\//i.test(entry.contentType) || /\.(woff2?|ttf|otf|eot)$/i.test(entry.localPath)).length,
     images: manifest.resources.filter((entry) => /^image\//i.test(entry.contentType)).length,

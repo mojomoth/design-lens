@@ -161,3 +161,17 @@ describe('manifestJson — serialization', () => {
     expect(JSON.parse(text)).toEqual(m);
   });
 });
+
+// why: `substituted` is optional so manifests of media-free captures (the sealed fixture) keep
+// their exact key set, while substituted media is recorded whenever it exists.
+describe('buildManifest — substituted media', () => {
+  // why: see the describe comment; this pins both the absent and the present shape.
+  it('omits substituted when empty and records it otherwise', () => {
+    expect(Object.keys(buildManifest({ playwrightVersion: '1.61.1', source: SOURCE, resources: [], substituted: [], stats: STATS })))
+      .toEqual(['version', 'tool', 'source', 'resources', 'remote', 'stats']);
+    const substituted = [{ kind: 'video-frame' as const, referencedBy: 'dl-3', urls: ['https://example.com/a.webm'], stillFrom: 'captured-frame' as const, currentTime: 1.5, lost: ['motion' as const] }];
+    const m = buildManifest({ playwrightVersion: '1.61.1', source: SOURCE, resources: [], substituted, stats: STATS });
+    expect(m.substituted).toEqual(substituted);
+    expect(Object.keys(m)).toEqual(['version', 'tool', 'source', 'resources', 'remote', 'substituted', 'stats']);
+  });
+});

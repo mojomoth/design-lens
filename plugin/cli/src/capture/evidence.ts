@@ -4,8 +4,39 @@ import path from 'node:path';
 
 import type { ObservationDocument } from '../analyze/observations.js';
 import type { Viewport } from '../lib/viewport.js';
+import type { ManifestSubstitution } from '../output/manifest.js';
+import { DISCLOSURE_CODES, type CaptureDisclosure } from './disclosures.js';
+import type { MediaPolicy } from './media.js';
+import type { ReadinessAttempt } from './readiness.js';
 
 export interface EvidenceFile { path: string; sha256: string }
+
+/**
+ * How the static source state was produced. Disclosures never change `complete` (which still means
+ * "no warnings"), but every one of them is reported beside the capture.
+ */
+export interface CaptureStabilization {
+  policy: {
+    media: MediaPolicy;
+    lazyImages: 'eager' | 'native';
+    freezeTimers: boolean;
+    readiness: { timeoutMs: number; retries: number };
+    captureAttempts: number;
+  };
+  readiness: ReadinessAttempt[];
+  stateAttempts: Array<{ attempt: number; ms: number; consistent: boolean; changed?: string }>;
+  frozen: {
+    animations: number;
+    unsupported: number;
+    raf: boolean;
+    timers: { frozen: boolean; suppressed: number };
+    media: number;
+    smil: number;
+    marquee: number;
+  };
+  substitutions: ManifestSubstitution[];
+  disclosures: CaptureDisclosure[];
+}
 export interface SourceCapture {
   id: string;
   viewport: Viewport;
@@ -23,6 +54,8 @@ export interface SourceCapture {
   files: EvidenceFile[];
   complete: boolean;
   warnings: string[];
+  /** Absent in evidence captured before stabilization was recorded. */
+  stabilization?: CaptureStabilization;
 }
 export interface EvidenceDocument { schemaVersion: 1; captures: SourceCapture[] }
 
@@ -86,6 +119,38 @@ function assert(condition: unknown, message: string): asserts condition {
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function strings(value: unknown): value is string[] { return Array.isArray(value) && value.every((item) => typeof item === 'string'); }
 function positive(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value > 0; }
+function count(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= 0; }
+function oneOf(value: unknown, allowed: readonly string[]): boolean { return typeof value === 'string' && allowed.includes(value); }
+
+function validateStabilization(value: unknown): void {
+  assert(object(value), 'stabilization must be an object');
+  const policy = value.policy;
+  assert(object(policy) && oneOf(policy.media, ['remote', 'poster', 'include']) && oneOf(policy.lazyImages, ['eager', 'native'])
+    && typeof policy.freezeTimers === 'boolean' && object(policy.readiness) && count(policy.readiness.timeoutMs)
+    && count(policy.readiness.retries) && positive(policy.captureAttempts), 'invalid stabilization policy');
+  assert(Array.isArray(value.readiness) && value.readiness.every((attempt) => object(attempt) && count(attempt.attempt)
+    && typeof attempt.windowMs === 'number' && Number.isFinite(attempt.windowMs) && count(attempt.elapsedMs)
+    && oneOf(attempt.fonts, ['ready', 'timeout', 'unavailable']) && object(attempt.images) && count(attempt.images.total)
+    && ['pendingVisible', 'pendingHidden', 'failedVisible', 'failedHidden'].every((key) => strings((attempt.images as Record<string, unknown>)[key]))),
+  'invalid stabilization readiness attempts');
+  assert(Array.isArray(value.stateAttempts) && value.stateAttempts.every((attempt) => object(attempt) && positive(attempt.attempt)
+    && count(attempt.ms) && typeof attempt.consistent === 'boolean' && (attempt.changed === undefined || typeof attempt.changed === 'string')),
+  'invalid stabilization state attempts');
+  const frozen = value.frozen;
+  assert(object(frozen) && ['animations', 'unsupported', 'media', 'smil', 'marquee'].every((key) => count(frozen[key]))
+    && typeof frozen.raf === 'boolean' && object(frozen.timers) && typeof frozen.timers.frozen === 'boolean'
+    && count(frozen.timers.suppressed), 'invalid stabilization freeze record');
+  assert(Array.isArray(value.substitutions) && value.substitutions.every((entry) => object(entry)
+    && oneOf(entry.kind, ['video-frame', 'video-poster', 'media-hidden']) && typeof entry.referencedBy === 'string'
+    && (entry.captureId === undefined || typeof entry.captureId === 'string') && strings(entry.urls)
+    && oneOf(entry.stillFrom, ['captured-frame', 'poster-attr', 'none'])
+    && (entry.currentTime === undefined || count(entry.currentTime))
+    && Array.isArray(entry.lost) && entry.lost.every((item) => oneOf(item, ['motion', 'audio', 'source-alternatives']))),
+  'invalid stabilization substitutions');
+  assert(Array.isArray(value.disclosures) && value.disclosures.every((entry) => object(entry)
+    && oneOf(entry.code, DISCLOSURE_CODES) && typeof entry.detail === 'string'
+    && (entry.dlIds === undefined || strings(entry.dlIds))), 'invalid stabilization disclosures');
+}
 function viewport(value: unknown): value is Viewport {
   return object(value) && positive(value.width) && positive(value.height) && Number.isSafeInteger(value.width) && Number.isSafeInteger(value.height);
 }
@@ -100,6 +165,7 @@ function validateObservations(value: unknown): asserts value is ObservationDocum
       && ['family', 'style', 'weight', 'stretch'].every((key) => typeof face[key] === 'string')
       && ['unloaded', 'loading', 'loaded', 'error'].includes(String(face.status))), 'invalid font face observations');
   }
+  if (value.hiddenUnloadedImages !== undefined) assert(strings(value.hiddenUnloadedImages), 'invalid hidden image observations');
   assert(Array.isArray(value.elements) && value.elements.length <= 20_000, 'invalid element observations');
   const ids = new Set<string>();
   const measuredElements = [...value.elements];
@@ -152,6 +218,7 @@ export async function readEvidence(projectDir: string): Promise<EvidenceDocument
     }
     assert(object(capture.policy) && capture.policy.reducedMotion === 'reduce' && capture.policy.colorScheme === 'light' && strings(capture.policy.removeSelectors), 'invalid capture policy');
     validateObservations(capture.observations);
+    if (capture.stabilization !== undefined) validateStabilization(capture.stabilization);
     assert(capture.observations.viewport.width === capture.viewport.width && capture.observations.viewport.height === capture.viewport.height
       && capture.observations.deviceScaleFactor === capture.deviceScaleFactor, 'capture and observation viewport differ');
     assert(Array.isArray(capture.files) && (!capture.complete || capture.files.length > 0), 'capture file hashes missing');

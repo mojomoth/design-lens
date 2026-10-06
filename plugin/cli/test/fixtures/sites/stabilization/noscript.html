@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Noscript Fixture — Design Lens</title>
+  <!-- An inherited value tied to the viewport HEIGHT: a full-page screenshot changes it, so styles
+       are recalculated while screenshot scripts are paused. Without a guard Chromium then renders the
+       noscript fallback as text and keeps it after scripts resume (seen on labs.chaingpt.org). -->
+  <style>
+    @property --fluid { syntax: '<length>'; inherits: true; initial-value: 0px; }
+    :root { --fluid: 1vh; }
+    body { margin: 0; font: 16px/24px sans-serif; }
+    section { height: 900px; border-bottom: 1px solid #ccc; padding: 0 24px; }
+  </style>
+</head>
+<body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-FIXTURE" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <section><h1>Noscript fallback</h1><p>Analytics fallbacks must never be photographed.</p></section>
+  <section><h2>Second section</h2></section>
+  <section><h2>Third section</h2></section>
+</body>
+</html>

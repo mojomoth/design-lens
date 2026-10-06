@@ -118,7 +118,7 @@ Command lines (skills invoke via the launcher `~/.design-lens/bin/design-lens`):
 
 ```
 design-lens tokens <projectDir> [--stdout]
-design-lens inspect <projectDir> [--all | --kind logo|nav-link|hero-heading|hero-image|cta|footer|section | --id dl-N ...] [--viewport WxH] [--details] [--pretty]
+design-lens inspect <projectDir> [--all | --kind logo|nav-link|hero-heading|hero-image|cta|footer|section | --id dl-N ... | --selector <css> ...] [--viewport WxH | --lite --viewports WxH,...] [--lite] [--details] [--pretty]
 ```
 
 `tokens.json` schema 2 (exact shape; all arrays may be empty, never absent):
@@ -206,8 +206,11 @@ queries for layout containers not covered by semantic roles.
 - LLM labeling and `page.ariaSnapshot()` layers — the agent reading inspect output IS the judgment
   layer in v1. No Set-of-Marks screenshot overlays.
 - Image-derived palettes (node-vibrant), CDP DOMSnapshot computed-style analysis, CSS coverage.
+  The one carve-out is the separate `tone` command's light/mid/dark pixel profile of source
+  screenshots (ADR-030); inspect itself performs no image analysis.
 - Any persistent inventory/manifest of editable elements, and any write-back tooling (rejected — ADR-002).
-- Automatic multi-viewport aggregation; tokens export formats (Figma/Scss/CSS custom properties).
+- Automatic multi-viewport aggregation beyond the explicit `--lite --viewports` run; tokens export
+  formats (Figma/Scss/CSS custom properties).
 - Analyzing pages other than the local clone; both commands are offline-only.
 
 ## Verified facts
@@ -240,3 +243,19 @@ Token schema 2 preserves alpha, excludes fully transparent brand candidates, par
 shorthand and selector subjects, and never treats calc operands as actual spacing. An unsupported spacing
 base is null, including empty, hairline-only and unaligned evidence. Unresolved functions and assumed relative-unit conversions carry diagnostics.
 CSS occurrence counts remain declaration statistics, not painted shares or semantic design truth.
+
+### Lite, selector and multi-viewport inspection (ADR-030)
+`--lite` measures only selected targets with one self-contained probe over the light DOM and open
+shadow roots and returns compact elements (`id`, `tag`, `r` rect in document CSS px, `v` active
+flag, a `family|size/lineHeight|weight|letterSpacing|transform` font string, color, optional
+box/layout/effects/pseudo, `parent`, `path` for unstamped matches, `src` = `<captureId>/<dl-N>`
+from `data-dl-source-capture`/`data-dl-source-id` in a composed clone, the address DESIGN.md
+cites); keys with initial or empty
+values are omitted. Repeatable `--selector <css>` (parsed before any browser starts; at most 20
+matches each, truncation in `page.warnings`) combines with `--id` (ids first); without `--lite` it
+returns the detailed `--id` shape. `--viewports <list>` requires `--lite`, excludes `--viewport`,
+and measures every viewport in one server/browser run as `{colors, viewports:[{viewport, page,
+elements}]}`. `--all` excludes `--id`, `--kind` and `--selector`; `--kind` excludes `--selector`.
+Missing ids at a viewport give `v: 0` or a warning, never an error. Flagless output is unchanged.
+inspect still writes nothing in the project; the optional run-log line lives in the enclosing
+`.design-lens` directory, outside the project.

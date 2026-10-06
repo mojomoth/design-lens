@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+html { font-family: sans-serif; }
+body { margin: 0; overflow-x: hidden; background: #fff; color: #111; }
+.hero { position: relative; height: 844px; padding: 24px; background: #f6f3ee; }
+.hero h1 { margin: 120px 0 0; font-size: 40px; }
+.cta { position: absolute; left: 24px; top: 760px; width: 174px; height: 48px; display: block; background: #ff7120; color: #fff; text-align: center; line-height: 48px; text-decoration: none; }
+.quick { position: fixed; right: 8px; top: 8px; width: 46px; height: 46px; background: #111; z-index: 10; }
+.quick a { display: block; height: 100%; color: #fff; font-size: 11px; text-align: center; padding-top: 16px; text-decoration: none; }
+section { padding: 32px 24px; }
+.step-icon { width: 64px; height: 64px; padding: 8px; background: #fff; }
+.step-icon img { display: block; }
+.tabs button[aria-selected="true"] { background: #111; color: #fff; }
+.cards { padding: 0 24px; }
+.card { width: 100%; margin: 0 0 16px; padding: 16px; background: #eee; }
+.footer { padding: 32px 24px 160px; background: #fafafa; }
+.policy a { display: inline-block; margin-right: 8px; }

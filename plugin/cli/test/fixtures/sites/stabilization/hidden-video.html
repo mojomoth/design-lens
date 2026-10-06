@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hidden Video Fixture — Design Lens</title>
+  <!-- A mobile-only background video, display:none at this width and without a poster. Under the
+       default poster policy it is substituted (media-hidden); the fidelity re-render must apply the
+       same policy instead of reporting "video has no paintable frame or poster". -->
+  <style>body { margin: 0; font-family: sans-serif; } .mobile-only { display: none; } h1 { margin: 24px; }</style>
+</head>
+<body>
+  <h1>Desktop hero</h1>
+  <div class="mobile-only"><video src="media/clip.webm" muted width="320" height="180"></video></div>
+</body>
+</html>

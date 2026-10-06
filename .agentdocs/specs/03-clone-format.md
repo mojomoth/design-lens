@@ -76,9 +76,9 @@ may rely on. The output is a self-contained, pretty-printed, agent-editable fold
 ## Interfaces & contracts
 ### Provenance comment (line 1 of `clone/index.html`, exact template)
 ```html
-<!-- Cloned by design-lens v0.3.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->
+<!-- Cloned by design-lens v0.4.0 at <capturedAt ISO-8601> for private design study and derivation only. Source URL and capture metadata: see ../manifest.json and ../REPORT.md. -->
 ```
-`0.3.0` is the locked plugin/CLI version (AC-10); `<capturedAt>` matches
+`0.4.0` is the locked plugin/CLI version (AC-10); `<capturedAt>` matches
 `manifest.source.capturedAt`. The raw source URL is intentionally NOT embedded here — the sealed
 A4 assertion forbids the capture host (e.g. `127.0.0.1`) anywhere inside `clone/`, so the source
 URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`), ADR-011.
@@ -87,7 +87,7 @@ URL lives only in `manifest.source.url` and `REPORT.md` (both outside `clone/`),
 ```json
 {
   "version": 1,
-  "tool": { "name": "design-lens", "version": "0.3.0", "playwright": "<exact pinned version>" },
+  "tool": { "name": "design-lens", "version": "0.4.0", "playwright": "<exact pinned version>" },
   "source": { "url": "…", "finalUrl": "…", "title": "…", "capturedAt": "ISO8601",
               "viewport": { "width": 1440, "height": 900 }, "userAgent": "…", "robotsDisallowed": false },
   "resources": [ { "localPath": "clone/assets/…", "originalUrl": "…", "contentType": "…", "bytes": 0, "sha256": "…", "via": "network|css-fetch|refetch" } ],
@@ -136,7 +136,7 @@ content, not literal text.
   `127.0.0.1` refs inside `clone/` except `manifest.json`; `manifest.json` parseable and
   mapping every localized asset; `REPORT.md` contains "License & usage notice" — ACCEPTANCE.md
   AC-07 (mirror of sealed `.harness/e2e-assert.sh`).
-- Both plugin manifests and the CLI `--version` are locked to `0.3.0` — ACCEPTANCE.md AC-10;
+- Both plugin manifests and the CLI `--version` are locked to `0.4.0` — ACCEPTANCE.md AC-10;
   the provenance comment and `manifest.tool.version` carry the same string.
 - Pretty-printed output is what makes agent line-based edits (grep for `data-dl-id` → stable
   line windows) reliable; js-beautify chosen over prettier for tolerance of serializer-emitted
@@ -178,3 +178,31 @@ The shared override stylesheet is linked last in each generated shadow root. Can
 address its elements directly. Future `html`, `body`, or `:root` override selectors do not address
 shadow proxies; such rules receive an unverified diagnostic and should target recorded root/body
 IDs instead. Source root selectors are transformed during initial composition.
+
+### Stabilization disclosures, tone, build QA and run-log artifacts (ADR-030)
+Source captures may carry an optional `stabilization` object (policy, readiness attempts, state
+attempts, frozen counts, substitutions, disclosures) covered by `evidenceHash`; older evidence
+stays valid. `complete` still means no warnings: disclosed stabilizations never make a capture
+incomplete. The manifest may carry an optional `substituted[]` (`kind`, `referencedBy`,
+`captureId?`, `urls`, `stillFrom`, `currentTime?`, `lost`) for media replaced by a captured frame or
+poster; such elements keep their IDs, poster and `<source>` children, with `src` moved verbatim to
+`data-dl-original-src`. Composition unions it like `remote[]`, whose reason enum is unchanged
+(unpainted media remain `media-skipped`). REPORT.md adds no heading: `## Left remote` lists
+`Substituted (not remote)` lines and `## Fidelity notes` lists `Disclosed:` lines. Fidelity
+captures may report `disclosures` and `motionUnverified` outside `issues`.
+
+`tone.json` (project root, written by `tone`) has schemaVersion 1, the `evidenceHash`, thresholds
+and per-capture `{captureId, viewport, deviceScaleFactor, complete, image {path, sha256, width,
+height}, profile | null, reason?}`. Build QA writes `qa/<runId>/` (`runId` = `qa-<epochMs>-<8 hex>`)
+under the project when `--project` is given: `qa.json` (it records the run's `mode` and the parsed
+Build `contract` it checked, which validate-design compares with the current one, and per viewport
+`links` and `controls: {candidates, clicked, live, dead, skipped}`), `screenshots/`, `review/`,
+`build-lineage.json` (its `build.capturedStyleBlocks` counts inlined `style[data-dl-captured-styles]`
+blocks, the measured basis of the contract's `stylesheets` claim), and `review.json` (`schemaVersion`, `qaSha256`, `confirmed`, `images`,
+`confirmedAt`, `proof`) only after `qa-confirm` matches every review code. Codes are stored only as
+salted PBKDF2 hashes; `qa.json` `review.proof` holds a salted hash of the value `proof` must carry. Without `--project`, runs go to `--out` or
+`<cwd>/.design-lens/qa/<runId>`. Command records of verdict commands carry the reported `verdict`
+status; marks are `start`, `end` or `abort` (an interrupted window, summarized apart). The local `RUNLOG.jsonl` lives in the nearest ancestor-or-self
+directory named `.design-lens` (never inside `clone/` or `evidence/`); `DESIGN_LENS_RUNLOG` set to
+`off`, `0` or `false` disables it and an absolute path redirects it. None of these files is an
+edit manifest or a clone input.

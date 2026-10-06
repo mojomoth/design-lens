@@ -6,4 +6,4 @@
  * gate's S4 asserts this lock, and the clone provenance stamp (T27) reads it. Hard-coded (rather
  * than read from package.json at runtime) so the CJS bundle carries no filesystem lookup.
  */
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';

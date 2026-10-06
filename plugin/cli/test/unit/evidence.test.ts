@@ -157,4 +157,42 @@ describe('immutable capture evidence', () => {
     await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(malformed));
     await expect(readEvidence(directory)).rejects.toThrow('invalid element rectangle');
   });
+
+  // why: the stabilization record is optional (older evidence stays readable) but, when present,
+  // it must be well-formed: disclosures and substitutions are reported as facts about the capture,
+  // so a malformed record must fail closed exactly like malformed observations.
+  it('validates the optional stabilization record and hidden image observations', async () => {
+    expect((await readEvidence(directory)).captures[0].stabilization).toBeUndefined();
+    evidence.captures[0].observations.hiddenUnloadedImages = ['dl-4'];
+    evidence.captures[0].stabilization = {
+      policy: { media: 'poster', lazyImages: 'eager', freezeTimers: false, readiness: { timeoutMs: 5000, retries: 2 }, captureAttempts: 2 },
+      readiness: [{ attempt: 0, windowMs: 5000, elapsedMs: 12, fonts: 'ready', images: { total: 3, pendingVisible: [], pendingHidden: ['dl-4'], failedVisible: [], failedHidden: [] } }],
+      stateAttempts: [{ attempt: 1, ms: 250, consistent: false, changed: '1 element: text dl-1' }, { attempt: 2, ms: 240, consistent: true }],
+      frozen: { animations: 2, unsupported: 0, raf: true, timers: { frozen: false, suppressed: 0 }, media: 1, smil: 0, marquee: 0 },
+      substitutions: [{ kind: 'video-frame', referencedBy: 'dl-2', urls: ['http://127.0.0.1/a.webm'], stillFrom: 'captured-frame', currentTime: 1.2, lost: ['motion'] }],
+      disclosures: [{ code: 'hidden-images-unloaded', detail: '1 hidden images did not load', dlIds: ['dl-4'] }],
+    };
+    await save();
+    const read = await readEvidence(directory);
+    expect(read.captures[0].stabilization).toEqual(evidence.captures[0].stabilization);
+    expect(read.captures[0].observations.hiddenUnloadedImages).toEqual(['dl-4']);
+    const cases: Array<[(value: Record<string, unknown>) => void, string]> = [
+      [(value) => { value.policy = { ...(value.policy as object), media: 'frames' }; }, 'invalid stabilization policy'],
+      [(value) => { value.readiness = [{ attempt: 0 }]; }, 'invalid stabilization readiness attempts'],
+      [(value) => { value.stateAttempts = [{ attempt: 0, ms: 1, consistent: true }]; }, 'invalid stabilization state attempts'],
+      [(value) => { value.frozen = { ...(value.frozen as object), smil: -1 }; }, 'invalid stabilization freeze record'],
+      [(value) => { value.substitutions = [{ kind: 'video-frame', referencedBy: 'dl-2', urls: [], stillFrom: 'captured-frame', lost: ['pixels'] }]; }, 'invalid stabilization substitutions'],
+      [(value) => { value.disclosures = [{ code: 'made-up', detail: 'x' }]; }, 'invalid stabilization disclosures'],
+    ];
+    for (const [mutate, message] of cases) {
+      const malformed = JSON.parse(JSON.stringify(evidence));
+      mutate(malformed.captures[0].stabilization);
+      await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(malformed));
+      await expect(readEvidence(directory)).rejects.toThrow(message);
+    }
+    const hidden = JSON.parse(JSON.stringify(evidence));
+    hidden.captures[0].observations.hiddenUnloadedImages = [4];
+    await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(hidden));
+    await expect(readEvidence(directory)).rejects.toThrow('invalid hidden image observations');
+  });
 });

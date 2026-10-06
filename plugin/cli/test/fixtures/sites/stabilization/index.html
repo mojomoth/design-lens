@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stabilization Fixture — Design Lens</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Reproduces the captures that never completed: a played video that has a poster, a carousel
+       whose loading=lazy slides sit in a horizontally clipped track (native lazy loading never
+       fires there), and loading=lazy icons inside a display:none menu. -->
+  <header>
+    <span class="brand">Stabilization</span>
+    <button class="menu-toggle" type="button">Menu</button>
+    <nav class="menu" hidden>
+      <a href="#one"><img src="img/menu-1.svg" loading="lazy" width="24" height="24" alt="">One</a>
+      <a href="#two"><img src="img/menu-2.svg" loading="lazy" width="24" height="24" alt="">Two</a>
+      <a href="#three"><img src="img/menu-3.svg" loading="lazy" width="24" height="24" alt="">Three</a>
+    </nav>
+  </header>
+  <main>
+    <video id="hero" class="hero" autoplay muted loop playsinline poster="img/poster.png">
+      <source src="media/clip.webm" type="video/webm">
+    </video>
+    <section class="carousel" aria-label="Slides">
+      <div class="track">
+        <img class="slide" src="img/slide-1.svg" loading="lazy" alt="Slide one">
+        <img class="slide" src="img/slide-2.svg" loading="lazy" alt="Slide two">
+        <img class="slide" src="img/slide-3.svg" loading="lazy" alt="Slide three">
+        <img class="slide" src="img/slide-4.svg" loading="lazy" alt="Slide four">
+        <img class="slide" src="img/slide-5.svg" loading="lazy" alt="Slide five">
+        <img class="slide" src="img/slide-6.svg" loading="lazy" alt="Slide six">
+      </div>
+    </section>
+  </main>
+  <script>
+    // A tracker-style node that exists only after the last (clipped, lazy) slide has loaded, i.e.
+    // after the capture stamped the DOM: it must still be stamped and measurable.
+    document.querySelector('.slide:last-child').addEventListener('load', () => {
+      const pixel = new Image(1, 1);
+      pixel.className = 'late-pixel';
+      pixel.alt = '';
+      pixel.style.display = 'none';
+      pixel.src = 'img/menu-1.svg';
+      document.body.append(pixel);
+    });
+  </script>
+</body>
+</html>
